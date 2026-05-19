@@ -1,25 +1,40 @@
 [package]
 name = "momentum-app"
 version = "0.1.0"
-description = "A Tauri App"
+description = "Momentum — Tauri desktop client"
 authors = ["you"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "momentum_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.6.2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2.11.2", features = [] }
 tauri-plugin-opener = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-store = "2"
+
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+url = "2"
+reqwest = { version = "0.13.3", features = ["json"] }
 
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "sync",
+] }
+
+tokio-tungstenite = { version = "0.29", features = ["native-tls"] }
+futures-util = "0.3"
+
+chrono = { version = "0.4", features = ["clock", "serde"] }
+base64 = "0.22.1"
+rand = "0.10.1"
+sha2 = "0.11.0"
+tauri-plugin-single-instance = { version = "2.4.2", features = ["deep-link"] }
