@@ -1,4 +1,4 @@
-- if we need more api fetch from front (whip.ts) do a clean one
+->  README_STREAM_V2.MD pour ffmpeg
 
 # Tauri + React + Typescript
 
@@ -17,12 +17,12 @@ npm run tauri dev
 
 Ces features sont **hors scope v1** mais l'architecture ci-dessus les anticipe sans coût supplémentaire.
 
-### ffmpeg / RTMP (v2)
+## Possible V2 Improvements
 
-- Swap `WhipStreamHandle` → `FfmpegStreamHandle` derrière le trait `StreamHandle`
-- Bundler ffmpeg dans le binaire Tauri (`tauri-plugin-shell` avec `sidecar`)
-- Config ffmpeg : DXGI + WASAPI, preset `veryfast`, dual tee (local `.mp4` + RTMP)
-- L'interface Rust ne change pas, seul `stream/whip.rs` est remplacé par `stream/ffmpeg.rs`
+- Add a “Force Update” action in the app linked to the API
+- Add a periodic update check (background or interval-based)
+- Add a setting to choose the folder path where runs/files are saved
+- Add a setting to automatically keep or delete files after upload
 
 ### YouTube Upload (v2)
 
@@ -38,23 +38,3 @@ Ces features sont **hors scope v1** mais l'architecture ci-dessus les anticipe s
 - Forward des split events au backend via la WS existante `/ws/app`
 - Icône tray warning si LiveSplit non détecté
 - Reconnect loop indépendante de la WS backend
-
-### Qualité de stream (Settings v2)
-
-- Résolution : 720p / 1080p / source
-- Framerate : 30 / 60 fps
-- Bitrate : auto / manuel
-- Source audio : loopback système / micro / les deux
-- Ces settings sont passés dans `StreamConfig` → `StreamHandle::start()`
-
-### Multi-plateforme (v3+)
-
-- v1 : Windows uniquement (DXGI + WASAPI dépendent de Windows)
-- v2 : macOS possible une fois ffmpeg en place (AVFoundation + CoreAudio à la place de DXGI + WASAPI)
-- Linux : OBS virtual camera workaround si demandé par la communauté
-
-### Code signing (à faire avant distribution publique) (V4+)
-
-- Azure Artifact Signing (~$10/mois) intégré dans le GitHub Actions release workflow
-- `TAURI_SIGNING_PRIVATE_KEY` : clé Ed25519 pour la signature des mises à jour Tauri (différente du signing Windows)
-- SmartScreen: la réputation se construit sur les premières semaines de distribution
