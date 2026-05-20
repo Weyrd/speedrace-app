@@ -1,7 +1,8 @@
 {
   "login": {
     "connect": "Login via web",
-    "connecting": "Connecting..."
+    "connecting": "Connecting...",
+    "disconnect": "Disconnect"
   },
   "idle": {
     "title": "Waiting",

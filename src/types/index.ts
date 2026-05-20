@@ -48,6 +48,11 @@ export interface CountdownPayload {
   race_start_at: string;
 }
 
+export interface LobbyClosedPayload {
+  lobby_id: string;
+  reason: string;
+}
+
 export const AuthState = {
   Authenticated: "authenticated",
   Unauthenticated: "unauthenticated",

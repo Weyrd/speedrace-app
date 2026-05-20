@@ -1,7 +1,8 @@
 {
   "login": {
     "connect": "Se connecter au web",
-    "connecting": "Connexion..."
+    "connecting": "Connexion...",
+    "disconnect": "Déconnexion"
   },
   "idle": {
     "title": "En attente",

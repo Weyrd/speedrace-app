@@ -25,6 +25,7 @@ export default function App() {
   const {
     store,
     handleLogin,
+    isConnected,
     handleLogout,
     handleStreamReady,
     handleStopStream,
@@ -38,8 +39,10 @@ export default function App() {
         return (
           <Login
             onLogin={handleLogin}
-            isConnecting={store.appState === AppState.Connecting}
-          />
+            onLogout={handleLogout}
+            isConnected={isConnected}
+            isAuthenticating={store.appState === AppState.Connecting}
+            />
         );
 
       case AppState.Idle:
@@ -65,6 +68,7 @@ export default function App() {
             wsStatus={store.wsStatus}
             lobby={store.lobby!}
             onStop={handleStopStream}
+            onLogout={handleLogout}
           />
         );
 
@@ -77,6 +81,7 @@ export default function App() {
             lobby={store.lobby!}
             raceStartAt={store.raceStartAt!}
             onStop={handleStopStream}
+            onLogout={handleLogout}
           />
         );
 

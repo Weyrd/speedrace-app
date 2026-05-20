@@ -1,10 +1,10 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-import frCommon from "../../public/locales/fr/common.json";
-import frApp from "../../public/locales/fr/app.json";
-import enCommon from "../../public/locales/en/common.json";
-import enApp from "../../public/locales/en/app.json";
+import frCommon from "../locales/fr/common.json";
+import frApp from "../locales/fr/app.json";
+import enCommon from "../locales/en/common.json";
+import enApp from "../locales/en/app.json";
 
 i18n.use(initReactI18next).init({
   resources: {

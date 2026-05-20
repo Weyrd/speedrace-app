@@ -1,8 +1,7 @@
 
 export class WhipClient {
   private pc: RTCPeerConnection | null = null;
-  private resourceUrl: string | null = null; 
-
+  private resourceUrl: string | null = null;
 
   async start(whipUrl: string, stream: MediaStream): Promise<void> {
     if (this.pc) {
@@ -10,7 +9,7 @@ export class WhipClient {
     }
 
     this.pc = new RTCPeerConnection({
-      iceServers: [],
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
     for (const track of stream.getTracks()) {
@@ -35,7 +34,6 @@ export class WhipClient {
     const answerSdp = await res.text();
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
   }
-
 
   stop(): void {
     if (this.pc) {
@@ -70,8 +68,8 @@ export class WhipClient {
       }
 
       const timeout = setTimeout(() => {
-        reject(new Error("[whip] ICE gathering timed out after 10s"));
-      }, 10_000);
+        resolve(this.pc!.localDescription!);
+      }, 3_000);
 
       this.pc.onicegatheringstatechange = () => {
         if (this.pc?.iceGatheringState === "complete") {
