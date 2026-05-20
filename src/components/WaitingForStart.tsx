@@ -11,16 +11,17 @@ interface Props {
   wsStatus: WsStatus;
   lobby: LobbySetup;
   onStop: () => void;
+  onLogout: () => void;
 }
 
-export default function WaitingForStart({ user, wsStatus, lobby, onStop }: Props) {
+export default function WaitingForStart({ user, wsStatus, lobby, onStop, onLogout }: Props) {
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
 
   return (
     <div className="relative flex flex-col bg-bg0 rounded-md border border-border overflow-hidden">
       <TitleBar />
-      <Header user={user} wsStatus={wsStatus} />
+      <Header user={user} wsStatus={wsStatus} onSettingsClick={onLogout} />
       <div className="px-3 py-3.5 flex flex-col gap-2.5">
 
         {/* Status row */}

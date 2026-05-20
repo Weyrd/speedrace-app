@@ -7,7 +7,14 @@ pub enum ServerMessage {
     LobbySetup(LobbySetupMsg),
     Countdown(CountdownMsg),
     RaceResults(RaceResultsMsg),
+    LobbyClosed(LobbyClosedMsg),
     Ping,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LobbyClosedMsg {
+    pub lobby_id: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

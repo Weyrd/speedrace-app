@@ -149,14 +149,13 @@ export default function StreamSetup({
                 "repeating-linear-gradient(0deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 3px)",
             }}
           />
-          {isPreviewing ? (
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              className="w-full h-full object-cover"
-            />
-          ) : (
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            className={`w-full h-full object-cover ${isPreviewing ? "" : "hidden"}`}
+          />
+          {!isPreviewing && (
             <span className="text-2xs text-dim font-mono tracking-wide z-10 group-hover:text-muted transition-colors">
               {t("stream.preview_placeholder")}
             </span>

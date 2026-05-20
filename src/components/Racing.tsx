@@ -15,6 +15,7 @@ interface Props {
   lobby: LobbySetup;
   raceStartAt: string;
   onStop: () => void;
+  onLogout: () => void;
 }
 
 // ─── Clock store (externe à React, zéro useEffect) ───────────────────────────
@@ -40,7 +41,7 @@ function tick() {
 function getNow() { return Date.now(); }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop }: Props) {
+export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop, onLogout }: Props) {
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
   // useSyncExternalStore doit être appelé dans le composant, pas dans une fonction helper
@@ -56,7 +57,7 @@ export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop }: P
   return (
     <div className="relative flex flex-col bg-bg0 rounded-md border border-border overflow-hidden">
       <TitleBar />
-      <Header user={user} wsStatus={wsStatus} />
+      <Header user={user} wsStatus={wsStatus} onSettingsClick={onLogout} />
       <div className="px-3 py-3.5 flex flex-col gap-2.5">
 
         <div className="flex items-center justify-between">

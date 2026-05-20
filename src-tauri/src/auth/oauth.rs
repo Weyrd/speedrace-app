@@ -106,6 +106,7 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
             {
                 let mut guard = shared_state.lock().unwrap();
                 guard.user = Some(stored.user.clone());
+                guard.app_state = crate::models::AppState::Connecting;
             }
 
             eprintln!("[auth] emitting authenticated state for user: {}", stored.user.username);
@@ -120,6 +121,18 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
             );
 
             crate::lifecycle::start_background_loops(&app, &shared_state);
+
+
+            {
+                let mut guard = shared_state.lock().unwrap();
+                if guard.ws_status == crate::models::WsStatus::Connected
+                    && guard.app_state == crate::models::AppState::Connecting
+                {
+                    guard.app_state = crate::models::AppState::Idle;
+                    drop(guard);
+                    let _ = app.emit(crate::events::APP_STATE, crate::models::AppState::Idle);
+                }
+            }
         }
 
         Err(e) => {

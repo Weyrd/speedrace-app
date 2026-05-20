@@ -13,8 +13,7 @@
 
 export class WhipClient {
   private pc: RTCPeerConnection | null = null;
-  private resourceUrl: string | null = null; 
-
+  private resourceUrl: string | null = null;
 
   async start(whipUrl: string, stream: MediaStream): Promise<void> {
     if (this.pc) {
@@ -22,9 +21,7 @@ export class WhipClient {
     }
 
     this.pc = new RTCPeerConnection({
-      // No ICE servers needed for a direct MediaMTX setup.
-      // Add STUN/TURN here if the server is behind NAT in the future.
-      iceServers: [],
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
     // Add all tracks from the capture stream
@@ -53,7 +50,6 @@ export class WhipClient {
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
   }
 
-
   stop(): void {
     // Tear down WebRTC/Delete whipe ressource
     if (this.pc) {
@@ -75,8 +71,8 @@ export class WhipClient {
     );
   }
 
-// Heleper
-  // create WHIP and wait for ICE  to complete
+  // Heleper
+  // create WHIP offer and gather ICE candidates (soft timeout like the PoC)
   private _gatherCompleteOffer(): Promise<RTCSessionDescriptionInit> {
     return new Promise(async (resolve, reject) => {
       if (!this.pc) return reject(new Error("[whip] no peer connection"));
@@ -90,9 +86,12 @@ export class WhipClient {
         return;
       }
 
+      // Resolve after 3s regardless — host candidates are available immediately,
+      // STUN candidates may or may not arrive in time but aren't required for
+      // direct server connections.
       const timeout = setTimeout(() => {
-        reject(new Error("[whip] ICE gathering timed out after 10s"));
-      }, 10_000);
+        resolve(this.pc!.localDescription!);
+      }, 3_000);
 
       this.pc.onicegatheringstatechange = () => {
         if (this.pc?.iceGatheringState === "complete") {

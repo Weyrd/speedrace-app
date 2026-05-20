@@ -11,6 +11,7 @@ use crate::config;
 use crate::models::{AppState, LobbyStatus, WsStatus};
 use crate::state::SharedState;
 use crate::ws::commands::{WsCommand, MSG_TYPE_STREAM_READY, MSG_TYPE_STREAM_STOPPED};
+use crate::ws_debug;
 
 const CMD_CHANNEL_SIZE: usize = 32;
 
@@ -37,20 +38,37 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
 
         let url = config::ws_url(&token);
         emit_ws_status(&app, &state, WsStatus::Connecting);
+        ws_debug!("connecting to {}", url);
 
         match connect_async(&url).await {
             Ok((ws_stream, _)) => {
                 backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS); // reset on success
                 emit_ws_status(&app, &state, WsStatus::Connected);
+                ws_debug!("connected successfully");
 
                 // Fetch current lobby on (re)connect to recover missed messages
                 let current = crate::api::lobby::fetch_current_lobby(&app).await;
                 if let Some(lobby_resp) = current {
-                    let mut guard = state.lock().unwrap();
-                    let status = LobbyStatus::from_opt(lobby_resp.status.as_deref());
-                    guard.app_state = status.to_app_state();
-                    guard.lobby = Some(lobby_resp.lobby);
-                    guard.race_start_at = lobby_resp.race_start_at;
+                    let new_app_state;
+                    {
+                        let mut guard = state.lock().unwrap();
+                        let status = LobbyStatus::from_opt(lobby_resp.status.as_deref());
+                        guard.app_state = status.to_app_state();
+                        guard.lobby = Some(lobby_resp.lobby.clone());
+                        guard.race_start_at = lobby_resp.race_start_at.clone();
+                        new_app_state = guard.app_state.clone();
+                    }
+                    let _ = app.emit(APP_STATE, &new_app_state);
+                    let _ = app.emit(
+                        crate::events::WS_LOBBY_SETUP,
+                        crate::ws::messages::LobbySetupMsg {
+                            lobby_id: lobby_resp.lobby.lobby_id,
+                            stream_key: lobby_resp.lobby.stream_key,
+                            whip_url: lobby_resp.lobby.whip_url,
+                            game_name: lobby_resp.lobby.game_name,
+                            category_name: lobby_resp.lobby.category_name,
+                        },
+                    );
                 }
 
                 let (mut write, mut read) = ws_stream.split();
@@ -61,6 +79,7 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                         msg = read.next() => {
                             match msg {
                                 Some(Ok(Message::Text(text))) => {
+                                    ws_debug!("received message: {}", text);
                                     crate::ws::handler::handle_message(&text, &app, &state);
                                 }
                                 Some(Ok(Message::Close(_))) | None => {

@@ -4,6 +4,7 @@ import {
   APP_STATE,
   WS_STATUS,
   WS_LOBBY_SETUP,
+  WS_LOBBY_CLOSED,
   WS_COUNTDOWN,
   WS_RACE_RESULTS,
 } from "./events";
@@ -11,6 +12,7 @@ import type {
   AppState,
   AuthStatePayload,
   LobbySetup,
+  LobbyClosedPayload,
   CountdownPayload,
   WsStatus,
   RaceResults,
@@ -52,6 +54,10 @@ export function onWsStatus(cb: (payload: WsStatus) => void): UnlistenFn {
 
 export function onLobbySetup(cb: (payload: LobbySetup) => void): UnlistenFn {
   return safeListen<LobbySetup>(WS_LOBBY_SETUP, cb);
+}
+
+export function onLobbyClosed(cb: (payload: LobbyClosedPayload) => void): UnlistenFn {
+  return safeListen<LobbyClosedPayload>(WS_LOBBY_CLOSED, cb);
 }
 
 export function onCountdown(

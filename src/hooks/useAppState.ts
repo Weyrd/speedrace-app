@@ -1,10 +1,19 @@
-import { useState, useEffect, useRef } from "react";
-import { AppState, AuthState, WsStatus, type AppStore } from "../types";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AppState,
+  AuthState,
+  WsStatus,
+  type AppStore,
+  type LobbySetup,
+  type User,
+} from "../types";
 import {
   onAuthState,
   onAppState,
   onWsStatus,
   onLobbySetup,
+  onLobbyClosed,
   onCountdown,
   onRaceResults,
 } from "../lib/listeners";
@@ -17,87 +26,157 @@ import {
 } from "../lib/commands";
 import type { WhipClient } from "../stream/whip";
 
-const initialState: AppStore = {
+// ── Query key ────────────────────────────────────────────────────────────────
+
+const APP_STATE_KEY = ["app:state"] as const;
+
+// ── Server-owned state (everything except wsStatus which is client-only) ─────
+
+type ServerStore = {
+  appState: AppState;
+  user: User | null;
+  lobby: LobbySetup | null;
+  raceStartAt: string | null;
+};
+
+const serverInitial: ServerStore = {
   appState: AppState.Unauthenticated,
   user: null,
-  wsStatus: WsStatus.Disconnected,
   lobby: null,
   raceStartAt: null,
 };
 
-type PatchFn = (partial: Partial<AppStore>) => void;
-
-
-function useAppStore() {
-  const [store, setStore] = useState<AppStore>(initialState);
-  const patch: PatchFn = (partial) =>
-    setStore((prev) => ({ ...prev, ...partial }));
-  return { store, patch };
+async function fetchAppState(): Promise<ServerStore> {
+  const { app_state, lobby, race_start_at } = await getLobbyState();
+  const user =
+    app_state !== AppState.Unauthenticated ? await getCurrentUser() : null;
+  return { appState: app_state, user, lobby, raceStartAt: race_start_at };
 }
 
-function useAppEvents(patch: PatchFn, whipRef: React.MutableRefObject<WhipClient | null>) {
-  useEffect(() => {
-    getLobbyState()
-      .then(({ app_state, lobby, race_start_at }) => {
-        patch({ appState: app_state, lobby, raceStartAt: race_start_at });
-        if (app_state !== AppState.Unauthenticated) {
-          getCurrentUser().then((user) => {
-            if (user) patch({ user });
-          });
-        }
-      })
-      .catch((e) => console.error("[state] getLobbyState error:", e));
-  }, []);
+// ── Hook ─────────────────────────────────────────────────────────────────────
 
+export function useAppState() {
+  const queryClient = useQueryClient();
+  const whipRef = useRef<WhipClient | null>(null);
+  // Guard against calling openLogin() when a flow is already pending in Tauri.
+  const loginPendingRef = useRef(false);
+  // wsStatus is purely client-driven (no server fetch), so it lives in useState.
+  const [wsStatus, setWsStatus] = useState<WsStatus>(WsStatus.Disconnected);
+
+  // ── Server state via TanStack Query ──────────────────────────────────────
+  // staleTime: Infinity — we never want automatic background refetches;
+  // all updates come from events (setQueryData) or explicit invalidation.
+  // refetchInterval polls every second while waiting for WS to come up.
+  const { data: serverStore = serverInitial } = useQuery<ServerStore>({
+    queryKey: APP_STATE_KEY,
+    queryFn: fetchAppState,
+    staleTime: Infinity,
+    refetchInterval: (query) =>
+      query.state.data?.appState === AppState.Connecting ? 1_000 : false,
+  });
+
+  // Helper: patch the query cache (replaces setState for server-owned fields).
+  function patchServer(partial: Partial<ServerStore>) {
+    queryClient.setQueryData<ServerStore>(
+      APP_STATE_KEY,
+      (prev = serverInitial) => ({
+        ...prev,
+        ...partial,
+      }),
+    );
+  }
+
+  // ── External system: Tauri event subscriptions ───────────────────────────
+  // This is the ONLY useEffect — subscribing to an external push-based source
+  // is the canonical valid use case for useEffect.
   useEffect(() => {
     const unsubs = [
       onAuthState((payload) => {
         if (payload.state === AuthState.Authenticated) {
-          patch({ appState: AppState.Connecting, user: payload.user });
+          loginPendingRef.current = false;
+          patchServer({ appState: AppState.Connecting, user: payload.user });
+          // Fetch fresh server state now that we have a session.
+          queryClient.invalidateQueries({ queryKey: APP_STATE_KEY });
         } else {
           whipRef.current?.stop();
           whipRef.current = null;
-          patch(initialState);
+          loginPendingRef.current = false;
+          setWsStatus(WsStatus.Disconnected);
+          queryClient.setQueryData(APP_STATE_KEY, serverInitial);
         }
       }),
 
-      onAppState((appState) => patch({ appState })),
+      onAppState((appState) => patchServer({ appState })),
 
-      onWsStatus((wsStatus) => patch({ wsStatus })),
+      onWsStatus((status) => {
+        setWsStatus(status);
+        if (status === WsStatus.Connected) {
+          // Sync app state from server after WS reconnect.
+          queryClient.invalidateQueries({ queryKey: APP_STATE_KEY });
+        }
+      }),
 
-      onLobbySetup((lobby) => patch({ lobby, appState: AppState.StreamSetup })),
+      onLobbySetup((lobby) =>
+        patchServer({ lobby, appState: AppState.StreamSetup }),
+      ),
+
+      onLobbyClosed(() => {
+        whipRef.current?.stop();
+        whipRef.current = null;
+        patchServer({ appState: AppState.Idle, lobby: null, raceStartAt: null });
+      }),
 
       onCountdown((payload) =>
-        patch({ raceStartAt: payload.race_start_at, appState: AppState.Racing }),
+        patchServer({
+          raceStartAt: payload.race_start_at,
+          appState: AppState.Racing,
+        }),
       ),
 
       onRaceResults(() => {
         whipRef.current?.stop();
         whipRef.current = null;
-        patch({ appState: AppState.Idle, lobby: null, raceStartAt: null });
+        patchServer({
+          appState: AppState.Idle,
+          lobby: null,
+          raceStartAt: null,
+        });
       }),
     ];
 
     return () => unsubs.forEach((fn) => fn());
-  }, []);
-}
+  }, []); // stable: queryClient and refs never change
 
+  // ── Actions ───────────────────────────────────────────────────────────────
 
-function useAppActions(patch: PatchFn, whipRef: React.MutableRefObject<WhipClient | null>) {
   async function handleLogin() {
-    patch({ appState: AppState.Connecting });
+    // Prevent calling openLogin() when a Tauri OAuth flow is already in flight.
+    // Restore Connecting state so the Disconnect button stays visible.
+    if (loginPendingRef.current) {
+      patchServer({ appState: AppState.Connecting });
+      return;
+    }
+    loginPendingRef.current = true;
+    patchServer({ appState: AppState.Connecting });
     try {
       await openLogin();
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // "Login already in progress" means Tauri still has an active OAuth flow.
+      // Stay in Connecting so the user can click Disconnect to cancel it.
+      if (msg.toLowerCase().includes("already in progress")) return;
       console.error("[auth] open_login error", e);
-      patch({ appState: AppState.Unauthenticated });
+      loginPendingRef.current = false;
+      patchServer({ appState: AppState.Unauthenticated });
     }
   }
 
   async function handleLogout() {
     whipRef.current?.stop();
     whipRef.current = null;
-    patch(initialState);
+    loginPendingRef.current = false;
+    setWsStatus(WsStatus.Disconnected);
+    queryClient.setQueryData(APP_STATE_KEY, serverInitial);
     try {
       await logout();
     } catch (e) {
@@ -107,7 +186,7 @@ function useAppActions(patch: PatchFn, whipRef: React.MutableRefObject<WhipClien
 
   function handleStreamReady(client: WhipClient) {
     whipRef.current = client;
-    patch({ appState: AppState.WaitingForStart });
+    patchServer({ appState: AppState.WaitingForStart });
   }
 
   async function handleStopStream() {
@@ -118,24 +197,28 @@ function useAppActions(patch: PatchFn, whipRef: React.MutableRefObject<WhipClien
     } catch (e) {
       console.error("[stream] send_stream_stopped error", e);
     }
-    patch({ appState: AppState.Idle, lobby: null, raceStartAt: null });
+    // If we were just waiting (lobby still alive), go back to StreamSetup.
+    // If racing/finished, the lobby is done — reset to Idle.
+    if (serverStore.appState === AppState.WaitingForStart) {
+      patchServer({ appState: AppState.StreamSetup, raceStartAt: null });
+    } else {
+      patchServer({ appState: AppState.Idle, lobby: null, raceStartAt: null });
+    }
   }
 
-  return { handleLogin, handleLogout, handleStreamReady, handleStopStream };
-}
+  // ── Derived store (merge server state + client wsStatus) ─────────────────
 
+  const store: AppStore = { ...serverStore, wsStatus };
 
-export function useAppState() {
-  const { store, patch } = useAppStore();
-  const whipRef = useRef<WhipClient | null>(null);
-
-  useAppEvents(patch, whipRef);
-  const actions = useAppActions(patch, whipRef);
+  const isConnected = wsStatus === WsStatus.Connected;
 
   return {
     store,
-    ...actions,
-    _patch: patch,
+    isConnected,
+    handleLogin,
+    handleLogout,
+    handleStreamReady,
+    handleStopStream,
+    _patch: patchServer,
   };
 }
-
