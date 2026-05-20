@@ -1,9 +1,10 @@
 
 export class WhipClient {
   private pc: RTCPeerConnection | null = null;
-  private resourceUrl: string | null = null; // WHIP resource URL from Location header
+  private resourceUrl: string | null = null; 
 
-    async start(whipUrl: string, stream: MediaStream): Promise<void> {
+
+  async start(whipUrl: string, stream: MediaStream): Promise<void> {
     if (this.pc) {
       throw new Error("[whip] already started — call stop() first");
     }
@@ -35,7 +36,8 @@ export class WhipClient {
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
   }
 
-    stop(): void {
+
+  stop(): void {
     if (this.pc) {
       this.pc.close();
       this.pc = null;
@@ -47,7 +49,7 @@ export class WhipClient {
     }
   }
 
-    isLive(): boolean {
+  isLive(): boolean {
     return (
       this.pc !== null &&
       (this.pc.connectionState === "connected" ||
@@ -55,8 +57,7 @@ export class WhipClient {
     );
   }
 
-
-    private _gatherCompleteOffer(): Promise<RTCSessionDescriptionInit> {
+  private _gatherCompleteOffer(): Promise<RTCSessionDescriptionInit> {
     return new Promise(async (resolve, reject) => {
       if (!this.pc) return reject(new Error("[whip] no peer connection"));
 

@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   AUTH_STATE,
+  APP_STATE,
   WS_STATUS,
   WS_LOBBY_SETUP,
   WS_COUNTDOWN,
@@ -12,36 +12,11 @@ import type {
   AuthStatePayload,
   LobbySetup,
   CountdownPayload,
-  User,
   WsStatus,
-  LobbyStateSnapshot,
+  RaceResults,
 } from "../types";
 
 type UnlistenFn = () => void;
-
-export async function getAppState(): Promise<AppState> {
-  return invoke<AppState>("get_app_state");
-}
-
-export async function openLogin(): Promise<void> {
-  return invoke("open_login");
-}
-
-export async function getCurrentUser(): Promise<User | null> {
-  return invoke<User | null>("get_current_user");
-}
-
-export async function logout(): Promise<void> {
-  return invoke("logout");
-}
-
-export async function notifyStreamReady(lobbyId: string): Promise<void> {
-  return invoke("notify_stream_ready", { lobbyId });
-}
-
-export async function notifyStreamStopped(): Promise<void> {
-  return invoke("notify_stream_stopped");
-}
 
 function safeListen<T>(event: string, cb: (payload: T) => void): UnlistenFn {
   let cancelled = false;
@@ -67,6 +42,10 @@ export function onAuthState(
   return safeListen<AuthStatePayload>(AUTH_STATE, cb);
 }
 
+export function onAppState(cb: (payload: AppState) => void): UnlistenFn {
+  return safeListen<AppState>(APP_STATE, cb);
+}
+
 export function onWsStatus(cb: (payload: WsStatus) => void): UnlistenFn {
   return safeListen<WsStatus>(WS_STATUS, cb);
 }
@@ -81,10 +60,6 @@ export function onCountdown(
   return safeListen<CountdownPayload>(WS_COUNTDOWN, cb);
 }
 
-export function onRaceResults(cb: (payload: unknown) => void): UnlistenFn {
-  return safeListen<unknown>(WS_RACE_RESULTS, cb);
-}
-
-export async function getLobbyState(): Promise<LobbyStateSnapshot> {
-  return invoke<LobbyStateSnapshot>("get_lobby_state");
+export function onRaceResults(cb: (payload: RaceResults) => void): UnlistenFn {
+  return safeListen<RaceResults>(WS_RACE_RESULTS, cb);
 }

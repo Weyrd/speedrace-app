@@ -1,8 +1,8 @@
-use crate::auth::oauth::{emit_auth_state, AuthStatePayload};
+use crate::auth::oauth::emit_auth_state;
 use crate::auth::token_store::TokenStore;
 use crate::config;
-use crate::state::{AppState, SharedState, LobbyStateSnapshot};
-use crate::ws::commands::WsCommand;
+use crate::models::{AppState, AuthStatePayload};
+use crate::state::SharedState;
 use tauri::{AppHandle, State};
 
 #[tauri::command]
@@ -59,52 +59,3 @@ pub async fn logout(app: AppHandle, state: State<'_, SharedState>) -> Result<(),
 
     Ok(())
 }
-
-
-#[tauri::command]
-pub fn notify_stream_ready(lobby_id: String, state: State<SharedState>) -> Result<(), String> {
-    let sender = {
-        let guard = state.lock().map_err(|e| e.to_string())?;
-        guard.ws_cmd_tx.clone()
-    };
-
-    if let Some(tx) = sender {
-        let _ = tx.try_send(WsCommand::StreamReady { lobby_id });
-    }
-
-    {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
-        guard.app_state = AppState::WaitingForStart;
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-pub fn notify_stream_stopped(state: State<SharedState>, app: AppHandle) -> Result<(), String> {
-    use crate::events::APP_STATE;
-    use tauri::Emitter;
-
-    {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
-        guard.app_state = AppState::Idle;
-        guard.lobby = None;
-        guard.race_start_at = None;
-    }
-
-    let _ = app.emit(APP_STATE, AppState::Idle);
-
-    Ok(())
-}
-
-
-#[tauri::command]
-pub fn get_lobby_state(state: State<SharedState>) -> Result<LobbyStateSnapshot, String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
-    Ok(LobbyStateSnapshot {
-        app_state: guard.app_state.clone(),
-        lobby: guard.lobby.clone(),
-        race_start_at: guard.race_start_at.clone(),
-    })
-}
- 
