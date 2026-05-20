@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import Header from "../components/Header";
 import TitleBar from "../components/TitleBar";
 import type { User, LobbySetup, WsStatus } from "../types";
-import { notifyStreamReady } from "../lib/tauri";
+import { sendStreamReady } from "../lib/commands";
 import { WhipClient } from "../stream/whip";
 
 interface Props {
@@ -27,6 +28,7 @@ export default function StreamSetup({
   onStreamReady,
   onLogout,
 }: Props) {
+  const { t } = useTranslation("app");
   const [source, setSource] = useState<Source>("screen");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -74,7 +76,7 @@ export default function StreamSetup({
     } catch (e) {
       // User cancelled permission prompt
       if (e instanceof DOMException && e.name === "NotAllowedError") return;
-      setError("Impossible d'accéder à la source. Réessaie.");
+      setError(t("stream.error_source"));
     }
   }, [source, stopPreview]);
 
@@ -88,7 +90,7 @@ export default function StreamSetup({
 
     try {
       await client.start(lobby.whip_url, streamRef.current);
-      await notifyStreamReady(lobby.lobby_id);
+      await sendStreamReady(lobby.lobby_id);
       // Pass the live client up 
       onStreamReady(client);
     } catch (e) {
@@ -96,7 +98,7 @@ export default function StreamSetup({
       client.stop();
       whipRef.current = null;
       setError(
-        e instanceof Error ? e.message : "Erreur de connexion au stream."
+        e instanceof Error ? e.message : t("stream.error_connection")
       );
       setIsPublishing(false);
     }
@@ -110,7 +112,7 @@ export default function StreamSetup({
 
         {/* Lobby badge */}
         <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted font-mono tracking-wide">Lobby</span>
+          <span className="text-2xs text-muted font-mono tracking-wide">{t("stream.lobby")}</span>
           <span className="bg-bg2 border border-border rounded px-2 py-0.5 text-2xs font-mono tracking-wide">
             <span className="text-orange">{lobby.lobby_id}</span>
           </span>
@@ -130,7 +132,7 @@ export default function StreamSetup({
                 }
               `}
             >
-              {s === "screen" ? "Écran" : "Caméra"}
+              {s === "screen" ? t("stream.source_screen") : t("stream.source_camera")}
             </button>
           ))}
         </div>
@@ -156,7 +158,7 @@ export default function StreamSetup({
             />
           ) : (
             <span className="text-2xs text-dim font-mono tracking-wide z-10 group-hover:text-muted transition-colors">
-              PREVIEW — cliquer pour capturer
+              {t("stream.preview_placeholder")}
             </span>
           )}
         </div>
@@ -172,7 +174,7 @@ export default function StreamSetup({
           disabled={!isPreviewing || isPublishing}
           className="w-full py-2 text-2xs font-mono tracking-wider bg-red text-white rounded border-none cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {isPublishing ? "Connexion au stream..." : "● PUBLIER"}
+          {isPublishing ? t("stream.publishing") : t("stream.publish")}
         </button>
       </div>
     </div>

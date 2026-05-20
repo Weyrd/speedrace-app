@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import Header from "../components/Header";
 import TitleBar from "../components/TitleBar";
 import type { User, WsStatus } from "../types";
@@ -9,15 +10,17 @@ interface Props {
 }
 
 export default function Idle({ user, wsStatus, onLogout }: Props) {
+  const { t } = useTranslation("app");
+
   return (
     <div className="flex flex-col bg-bg0 rounded-md border border-border overflow-hidden">
       <TitleBar />
       <Header user={user} wsStatus={wsStatus} onSettingsClick={onLogout} />
       <div className="flex flex-col items-center justify-center gap-2 px-3 py-8 text-center">
         <span className="text-3xl text-dim">⏳</span>
-        <p className="text-xs text-text font-mono tracking-wide font-bold">En attente</p>
-        <p className="text-2xs text-dim font-mono tracking-wide leading-relaxed">
-          Rejoins un lobby sur<br />le web pour commencer.
+        <p className="text-xs text-text font-mono tracking-wide font-bold">{t("idle.title")}</p>
+        <p className="text-2xs text-dim font-mono tracking-wide leading-relaxed whitespace-pre-line">
+          {t("idle.description")}
         </p>
       </div>
     </div>

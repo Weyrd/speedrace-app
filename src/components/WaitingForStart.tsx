@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import Header from "../components/Header";
 import TitleBar from "../components/TitleBar";
 import StopModal from "../components/StopModal";
+import { LivePill, LobbyBadge } from "../components/ui/RaceStatus";
 import type { User, LobbySetup, WsStatus } from "../types";
 
 interface Props {
@@ -13,6 +15,7 @@ interface Props {
 
 export default function WaitingForStart({ user, wsStatus, lobby, onStop }: Props) {
   const [showModal, setShowModal] = useState(false);
+  const { t } = useTranslation("app");
 
   return (
     <div className="relative flex flex-col bg-bg0 rounded-md border border-border overflow-hidden">
@@ -29,18 +32,18 @@ export default function WaitingForStart({ user, wsStatus, lobby, onStop }: Props
         {/* Stream ok */}
         <div className="flex items-center gap-1.5 bg-green-dim border border-green-dim rounded px-2.5 py-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-green flex-shrink-0" />
-          <span className="text-2xs text-green font-mono tracking-wide">Stream actif</span>
+          <span className="text-2xs text-green font-mono tracking-wide">{t("stream.stream_active")}</span>
         </div>
 
-        <p className="text-2xs text-dim font-mono tracking-wide text-center leading-relaxed">
-          En attente que l'hôte<br />lance la race...
+        <p className="text-2xs text-dim font-mono tracking-wide text-center leading-relaxed whitespace-pre-line">
+          {t("waiting.waiting_host")}
         </p>
 
         <button
           onClick={() => setShowModal(true)}
           className="w-full py-2 text-2xs font-mono tracking-wide border border-dim text-muted rounded cursor-pointer bg-transparent hover:border-muted transition-colors"
         >
-          ▪ Arrêter le stream
+          {t("stream.stop_stream")}
         </button>
       </div>
 
@@ -52,24 +55,5 @@ export default function WaitingForStart({ user, wsStatus, lobby, onStop }: Props
         />
       )}
     </div>
-  );
-}
-
-// ─── Shared mini-components ───────────────────────────────────────────────────
-
-export function LivePill() {
-  return (
-    <span className="inline-flex items-center gap-1.5 bg-red/15 border border-red/40 rounded px-2 py-0.5 text-2xs font-mono tracking-wider text-red font-bold">
-      <span className="w-1.5 h-1.5 rounded-full bg-red animate-pulse" />
-      LIVE
-    </span>
-  );
-}
-
-export function LobbyBadge({ id }: { id: string }) {
-  return (
-    <span className="bg-bg2 border border-border rounded px-2 py-0.5 text-2xs font-mono tracking-wide text-muted">
-      <span className="text-orange">{id}</span>
-    </span>
   );
 }

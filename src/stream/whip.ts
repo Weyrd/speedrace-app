@@ -1,4 +1,3 @@
-//TODO: revoir ce fihier/delete les commentaires etc
 /**
  * WhipClient — WebRTC WHIP publisher (v1, webview-side).
  *
@@ -9,16 +8,14 @@
  *   4. Call `stop()` to tear down the RTCPeerConnection
  *
  * v2 note: when ffmpeg takes over, this file is replaced — nothing else changes.
+ * ffpeg can  whip stream? AND save in the same time?
  */
 
 export class WhipClient {
   private pc: RTCPeerConnection | null = null;
-  private resourceUrl: string | null = null; // WHIP resource URL from Location header
+  private resourceUrl: string | null = null; 
 
-  /**
-   * Starts publishing `stream` to `whipUrl`.
-   * Throws if the WHIP handshake fails for any reason.
-   */
+
   async start(whipUrl: string, stream: MediaStream): Promise<void> {
     if (this.pc) {
       throw new Error("[whip] already started — call stop() first");
@@ -36,7 +33,6 @@ export class WhipClient {
     }
 
     // Wait for ICE gathering to finish before sending the offer.
-    // This avoids trickle-ICE which MediaMTX doesn't support in WHIP mode.
     const offer = await this._gatherCompleteOffer();
 
     const res = await fetch(whipUrl, {
@@ -57,27 +53,20 @@ export class WhipClient {
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
   }
 
-  /**
-   * Stops the stream and cleans up the WHIP resource on the server.
-   */
+
   stop(): void {
-    // Tear down WebRTC — this stops the stream on MediaMTX's end too,
-    // but we also DELETE the resource to be explicit.
+    // Tear down WebRTC/Delete whipe ressource
     if (this.pc) {
       this.pc.close();
       this.pc = null;
     }
 
-    // Best-effort DELETE — don't await, don't throw
     if (this.resourceUrl) {
       fetch(this.resourceUrl, { method: "DELETE" }).catch(() => {});
       this.resourceUrl = null;
     }
   }
 
-  /**
-   * Returns true if the RTCPeerConnection is in a connected state.
-   */
   isLive(): boolean {
     return (
       this.pc !== null &&
@@ -86,12 +75,8 @@ export class WhipClient {
     );
   }
 
-  // ── Private helpers ──────────────────────────────────────────────────────
-
-  /**
-   * Creates an offer and waits for ICE gathering to complete before returning.
-   * MediaMTX requires all candidates to be in the SDP — no trickle-ICE.
-   */
+// Heleper
+  // create WHIP and wait for ICE  to complete
   private _gatherCompleteOffer(): Promise<RTCSessionDescriptionInit> {
     return new Promise(async (resolve, reject) => {
       if (!this.pc) return reject(new Error("[whip] no peer connection"));

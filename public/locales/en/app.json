@@ -1,0 +1,34 @@
+{
+  "login": {
+    "connect": "Login via web",
+    "connecting": "Connecting..."
+  },
+  "idle": {
+    "title": "Waiting",
+    "description": "Join a lobby on the web\nto get started."
+  },
+  "stream": {
+    "lobby": "Lobby",
+    "source_screen": "Screen",
+    "source_camera": "Camera",
+    "preview_placeholder": "PREVIEW — click to capture",
+    "publish": "● PUBLISH",
+    "publishing": "Connecting to stream...",
+    "error_source": "Unable to access source. Try again.",
+    "error_connection": "Stream connection error.",
+    "stream_active": "Stream active",
+    "stop_stream": "▪ Stop stream"
+  },
+  "waiting": {
+    "waiting_host": "Waiting for the host\nto start the race..."
+  },
+  "race": {
+    "in_race": "racing",
+    "stop_forfeit": "▪ Stop / Forfeit"
+  },
+  "stop_modal": {
+    "title": "⚠ Stop stream?",
+    "message_racing": "In race — this triggers\nan automatic forfeit.",
+    "message_idle": "The stream will be stopped."
+  }
+}

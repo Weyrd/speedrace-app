@@ -1,12 +1,15 @@
 use std::time::Duration;
 use tauri::AppHandle;
 
-use crate::auth::oauth::{emit_auth_state, AuthStatePayload};
+use crate::api::client::ApiResponse;
+use crate::auth::oauth::emit_auth_state;
 use crate::auth::token_store::{seconds_until_expiry, TokenStore, Tokens};
 use crate::config;
+use crate::models::AuthStatePayload;
+use crate::state::SharedState;
 
 
-pub async fn token_refresh_loop(app: AppHandle) {
+pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
     let store = TokenStore::new(app.clone());
 
     loop {
@@ -14,7 +17,7 @@ pub async fn token_refresh_loop(app: AppHandle) {
             Some(a) => a,
             None => {
                 eprintln!("[refresh] no stored auth, stopping refresh loop");
-                return;
+                break;
             }
         };
 
@@ -33,9 +36,14 @@ pub async fn token_refresh_loop(app: AppHandle) {
             Err(e) => {
                 eprintln!("[refresh] token expired or revoked: {e}");
                 logout_and_notify(&app, &store);
-                return;
+                break;
             }
         }
+    }
+
+    // Reset guard on exit
+    if let Ok(mut guard) = shared_state.lock() {
+        guard.refresh_loop_running = false;
     }
 }
 
@@ -80,9 +88,6 @@ async fn refresh_access_token(refresh_token: &str) -> Result<Tokens, String> {
         let body = resp.text().await.unwrap_or_default();
         return Err(format!("refresh failed ({status}): {body}"));
     }
-
-    #[derive(serde::Deserialize)]
-    struct ApiResponse<T> { data: T }
 
     #[derive(serde::Deserialize)]
     struct RefreshResponse {

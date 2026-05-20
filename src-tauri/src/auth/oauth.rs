@@ -1,29 +1,21 @@
+use crate::api::client::ApiResponse;
 use crate::auth::token_store::{StoredAuth, TokenStore, Tokens, UserData};
 use crate::config;
 use crate::events::AUTH_STATE;
+use crate::models::{AuthStatePayload, AuthUser};
 use crate::state::SharedState;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
 
-//TODO: reorganize this files
-#[derive(Debug, Clone, Serialize)]
-#[serde(tag = "state", rename_all = "lowercase")]
-pub enum AuthStatePayload {
-    Authenticated { user: AuthUser },
-    Unauthenticated,
-}
+static PENDING_PKCE_VERIFIER: Mutex<Option<String>> = Mutex::new(None);
 
-#[derive(Debug, Clone, Serialize)]
-pub struct AuthUser {
-    pub username: String,
-}
 
 pub fn emit_auth_state(app: &AppHandle, payload: AuthStatePayload) {
     eprintln!("[auth] emitting auth:state → {:?}", payload);
@@ -31,38 +23,14 @@ pub fn emit_auth_state(app: &AppHandle, payload: AuthStatePayload) {
     eprintln!("[auth] emit result: {:?}", result);
 }
 
-fn build_auth_url(code_challenge: &str) -> Result<String, String> {
-    let base = format!("{}{}", config::BACKEND_URL, config::AUTH_DESKTOP_PATH);
-    let mut url = Url::parse(&base).map_err(|e| format!("invalid auth base URL: {e}"))?;
- 
-    url.query_pairs_mut()
-        .append_pair("client_id", config::OAUTH_CLIENT_ID)
-        .append_pair("redirect_uri", config::OAUTH_REDIRECT_URI)
-        .append_pair("response_type", "code")
-        .append_pair("code_challenge", code_challenge)
-        .append_pair("code_challenge_method", "S256");
- 
-    Ok(url.into())
-}
-
-struct PkceChallenge {
-    code_verifier: String,
-    code_challenge: String,
-}
-
-fn generate_pkce() -> PkceChallenge {
-    let mut bytes = [0u8; 32];
-    rand::rng().fill_bytes(&mut bytes);
-    let code_verifier = URL_SAFE_NO_PAD.encode(bytes);
-    let digest = Sha256::digest(code_verifier.as_bytes());
-    let code_challenge = URL_SAFE_NO_PAD.encode(digest);
-    PkceChallenge { code_verifier, code_challenge }
-}
-
-pub static PENDING_PKCE_VERIFIER: Mutex<Option<String>> = Mutex::new(None);
-
-
 pub fn open_browser_login(app: &AppHandle) -> Result<(), String> {
+    {
+        let pending = PENDING_PKCE_VERIFIER.lock().map_err(|e| e.to_string())?;
+        if pending.is_some() {
+            return Err("Login already in progress".to_string());
+        }
+    }
+
     let pkce = generate_pkce();
 
     {
@@ -86,6 +54,7 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
 
     if let Some(error) = params.get("error") {
         eprintln!("[auth] OAuth error in callback: {error}");
+        clear_pending_verifier();
         emit_auth_state(&app, AuthStatePayload::Unauthenticated);
         return;
     }
@@ -94,6 +63,7 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
         Some(c) => c.clone(),
         None => {
             eprintln!("[auth] deep link received but no code: {url}");
+            clear_pending_verifier();
             emit_auth_state(&app, AuthStatePayload::Unauthenticated);
             return;
         }
@@ -138,31 +108,18 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
                 guard.user = Some(stored.user.clone());
             }
 
-            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-
             eprintln!("[auth] emitting authenticated state for user: {}", stored.user.username);
 
             emit_auth_state(
                 &app,
                 AuthStatePayload::Authenticated {
-                    user: AuthUser { username: stored.user.username.clone() },
+                    user: AuthUser {
+                        username: stored.user.username.clone(),
+                    },
                 },
             );
 
-            // Refresh loop in bg
-            {
-                let app_for_refresh = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    crate::auth::refresh::token_refresh_loop(app_for_refresh).await;
-                });
-            }
-            {
-                let app_for_ws = app.clone();
-                let state_for_ws = shared_state.clone();
-                tauri::async_runtime::spawn(async move {
-                    crate::ws::client::ws_connect_loop(app_for_ws, state_for_ws).await;
-                });
-            }
+            crate::lifecycle::start_background_loops(&app, &shared_state);
         }
 
         Err(e) => {
@@ -172,34 +129,37 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
     }
 }
 
-// ─── Token exchange ───────────────────────────────────────────────────────────
-
-#[derive(Debug, Deserialize)]
-struct ApiResponse<T> {
-    data: T,
+// Helper
+fn clear_pending_verifier() {
+    if let Ok(mut pending) = PENDING_PKCE_VERIFIER.lock() {
+        *pending = None;
+    }
 }
 
-#[derive(Debug, Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    refresh_token: String,
-    expires_at: String,
-    user: TokenResponseUser,
+fn build_auth_url(code_challenge: &str) -> Result<String, String> {
+    let base = format!("{}{}", config::BACKEND_URL, config::AUTH_DESKTOP_PATH);
+    let mut url = Url::parse(&base).map_err(|e| format!("invalid auth base URL: {e}"))?;
+
+    url.query_pairs_mut()
+        .append_pair("client_id", config::OAUTH_CLIENT_ID)
+        .append_pair("redirect_uri", config::OAUTH_REDIRECT_URI)
+        .append_pair("response_type", "code")
+        .append_pair("code_challenge", code_challenge)
+        .append_pair("code_challenge_method", "S256");
+
+    Ok(url.into())
 }
 
-#[derive(Debug, Deserialize)]
-struct TokenResponseUser {
-    id: String,
-    username: String,
-}
-
-#[derive(Debug, Serialize)]
-struct TokenExchangeRequest<'a> {
-    auth_code: &'a str,
-    client_id: &'a str,
-    redirect_uri: &'a str,
-    grant_type: &'a str,
-    code_verifier: &'a str,
+fn generate_pkce() -> PkceChallenge {
+    let mut bytes = [0u8; 32];
+    rand::rng().fill_bytes(&mut bytes);
+    let code_verifier = URL_SAFE_NO_PAD.encode(bytes);
+    let digest = Sha256::digest(code_verifier.as_bytes());
+    let code_challenge = URL_SAFE_NO_PAD.encode(digest);
+    PkceChallenge {
+        code_verifier,
+        code_challenge,
+    }
 }
 
 async fn exchange_code(auth_code: String, code_verifier: String) -> Result<StoredAuth, String> {
@@ -242,8 +202,6 @@ async fn exchange_code(auth_code: String, code_verifier: String) -> Result<Store
     })
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 fn parse_query_params(url: &str) -> std::collections::HashMap<String, String> {
     url::Url::parse(url)
         .map(|u| {
@@ -252,4 +210,33 @@ fn parse_query_params(url: &str) -> std::collections::HashMap<String, String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+
+struct PkceChallenge {
+    code_verifier: String,
+    code_challenge: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TokenResponse {
+    access_token: String,
+    refresh_token: String,
+    expires_at: String,
+    user: TokenResponseUser,
+}
+
+#[derive(Debug, Deserialize)]
+struct TokenResponseUser {
+    id: String,
+    username: String,
+}
+
+#[derive(Debug, Serialize)]
+struct TokenExchangeRequest<'a> {
+    auth_code: &'a str,
+    client_id: &'a str,
+    redirect_uri: &'a str,
+    grant_type: &'a str,
+    code_verifier: &'a str,
 }

@@ -1,17 +1,16 @@
+mod api;
 mod auth;
 mod commands;
 mod config;
 mod events;
+mod lifecycle;
+mod models;
 mod state;
 mod stream;
 mod ws;
-mod lobby;
 
-use auth::oauth::{emit_auth_state, AuthStatePayload};
-use auth::token_store::TokenStore;
-use state::{AppState, GlobalState, SharedState};
+use state::{GlobalState, SharedState};
 use std::sync::{Arc, Mutex};
-use tauri::AppHandle;
 use tauri::Manager;
 use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -38,8 +37,9 @@ pub fn run() {
             commands::open_login,
             commands::get_current_user,
             commands::logout,
-            commands::notify_stream_ready,
-            commands::notify_stream_stopped,
+            commands::send_stream_ready,
+            commands::send_stream_stopped,
+            commands::get_lobby_state,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
@@ -73,7 +73,7 @@ pub fn run() {
                 let state_for_restore = shared_state.clone();
 
                 tauri::async_runtime::spawn(async move {
-                    restore_session(app_for_restore, state_for_restore).await;
+                    lifecycle::restore_session(app_for_restore, state_for_restore).await;
                 });
             }
 
@@ -81,74 +81,4 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-/// Try to restore a previous session on startup.
-async fn restore_session(app: AppHandle, shared_state: SharedState) {
-    let store = TokenStore::new(app.clone());
-
-    let stored = match store.load() {
-        Some(s) => s,
-        None => return,
-    };
-
-    let user = if store.is_expired() {
-        eprintln!("[startup] access token expired, attempting refresh");
-        match auth::refresh::do_refresh(&stored.tokens.refresh_token).await {
-            Ok(new_tokens) => {
-                if let Err(e) = store.update_tokens(new_tokens) {
-                    eprintln!("[startup] failed to persist refreshed tokens: {e}");
-                    store.clear().ok();
-                    emit_auth_state(&app, AuthStatePayload::Unauthenticated);
-                    return;
-                }
-                stored.user
-            }
-            Err(e) => {
-                eprintln!("[startup] refresh failed (session expired): {e}");
-                store.clear().ok();
-                emit_auth_state(&app, AuthStatePayload::Unauthenticated);
-                return;
-            }
-        }
-    } else {
-        stored.user
-    };
-
-    // Check if the user is already in a lobby
-    let current_lobby = lobby::fetch_current_lobby(&app).await;
-
-    {
-        let mut guard = shared_state.lock().unwrap();
-        guard.app_state = if current_lobby.is_some() {
-            AppState::StreamSetup
-        } else {
-            AppState::Connecting
-        };
-        guard.user = Some(user.clone());
-        guard.lobby = current_lobby;
-    }
-
-    emit_auth_state(
-        &app,
-        AuthStatePayload::Authenticated {
-            user: auth::oauth::AuthUser {
-                username: user.username,
-            },
-        },
-    );
-
-    // Start background loops
-    {
-        let app_for_refresh = app.clone();
-        tauri::async_runtime::spawn(async move {
-            auth::refresh::token_refresh_loop(app_for_refresh).await;
-        });
-    }
-    {
-        let app_for_ws = app.clone();
-        tauri::async_runtime::spawn(async move {
-            ws::client::ws_connect_loop(app_for_ws, shared_state).await;
-        });
-    }
 }

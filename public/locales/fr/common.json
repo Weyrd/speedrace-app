@@ -1,0 +1,10 @@
+{
+  "brand": "MOMENTUM",
+  "tagline": "speedrun racing",
+  "version": "v1.0.0",
+  "cancel": "Annuler",
+  "stop": "▪ Arrêter",
+  "ws_connected": "Connecté",
+  "ws_connecting": "Connexion...",
+  "ws_disconnected": "Déconnecté"
+}

@@ -2,10 +2,11 @@
 // Pattern : le composant se re-render via requestAnimationFrame, pas via un interval dans un effect.
 import { useState } from "react";
 import { useSyncExternalStore } from "react";
+import { useTranslation } from "react-i18next";
 import Header from "../components/Header";
 import TitleBar from "../components/TitleBar";
 import StopModal from "../components/StopModal";
-import { LivePill, LobbyBadge } from "./WaitingForStart";
+import { LivePill, LobbyBadge } from "../components/ui/RaceStatus";
 import type { User, LobbySetup, WsStatus } from "../types";
 
 interface Props {
@@ -38,20 +39,10 @@ function tick() {
 
 function getNow() { return Date.now(); }
 
-// ─── Timer formatting ─────────────────────────────────────────────────────────
-function formatElapsed(startAt: string): string {
-  const now = useSyncExternalStore(subscribeToRaf, getNow); // appelé dans le composant
-  const elapsed = Math.max(0, now - new Date(startAt).getTime());
-  const h = Math.floor(elapsed / 3_600_000);
-  const m = Math.floor((elapsed % 3_600_000) / 60_000);
-  const s = Math.floor((elapsed % 60_000) / 1000);
-  if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop }: Props) {
   const [showModal, setShowModal] = useState(false);
+  const { t } = useTranslation("app");
   // useSyncExternalStore doit être appelé dans le composant, pas dans une fonction helper
   const now = useSyncExternalStore(subscribeToRaf, getNow);
   const elapsed = Math.max(0, now - new Date(raceStartAt).getTime());
@@ -77,14 +68,14 @@ export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop }: P
           <span className="text-4xl font-bold font-mono tracking-wide text-text">
             {display}
           </span>
-          <span className="text-2xs text-muted font-mono tracking-wide">en course</span>
+          <span className="text-2xs text-muted font-mono tracking-wide">{t("race.in_race")}</span>
         </div>
 
         <button
           onClick={() => setShowModal(true)}
           className="w-full py-2 text-2xs font-mono tracking-wide border border-red text-red rounded cursor-pointer bg-transparent hover:bg-red-dim transition-colors"
         >
-          ▪ Arrêter / Forfeit
+          {t("race.stop_forfeit")}
         </button>
       </div>
 
@@ -98,6 +89,3 @@ export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop }: P
     </div>
   );
 }
-
-// Supprime la fonction formatElapsed — elle était incorrecte (hook dans une fonction)
-void formatElapsed;
