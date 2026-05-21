@@ -109,7 +109,7 @@ export default function App() {
                 _patch({
                   appState: AppState.Racing,
                   lobby: MOCK_LOBBY,
-                  raceStartAt: new Date(Date.now() + 3000).toISOString(),
+                  raceStartAt: Date.now() + 3000,
                 });
                 break;
               default:

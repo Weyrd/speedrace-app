@@ -1,4 +1,4 @@
-use crate::events::{WS_COUNTDOWN, WS_LOBBY_CLOSED, WS_LOBBY_SETUP, WS_RACE_RESULTS};
+use crate::events::{WS_LOBBY_CLOSED, WS_LOBBY_SETUP, WS_LOBBY_START, WS_RACE_RESULTS};
 use crate::models::AppState;
 use crate::models::LobbySetup;
 use crate::state::SharedState;
@@ -38,13 +38,13 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             let _ = app.emit(WS_LOBBY_SETUP, payload);
         }
 
-        ServerMessage::Countdown(payload) => {
+        ServerMessage::LobbyStart(payload) => {
             {
                 let mut guard = state.lock().unwrap();
                 guard.app_state = AppState::Racing;
                 guard.race_start_at = Some(payload.race_start_at.clone());
             }
-            let _ = app.emit(WS_COUNTDOWN, payload);
+            let _ = app.emit(WS_LOBBY_START, payload);
         }
 
         ServerMessage::RaceResults(payload) => {
