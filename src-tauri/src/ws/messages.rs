@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
     LobbySetup(LobbySetupMsg),
-    Countdown(CountdownMsg),
+    LobbyStart(LobbyStartMsg),
     RaceResults(RaceResultsMsg),
     LobbyClosed(LobbyClosedMsg),
     Ping,
@@ -27,8 +27,8 @@ pub struct LobbySetupMsg {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct CountdownMsg {
-    pub race_start_at: String,
+pub struct LobbyStartMsg {
+    pub race_start_at: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

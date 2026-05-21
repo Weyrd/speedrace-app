@@ -23,7 +23,7 @@ export interface AppStore {
   user: User | null;
   wsStatus: WsStatus;
   lobby: LobbySetup | null;
-  raceStartAt: string | null;
+  raceStartAt: number | null;
 }
 
 export interface User {
@@ -38,14 +38,13 @@ export interface LobbySetup {
   whip_url: string;
 }
 
-export interface LobbyStateSnapshot {
+export interface ClientState {
   app_state: AppState;
   lobby: LobbySetup | null;
-  race_start_at: string | null;
 }
 
-export interface CountdownPayload {
-  race_start_at: string;
+export interface LobbyStartPayload {
+  race_start_at: number;
 }
 
 export const LobbyClosedReason = {
@@ -89,10 +88,10 @@ export const LoginErrorType = {
   System: "System",
 } as const;
 
-export type LoginErrorType = (typeof LoginErrorType)[keyof typeof LoginErrorType];
+export type LoginErrorType =
+  (typeof LoginErrorType)[keyof typeof LoginErrorType];
 
 export type LoginError = {
   type: LoginErrorType;
   message?: string;
 };
-

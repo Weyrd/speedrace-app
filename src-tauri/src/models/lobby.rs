@@ -37,8 +37,7 @@ pub struct LobbySetup {
 }
 
 #[derive(Debug, Serialize)]
-pub struct LobbyStateSnapshot {
+pub struct ClientState {
     pub app_state: AppState,
     pub lobby: Option<LobbySetup>,
-    pub race_start_at: Option<String>,
 }

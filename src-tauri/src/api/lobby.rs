@@ -10,7 +10,7 @@ use super::client::{ApiClient, ApiResponse};
 pub struct LobbyCurrentResponse {
     pub lobby: LobbySetup,
     pub status: Option<String>,
-    pub race_start_at: Option<String>,
+    pub race_start_at: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,7 +21,7 @@ struct LobbyApiData {
     pub game_name: String,
     pub category_name: Vec<String>,
     pub status: Option<String>,
-    pub race_start_at: Option<String>,
+    pub race_start_at: Option<i64>,
 }
 
 pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbyCurrentResponse> {

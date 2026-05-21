@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { User, LobbyStateSnapshot } from "../types";
+import type { User, ClientState } from "../types";
 
 export async function openLogin(): Promise<void> {
   return invoke("open_login");
@@ -21,6 +21,6 @@ export async function sendStreamStopped(): Promise<void> {
   return invoke("send_stream_stopped");
 }
 
-export async function getLobbyState(): Promise<LobbyStateSnapshot> {
-  return invoke<LobbyStateSnapshot>("get_lobby_state");
+export async function getLobbyState(): Promise<ClientState> {
+  return invoke<ClientState>("get_lobby_state");
 }
