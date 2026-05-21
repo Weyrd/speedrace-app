@@ -2,7 +2,7 @@ use crate::api::client::ApiResponse;
 use crate::auth::token_store::{StoredAuth, TokenStore, Tokens, UserData};
 use crate::config;
 use crate::events::AUTH_STATE;
-use crate::models::{AuthStatePayload, AuthUser};
+use crate::models::{AuthStatePayload, AuthUser, LoginError};
 use crate::state::SharedState;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
@@ -23,28 +23,29 @@ pub fn emit_auth_state(app: &AppHandle, payload: AuthStatePayload) {
     eprintln!("[auth] emit result: {:?}", result);
 }
 
-pub fn open_browser_login(app: &AppHandle) -> Result<(), String> {
+pub fn open_browser_login(app: &AppHandle) -> Result<(), LoginError> {
     {
-        let pending = PENDING_PKCE_VERIFIER.lock().map_err(|e| e.to_string())?;
+        let pending = PENDING_PKCE_VERIFIER.lock().map_err(|e| LoginError::System(e.to_string()))?;
         if pending.is_some() {
-            return Err("Login already in progress".to_string());
+            return Err(LoginError::AlreadyInProgress);
         }
     }
 
     let pkce = generate_pkce();
 
     {
-        let mut pending = PENDING_PKCE_VERIFIER.lock().map_err(|e| e.to_string())?;
+        let mut pending = PENDING_PKCE_VERIFIER.lock().map_err(|e| LoginError::System(e.to_string()))?;
         *pending = Some(pkce.code_verifier);
     }
 
-    let url = build_auth_url(&pkce.code_challenge)?;
+    let url = build_auth_url(&pkce.code_challenge)
+        .map_err(LoginError::System)?;
 
     eprintln!("[auth] opening browser login: {url}");
 
     app.opener()
         .open_url(&url, None::<String>)
-        .map_err(|e| e.to_string())
+        .map_err(|e| LoginError::System(e.to_string()))
 }
 
 pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedState) {

@@ -13,6 +13,16 @@ This template should help get you started developing with Tauri, React and Types
 npm install
 npm run tauri dev
 
+
+
+Mac os :
+```bash
+cargo tauri build --debug --bundles app
+open src-tauri/target/debug/bundle/macos/Momentum.app
+open ~/Git/momentum-app/src-tauri/target/debug/bundle/macos/Momentum.app
+```
+
+
 ## 13. Notes v2+ (hors scope, à garder en tête)
 
 Ces features sont **hors scope v1** mais l'architecture ci-dessus les anticipe sans coût supplémentaire.
