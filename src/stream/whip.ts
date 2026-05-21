@@ -9,19 +9,22 @@ export class WhipClient {
     }
 
     this.pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: [
+              ],
     });
 
     for (const track of stream.getTracks()) {
       this.pc.addTrack(track, stream);
     }
 
-    const offer = await this._gatherCompleteOffer();
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    console.log("[whip] local SDP:", this.pc.localDescription?.sdp);
 
     const res = await fetch(whipUrl, {
       method: "POST",
       headers: { "Content-Type": "application/sdp" },
-      body: offer.sdp,
+      body: this.pc.localDescription!.sdp,
     });
 
     if (!res.ok) {
@@ -53,30 +56,5 @@ export class WhipClient {
       (this.pc.connectionState === "connected" ||
         this.pc.connectionState === "connecting")
     );
-  }
-
-  private _gatherCompleteOffer(): Promise<RTCSessionDescriptionInit> {
-    return new Promise(async (resolve, reject) => {
-      if (!this.pc) return reject(new Error("[whip] no peer connection"));
-
-      const offer = await this.pc.createOffer();
-      await this.pc.setLocalDescription(offer);
-
-      if (this.pc.iceGatheringState === "complete") {
-        resolve(this.pc.localDescription!);
-        return;
-      }
-
-      const timeout = setTimeout(() => {
-        resolve(this.pc!.localDescription!);
-      }, 3_000);
-
-      this.pc.onicegatheringstatechange = () => {
-        if (this.pc?.iceGatheringState === "complete") {
-          clearTimeout(timeout);
-          resolve(this.pc.localDescription!);
-        }
-      };
-    });
   }
 }

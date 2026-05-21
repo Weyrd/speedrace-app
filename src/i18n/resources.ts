@@ -1,5 +1,5 @@
-import common from "../../public/locales/fr/common.json";
-import app from "../../public/locales/fr/app.json";
+import common from "../locales/fr/common.json";
+import app from "../locales/fr/app.json";
 
 const resources = {
   common,

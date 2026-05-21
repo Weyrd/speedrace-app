@@ -11,7 +11,7 @@ mod ws;
 
 macro_rules! ws_debug {
     ($($arg:tt)*) => {
-        if cfg!(debug_assertions) || std::env::var("WS_DEBUG").unwrap_or_default() == "true" {
+        if std::env::var("WS_DEBUG").unwrap_or_default() == "true" {
             eprintln!("[ws_debug] {}", format!($($arg)*));
         }
     };

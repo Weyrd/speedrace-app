@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Momentum requires screen capture access to stream your game screen.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Momentum requires microphone access to stream game audio.</string>
+  </dict>
+</plist>

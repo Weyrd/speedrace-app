@@ -7,6 +7,8 @@ import {
   type AppStore,
   type LobbySetup,
   type User,
+  LoginErrorType,
+  type LoginError,
 } from "../types";
 import {
   onAuthState,
@@ -24,10 +26,8 @@ import {
   logout,
   sendStreamStopped,
 } from "../lib/commands";
+import { APP_STATE } from "../lib/events";
 import type { WhipClient } from "../stream/whip";
-
-
-const APP_STATE_KEY = ["app:state"] as const;
 
 
 type ServerStore = {
@@ -59,7 +59,7 @@ export function useAppState() {
   const [wsStatus, setWsStatus] = useState<WsStatus>(WsStatus.Disconnected);
 
   const { data: serverStore = serverInitial } = useQuery<ServerStore>({
-    queryKey: APP_STATE_KEY,
+    queryKey: [APP_STATE],
     queryFn: fetchAppState,
     staleTime: Infinity,
     refetchInterval: (query) =>
@@ -68,7 +68,7 @@ export function useAppState() {
 
   function patchServer(partial: Partial<ServerStore>) {
     queryClient.setQueryData<ServerStore>(
-      APP_STATE_KEY,
+      [APP_STATE],
       (prev = serverInitial) => ({
         ...prev,
         ...partial,
@@ -76,19 +76,20 @@ export function useAppState() {
     );
   }
 
+
   useEffect(() => {
     const unsubs = [
       onAuthState((payload) => {
         if (payload.state === AuthState.Authenticated) {
           loginPendingRef.current = false;
           patchServer({ appState: AppState.Connecting, user: payload.user });
-          queryClient.invalidateQueries({ queryKey: APP_STATE_KEY });
+          queryClient.invalidateQueries({ queryKey: [APP_STATE] });
         } else {
           whipRef.current?.stop();
           whipRef.current = null;
           loginPendingRef.current = false;
           setWsStatus(WsStatus.Disconnected);
-          queryClient.setQueryData(APP_STATE_KEY, serverInitial);
+          queryClient.setQueryData([APP_STATE], serverInitial);
         }
       }),
 
@@ -97,7 +98,7 @@ export function useAppState() {
       onWsStatus((status) => {
         setWsStatus(status);
         if (status === WsStatus.Connected) {
-          queryClient.invalidateQueries({ queryKey: APP_STATE_KEY });
+          queryClient.invalidateQueries({ queryKey: [APP_STATE] });
         }
       }),
 
@@ -130,7 +131,7 @@ export function useAppState() {
     ];
 
     return () => unsubs.forEach((fn) => fn());
-  }, []); // stable: queryClient and refs never change
+  }, []); 
 
 
   async function handleLogin() {
@@ -143,9 +144,10 @@ export function useAppState() {
     try {
       await openLogin();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.toLowerCase().includes("already in progress")) return;
-      console.error("[auth] open_login error", e);
+      const err = e as LoginError;
+      if (err.type === LoginErrorType.AlreadyInProgress) return;
+      
+      console.error("[auth] open_login error", err.message || err);
       loginPendingRef.current = false;
       patchServer({ appState: AppState.Unauthenticated });
     }
@@ -156,7 +158,7 @@ export function useAppState() {
     whipRef.current = null;
     loginPendingRef.current = false;
     setWsStatus(WsStatus.Disconnected);
-    queryClient.setQueryData(APP_STATE_KEY, serverInitial);
+    queryClient.setQueryData([APP_STATE], serverInitial);
     try {
       await logout();
     } catch (e) {
@@ -183,7 +185,6 @@ export function useAppState() {
       patchServer({ appState: AppState.Idle, lobby: null, raceStartAt: null });
     }
   }
-
 
   const store: AppStore = { ...serverStore, wsStatus };
 
