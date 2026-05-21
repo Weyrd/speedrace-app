@@ -1,7 +1,7 @@
-use crate::auth::oauth::emit_auth_state;
+use crate::auth::oauth::{emit_auth_state, open_browser_login};
 use crate::auth::token_store::TokenStore;
 use crate::config;
-use crate::models::{AppState, AuthStatePayload};
+use crate::models::{AppState, AuthStatePayload, LoginError};
 use crate::state::SharedState;
 use tauri::{AppHandle, State};
 
@@ -12,8 +12,8 @@ pub fn get_app_state(state: State<SharedState>) -> Result<AppState, String> {
 }
 
 #[tauri::command]
-pub fn open_login(app: AppHandle) -> Result<(), String> {
-    crate::auth::oauth::open_browser_login(&app)
+pub fn open_login(app: AppHandle) -> Result<(), LoginError> {
+    open_browser_login(&app)
 }
 
 #[tauri::command]

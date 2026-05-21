@@ -18,9 +18,6 @@ interface Props {
   onLogout: () => void;
 }
 
-// ─── Clock store (externe à React, zéro useEffect) ───────────────────────────
-// useSyncExternalStore permet de s'abonner à n'importe quelle source externe.
-// Ici la source c'est "le temps qui passe" via rAF.
 let rafId: number;
 const clockListeners = new Set<() => void>();
 
@@ -40,11 +37,9 @@ function tick() {
 
 function getNow() { return Date.now(); }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop, onLogout }: Props) {
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
-  // useSyncExternalStore doit être appelé dans le composant, pas dans une fonction helper
   const now = useSyncExternalStore(subscribeToRaf, getNow);
   const elapsed = Math.max(0, now - new Date(raceStartAt).getTime());
   const h = Math.floor(elapsed / 3_600_000);

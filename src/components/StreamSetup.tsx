@@ -40,7 +40,7 @@ export default function StreamSetup({
 
   // Stop preview tracks when source changes or component unmounts
   const stopPreview = useCallback(() => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setIsPreviewing(false);
@@ -74,9 +74,13 @@ export default function StreamSetup({
 
       setIsPreviewing(true);
     } catch (e) {
+      // console.error("[stream] Preview error:", e);
       // User cancelled permission prompt
       if (e instanceof DOMException && e.name === "NotAllowedError") return;
-      setError(t("stream.error_source"));
+      setError(
+        t("stream.error_source") +
+          (e instanceof Error ? ` (${e.message})` : ""),
+      );
     }
   }, [source, stopPreview]);
 
@@ -90,16 +94,18 @@ export default function StreamSetup({
 
     try {
       await client.start(lobby.whip_url, streamRef.current);
+
+      // Détacher le stream AVANT d'appeler onStreamReady pour que le cleanup de useEffect (stopPreview) ne stoppe pas les tracks
+      streamRef.current = null;
+
       await sendStreamReady(lobby.lobby_id);
-      // Pass the live client up 
+      // Pass the live client up
       onStreamReady(client);
     } catch (e) {
       console.error("[stream] WHIP publish error", e);
       client.stop();
       whipRef.current = null;
-      setError(
-        e instanceof Error ? e.message : t("stream.error_connection")
-      );
+      setError(e instanceof Error ? e.message : t("stream.error_connection"));
       setIsPublishing(false);
     }
   }, [lobby.whip_url, lobby.lobby_id, onStreamReady]);
@@ -109,10 +115,11 @@ export default function StreamSetup({
       <TitleBar />
       <Header user={user} wsStatus={wsStatus} onSettingsClick={onLogout} />
       <div className="px-3 py-3.5 flex flex-col gap-2.5">
-
         {/* Lobby badge */}
         <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted font-mono tracking-wide">{t("stream.lobby")}</span>
+          <span className="text-2xs text-muted font-mono tracking-wide">
+            {t("stream.lobby")}
+          </span>
           <span className="bg-bg2 border border-border rounded px-2 py-0.5 text-2xs font-mono tracking-wide">
             <span className="text-orange">{lobby.lobby_id}</span>
           </span>
@@ -120,19 +127,26 @@ export default function StreamSetup({
 
         {/* Source selector */}
         <div className="flex gap-1.5">
-          {(["screen", "camera"] as Source[]).map(s => (
+          {(["screen", "camera"] as Source[]).map((s) => (
             <button
               key={s}
-              onClick={() => { setSource(s); stopPreview(); setError(null); }}
+              onClick={() => {
+                setSource(s);
+                stopPreview();
+                setError(null);
+              }}
               className={`
                 flex-1 py-1 text-2xs font-mono tracking-wide rounded border cursor-pointer transition-colors
-                ${source === s
-                  ? "bg-orange/10 border-orange text-orange"
-                  : "bg-transparent border-border text-muted opacity-40 hover:opacity-60"
+                ${
+                  source === s
+                    ? "bg-orange/10 border-orange text-orange"
+                    : "bg-transparent border-border text-muted opacity-40 hover:opacity-60"
                 }
               `}
             >
-              {s === "screen" ? t("stream.source_screen") : t("stream.source_camera")}
+              {s === "screen"
+                ? t("stream.source_screen")
+                : t("stream.source_camera")}
             </button>
           ))}
         </div>

@@ -11,3 +11,11 @@ pub enum AuthStatePayload {
 pub struct AuthUser {
     pub username: String,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", content = "message")]
+pub enum LoginError {
+    AlreadyInProgress,
+    System(String),
+}
+

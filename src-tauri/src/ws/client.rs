@@ -11,6 +11,7 @@ use crate::config;
 use crate::models::{AppState, LobbyStatus, WsStatus};
 use crate::state::SharedState;
 use crate::ws::commands::{WsCommand, MSG_TYPE_STREAM_READY, MSG_TYPE_STREAM_STOPPED};
+use crate::ws::messages::LobbySetupMsg;
 use crate::ws_debug;
 
 const CMD_CHANNEL_SIZE: usize = 32;
@@ -60,8 +61,8 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                     }
                     let _ = app.emit(APP_STATE, &new_app_state);
                     let _ = app.emit(
-                        crate::events::WS_LOBBY_SETUP,
-                        crate::ws::messages::LobbySetupMsg {
+                        WS_LOBBY_SETUP,
+                        LobbySetupMsg {
                             lobby_id: lobby_resp.lobby.lobby_id,
                             stream_key: lobby_resp.lobby.stream_key,
                             whip_url: lobby_resp.lobby.whip_url,
@@ -146,7 +147,7 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
 }
 
 
-use crate::events::{WS_STATUS, APP_STATE};
+use crate::events::{WS_STATUS, APP_STATE, WS_LOBBY_SETUP};
 use tauri::Emitter;
 
 

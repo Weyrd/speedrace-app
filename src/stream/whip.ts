@@ -21,21 +21,50 @@ export class WhipClient {
     }
 
     this.pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: [
+        /*
+        { urls: "stun:stun.l.google.com:19302" },
+        {
+          urls: "turn:openrelay.metered.ca:80",
+          username: "openrelayproject",
+          credential: "openrelayproject",
+        },*/
+      ],
+      // [DEBUG] Décommenter pour forcer le passage par TURN
+      // iceTransportPolicy: "relay",
     });
 
+    // --- DEBUT LOGS DEBUG ICE & SDP ---
+    /*this.pc.addEventListener("icecandidate", (e) => {
+      console.log("[whip] ICE candidate:", e.candidate?.candidate);
+    });
+    this.pc.addEventListener("icecandidateerror", (e: any) => {
+      console.error("[whip] ICE candidate error", e.errorCode, e.errorText, e.url);
+    });
+    this.pc.addEventListener("iceconnectionstatechange", () => {
+      console.log("[whip] ICE state:", this.pc?.iceConnectionState);
+    });
+    this.pc.addEventListener("connectionstatechange", () => {
+      console.log("[whip] PC connectionState:", this.pc?.connectionState);
+    });
+    // --- FIN LOGS DEBUG ICE & SDP ---
+
+    console.log("[whip] tracks:", stream.getTracks().map(t => `${t.kind} readyState=${t.readyState}`));
+    */
     // Add all tracks from the capture stream
     for (const track of stream.getTracks()) {
       this.pc.addTrack(track, stream);
     }
 
-    // Wait for ICE gathering to finish before sending the offer.
-    const offer = await this._gatherCompleteOffer();
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    console.log("[whip] local SDP:", this.pc.localDescription?.sdp);
 
+    // Send the offer immediately without waiting for ICE gathering (Trickle ICE)
     const res = await fetch(whipUrl, {
       method: "POST",
       headers: { "Content-Type": "application/sdp" },
-      body: offer.sdp,
+      body: this.pc.localDescription!.sdp,
     });
 
     if (!res.ok) {
@@ -48,6 +77,7 @@ export class WhipClient {
 
     const answerSdp = await res.text();
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+    // console.log("[whip] remote SDP:", this.pc.remoteDescription?.sdp);
   }
 
   stop(): void {
@@ -69,36 +99,5 @@ export class WhipClient {
       (this.pc.connectionState === "connected" ||
         this.pc.connectionState === "connecting")
     );
-  }
-
-  // Heleper
-  // create WHIP offer and gather ICE candidates (soft timeout like the PoC)
-  private _gatherCompleteOffer(): Promise<RTCSessionDescriptionInit> {
-    return new Promise(async (resolve, reject) => {
-      if (!this.pc) return reject(new Error("[whip] no peer connection"));
-
-      const offer = await this.pc.createOffer();
-      await this.pc.setLocalDescription(offer);
-
-      // If already gathered (e.g. no network interfaces), resolve immediately
-      if (this.pc.iceGatheringState === "complete") {
-        resolve(this.pc.localDescription!);
-        return;
-      }
-
-      // Resolve after 3s regardless — host candidates are available immediately,
-      // STUN candidates may or may not arrive in time but aren't required for
-      // direct server connections.
-      const timeout = setTimeout(() => {
-        resolve(this.pc!.localDescription!);
-      }, 3_000);
-
-      this.pc.onicegatheringstatechange = () => {
-        if (this.pc?.iceGatheringState === "complete") {
-          clearTimeout(timeout);
-          resolve(this.pc.localDescription!);
-        }
-      };
-    });
   }
 }

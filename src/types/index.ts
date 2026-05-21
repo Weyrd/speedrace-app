@@ -74,3 +74,16 @@ export interface PlayerResult {
 export interface RaceResults {
   players: PlayerResult[];
 }
+
+export const LoginErrorType = {
+  AlreadyInProgress: "AlreadyInProgress",
+  System: "System",
+} as const;
+
+export type LoginErrorType = (typeof LoginErrorType)[keyof typeof LoginErrorType];
+
+export type LoginError = {
+  type: LoginErrorType;
+  message?: string;
+};
+

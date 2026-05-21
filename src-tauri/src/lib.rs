@@ -10,10 +10,10 @@ mod stream;
 mod ws;
 
 /// Debug macro for WS tracing.
-/// Always active in debug builds. In release, requires WS_DEBUG=true env var.
+/// Requires WS_DEBUG=true env var.
 macro_rules! ws_debug {
     ($($arg:tt)*) => {
-        if cfg!(debug_assertions) || std::env::var("WS_DEBUG").unwrap_or_default() == "true" {
+        if std::env::var("WS_DEBUG").unwrap_or_default() == "true" {
             eprintln!("[ws_debug] {}", format!($($arg)*));
         }
     };
