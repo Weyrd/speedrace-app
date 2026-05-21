@@ -81,7 +81,6 @@ export class WhipClient {
   }
 
   stop(): void {
-    // Tear down WebRTC/Delete whipe ressource
     if (this.pc) {
       this.pc.close();
       this.pc = null;
