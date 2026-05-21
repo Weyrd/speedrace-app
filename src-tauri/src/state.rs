@@ -9,7 +9,7 @@ pub struct GlobalState {
     pub user: Option<UserData>,
     pub ws_status: WsStatus,
     pub lobby: Option<LobbySetup>,
-    pub race_start_at: Option<String>,
+    pub race_start_at: Option<i64>,
     pub ws_cmd_tx: Option<mpsc::Sender<WsCommand>>,
     pub refresh_loop_running: bool,
     pub ws_loop_running: bool,

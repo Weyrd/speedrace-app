@@ -13,7 +13,7 @@ interface Props {
   user: User | null;
   wsStatus: WsStatus;
   lobby: LobbySetup;
-  raceStartAt: string;
+  raceStartAt: number;
   onStop: () => void;
   onLogout: () => void;
 }
@@ -41,7 +41,7 @@ export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop, onL
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
   const now = useSyncExternalStore(subscribeToRaf, getNow);
-  const elapsed = Math.max(0, now - new Date(raceStartAt).getTime());
+  const elapsed = Math.max(0, now - raceStartAt);
   const h = Math.floor(elapsed / 3_600_000);
   const m = Math.floor((elapsed % 3_600_000) / 60_000);
   const s = Math.floor((elapsed % 60_000) / 1000);

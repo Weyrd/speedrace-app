@@ -16,7 +16,7 @@ import {
   onWsStatus,
   onLobbySetup,
   onLobbyClosed,
-  onCountdown,
+  onLobbyStart,
   onRaceResults,
 } from "../lib/listeners";
 import {
@@ -34,7 +34,7 @@ type ServerStore = {
   appState: AppState;
   user: User | null;
   lobby: LobbySetup | null;
-  raceStartAt: string | null;
+  raceStartAt: number | null;
 };
 
 const serverInitial: ServerStore = {
@@ -44,16 +44,21 @@ const serverInitial: ServerStore = {
   raceStartAt: null,
 };
 
-async function fetchAppState(): Promise<ServerStore> {
-  const { app_state, lobby, race_start_at } = await getLobbyState();
-  const user =
-    app_state !== AppState.Unauthenticated ? await getCurrentUser() : null;
-  return { appState: app_state, user, lobby, raceStartAt: race_start_at };
-}
-
-
 export function useAppState() {
   const queryClient = useQueryClient();
+    async function fetchAppState(): Promise<ServerStore> {
+      const { app_state, lobby } = await getLobbyState();
+      const user =
+        app_state !== AppState.Unauthenticated ? await getCurrentUser() : null;
+      const prev = queryClient.getQueryData<ServerStore>([APP_STATE]);
+      return {
+        appState: app_state,
+        user,
+        lobby,
+        raceStartAt: prev?.raceStartAt ?? null,
+      };
+    }
+
   const whipRef = useRef<WhipClient | null>(null);
   const loginPendingRef = useRef(false);
   const [wsStatus, setWsStatus] = useState<WsStatus>(WsStatus.Disconnected);
@@ -112,7 +117,7 @@ export function useAppState() {
         patchServer({ appState: AppState.Idle, lobby: null, raceStartAt: null });
       }),
 
-      onCountdown((payload) =>
+      onLobbyStart((payload) =>
         patchServer({
           raceStartAt: payload.race_start_at,
           appState: AppState.Racing,
