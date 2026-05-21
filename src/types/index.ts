@@ -48,9 +48,18 @@ export interface CountdownPayload {
   race_start_at: string;
 }
 
+export const LobbyClosedReason = {
+  Left: "Left",
+  Deleted: "Deleted",
+  DeletedByReferee: "DeletedByReferee",
+  Kicked: "Kicked",
+} as const;
+
+export type LobbyClosedReason =
+  (typeof LobbyClosedReason)[keyof typeof LobbyClosedReason];
 export interface LobbyClosedPayload {
   lobby_id: string;
-  reason: string;
+  reason: LobbyClosedReason;
 }
 
 export const AuthState = {
