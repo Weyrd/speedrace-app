@@ -50,8 +50,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
         ServerMessage::RaceResults(payload) => {
             {
                 let mut guard = state.lock().unwrap();
-                guard.app_state = AppState::Idle;
-                guard.lobby = None;
+                guard.app_state = AppState::Finished;
                 guard.race_start_at = None;
             }
             let _ = app.emit(WS_RACE_RESULTS, payload.results);

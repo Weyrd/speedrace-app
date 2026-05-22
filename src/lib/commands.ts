@@ -24,3 +24,15 @@ export async function sendStreamStopped(): Promise<void> {
 export async function getLobbyState(): Promise<ClientState> {
   return invoke<ClientState>("get_lobby_state");
 }
+
+export async function sendPlayerFinished(lobbyId: string, finishingTimeMs: number): Promise<void> {
+  return invoke("send_player_finished", { lobbyId, finishingTimeMs });
+}
+
+export async function sendPlayerForfeited(lobbyId: string): Promise<void> {
+  return invoke("send_player_forfeited", { lobbyId });
+}
+
+export async function acknowledgeResults(): Promise<void> {
+  return invoke("acknowledge_results");
+}
