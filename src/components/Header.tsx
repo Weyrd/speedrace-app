@@ -1,43 +1,42 @@
 import { useTranslation } from "react-i18next";
-import type { User, WsStatus } from "../types";
+import { useAppState, Phase } from "../store";
 
-interface Props {
-  user: User | null;
-  wsStatus: WsStatus;
-  onSettingsClick?: () => void;
-}
+const GearIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+    className="w-3.5 h-3.5"
+  >
+    <path
+      fillRule="evenodd"
+      d="M8.34 1.804A1 1 0 0 1 9.32 1h1.36a1 1 0 0 1 .98.804l.295 1.473c.497.144.971.342 1.416.587l1.25-.834a1 1 0 0 1 1.262.125l.962.962a1 1 0 0 1 .125 1.262l-.834 1.25c.245.445.443.919.587 1.416l1.473.295a1 1 0 0 1 .804.98v1.361a1 1 0 0 1-.804.98l-1.473.295a6.95 6.95 0 0 1-.587 1.416l.834 1.25a1 1 0 0 1-.125 1.262l-.962.962a1 1 0 0 1-1.262.125l-1.25-.834a6.953 6.953 0 0 1-1.416.587l-.295 1.473a1 1 0 0 1-.98.804H9.32a1 1 0 0 1-.98-.804l-.295-1.473a6.957 6.957 0 0 1-1.416-.587l-1.25.834a1 1 0 0 1-1.262-.125l-.962-.962a1 1 0 0 1-.125-1.262l.834-1.25a6.957 6.957 0 0 1-.587-1.416l-1.473-.295A1 1 0 0 1 1 10.68V9.32a1 1 0 0 1 .804-.98l1.473-.295c.144-.497.342-.971.587-1.416l-.834-1.25a1 1 0 0 1 .125-1.262l.962-.962A1 1 0 0 1 5.38 3.22l1.25.834a6.957 6.957 0 0 1 1.416-.587l.294-1.473ZM13 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+      clipRule="evenodd"
+    />
+  </svg>
+);
 
-const WS_DOT: Record<WsStatus, string> = {
-  connected:    "bg-green",
-  connecting:   "bg-orange animate-pulse",
-  disconnected: "bg-dim",
-};
-
-const WS_LABEL_KEY = {
-  connected:    "ws_connected",
-  connecting:   "ws_connecting",
-  disconnected: "ws_disconnected",
-} as const;
-
-export default function Header({ user, wsStatus, onSettingsClick }: Props) {
+export default function Header() {
+  const state = useAppState();
   const { t } = useTranslation("common");
 
+  const isAuthenticated =
+    state.phase !== Phase.Unauthenticated && state.phase !== Phase.Connecting;
+  const username =
+    isAuthenticated && "user" in state ? state.user.username : null;
+
   return (
-    <div className="bg-bg1 px-3 py-2 flex items-center justify-between border-b border-border">
+    <div className="px-4 py-2.5 flex items-center justify-between border-b border-border">
       <span className="flex items-center gap-1.5">
-        <span className={`w-1.5 h-1.5 rounded-full ${WS_DOT[wsStatus]}`} />
-        <span className="text-2xs text-text font-mono tracking-wide">
-          {t(WS_LABEL_KEY[wsStatus])}
+        <span
+          className={`w-2 h-2 rounded-full ${isAuthenticated ? "bg-green" : "bg-red"}`}
+        />
+        <span className="text-2xs font-mono tracking-wide text-muted">
+          {isAuthenticated ? username : t("not_logged")}
         </span>
       </span>
-      <span className="text-2xs text-muted font-mono tracking-wide">
-        {user?.username ?? "—"}
-      </span>
-      <button
-        onClick={onSettingsClick}
-        className="text-dim hover:text-muted transition-colors text-sm cursor-pointer bg-transparent border-none"
-      >
-        ⚙
+      <button className="text-dim hover:text-muted transition-colors cursor-pointer bg-transparent border-none p-0.5">
+        <GearIcon />
       </button>
     </div>
   );

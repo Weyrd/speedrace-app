@@ -1,46 +1,22 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import Header from "../components/Header";
-import TitleBar from "../components/TitleBar";
-import type { User, LobbySetup, WsStatus } from "../types";
-import { sendStreamReady } from "../lib/commands";
+import { useAppState, useActions, Phase } from "../store";
 import { WhipClient } from "../stream/whip";
 
-interface Props {
-  user: User | null;
-  wsStatus: WsStatus;
-  lobby: LobbySetup;
-  /**
-   * Called once WHIP is confirmed live and Rust has been notified.
-   * `whipClient` is passed up so the parent can stop the stream later
-   * (e.g. on forfeit or race end) regardless of which screen is mounted.
-   */
-  onStreamReady: (whipClient: WhipClient) => void;
-  onLogout: () => void;
-}
-
-type Source = "screen" | "camera";
-
-export default function StreamSetup({
-  user,
-  wsStatus,
-  lobby,
-  onStreamReady,
-  onLogout,
-}: Props) {
+export default function StreamSetup() {
+  const state = useAppState();
+  const actions = useActions();
   const { t } = useTranslation("app");
-  const [source, setSource] = useState<Source>("screen");
+
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const whipRef = useRef<WhipClient | null>(null);
 
-  // Stop preview tracks when source changes or component unmounts
   const stopPreview = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((tr) => tr.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setIsPreviewing(false);
@@ -49,24 +25,17 @@ export default function StreamSetup({
   useEffect(() => () => stopPreview(), [stopPreview]);
 
   const startPreview = useCallback(async () => {
-    stopPreview(); // clean up previous
+    stopPreview();
     setError(null);
     try {
-      const media =
-        source === "screen"
-          ? await navigator.mediaDevices.getDisplayMedia({
-              video: { frameRate: 30 },
-              audio: true,
-            })
-          : await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: true,
-            });
+      const media = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: true,
+      });
 
       streamRef.current = media;
       if (videoRef.current) videoRef.current.srcObject = media;
 
-      // if stop
       media.getVideoTracks()[0].addEventListener("ended", () => {
         setIsPreviewing(false);
         streamRef.current = null;
@@ -74,122 +43,76 @@ export default function StreamSetup({
 
       setIsPreviewing(true);
     } catch (e) {
-      // console.error("[stream] Preview error:", e);
-      // User cancelled permission prompt
       if (e instanceof DOMException && e.name === "NotAllowedError") return;
       setError(
         t("stream.error_source") +
           (e instanceof Error ? ` (${e.message})` : ""),
       );
     }
-  }, [source, stopPreview]);
+  }, [stopPreview, t]);
 
-  const handlePublish = useCallback(async () => {
+  if (state.phase !== Phase.StreamSetup) return null;
+  const { lobby } = state;
+
+  const handlePublish = async () => {
     if (!streamRef.current) return;
     setIsPublishing(true);
     setError(null);
 
     const client = new WhipClient();
-    whipRef.current = client;
-
     try {
       await client.start(lobby.whip_url, streamRef.current);
-
-      // Détacher le stream AVANT d'appeler onStreamReady pour que le cleanup de useEffect (stopPreview) ne stoppe pas les tracks
       streamRef.current = null;
-
-      await sendStreamReady(lobby.lobby_id);
-      // Pass the live client up
-      onStreamReady(client);
+      await actions.streamReady(client, lobby.lobby_id);
     } catch (e) {
       console.error("[stream] WHIP publish error", e);
       client.stop();
-      whipRef.current = null;
       setError(e instanceof Error ? e.message : t("stream.error_connection"));
       setIsPublishing(false);
     }
-  }, [lobby.whip_url, lobby.lobby_id, onStreamReady]);
+  };
 
   return (
-    <div className="flex flex-col bg-bg0 rounded-md border border-border overflow-hidden">
-      <TitleBar />
-      <Header user={user} wsStatus={wsStatus} onSettingsClick={onLogout} />
-      <div className="px-3 py-3.5 flex flex-col gap-2.5">
-        {/* Lobby badge */}
-        <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted font-mono tracking-wide">
-            {t("stream.lobby")}
-          </span>
-          <span className="bg-bg2 border border-border rounded px-2 py-0.5 text-2xs font-mono tracking-wide">
-            <span className="text-orange">{lobby.lobby_id}</span>
-          </span>
-        </div>
-
-        {/* Source selector */}
-        <div className="flex gap-1.5">
-          {(["screen", "camera"] as Source[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => {
-                setSource(s);
-                stopPreview();
-                setError(null);
-              }}
-              className={`
-                flex-1 py-1 text-2xs font-mono tracking-wide rounded border cursor-pointer transition-colors
-                ${
-                  source === s
-                    ? "bg-orange/10 border-orange text-orange"
-                    : "bg-transparent border-border text-muted opacity-40 hover:opacity-60"
-                }
-              `}
-            >
-              {s === "screen"
-                ? t("stream.source_screen")
-                : t("stream.source_camera")}
-            </button>
-          ))}
-        </div>
-
-        {/* Preview */}
-        <div
-          onClick={!isPreviewing ? startPreview : undefined}
-          className="bg-black border border-border rounded h-16 flex items-center justify-center overflow-hidden relative cursor-pointer group"
-        >
-          <div
-            className="absolute inset-0 opacity-20"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(0deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 3px)",
-            }}
-          />
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            className={`w-full h-full object-cover ${isPreviewing ? "" : "hidden"}`}
-          />
-          {!isPreviewing && (
-            <span className="text-2xs text-dim font-mono tracking-wide z-10 group-hover:text-muted transition-colors">
-              {t("stream.preview_placeholder")}
-            </span>
-          )}
-        </div>
-
-        {error && (
-          <p className="text-2xs text-red font-mono tracking-wide leading-relaxed">
-            ⚠ {error}
-          </p>
-        )}
-
-        <button
-          onClick={handlePublish}
-          disabled={!isPreviewing || isPublishing}
-          className="w-full py-2 text-2xs font-mono tracking-wider bg-red text-white rounded border-none cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {isPublishing ? t("stream.publishing") : t("stream.publish")}
-        </button>
+    <div className="flex flex-col gap-3 px-4 py-4">
+      <div className="flex items-center justify-between">
+        <span className="text-2xs text-muted font-mono tracking-wide">
+          {t("stream.lobby")}
+        </span>
+        <span className="bg-bg2 border border-border rounded px-2 py-0.5 text-2xs font-mono tracking-wide text-orange">
+          {lobby.lobby_id}
+        </span>
       </div>
+
+      <div
+        onClick={!isPreviewing ? startPreview : undefined}
+        className="bg-black border border-border rounded h-20 flex items-center justify-center overflow-hidden relative cursor-pointer group"
+      >
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          className={`w-full h-full object-cover ${isPreviewing ? "" : "hidden"}`}
+        />
+        {!isPreviewing && (
+          <span className="text-2xs text-dim font-mono tracking-wide z-10 group-hover:text-muted transition-colors">
+            {t("stream.preview_placeholder")}
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <p className="text-2xs text-red font-mono tracking-wide leading-relaxed">
+          ⚠ {error}
+        </p>
+      )}
+
+      <button
+        onClick={handlePublish}
+        disabled={!isPreviewing || isPublishing}
+        className="w-full py-2 text-2xs font-mono tracking-wider bg-red text-white rounded border-none cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {isPublishing ? t("stream.publishing") : t("stream.publish")}
+      </button>
     </div>
   );
 }

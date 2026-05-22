@@ -11,7 +11,7 @@ export default function StopModal({ RaceInProgress, onConfirm, onCancel }: Props
 
   return (
     // Backdrop
-    <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-40 rounded-md">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40">
       <div className="bg-bg1 border border-border rounded mx-3 p-3.5">
         <div className="bg-red-dim border border-red-dim rounded p-3">
           <p className="text-2xs text-text font-mono tracking-wide font-bold mb-1.5">

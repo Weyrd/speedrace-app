@@ -52,7 +52,7 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                     let new_app_state;
                     {
                         let mut guard = state.lock().unwrap();
-                        let status = LobbyStatus::from_opt(lobby_resp.status.as_deref());
+                        let status = LobbyStatus::from_player_status(lobby_resp.player_status.as_ref());
                         guard.app_state = status.to_app_state();
                         guard.lobby = Some(lobby_resp.lobby.clone());
                         guard.race_start_at = lobby_resp.race_start_at.clone();
