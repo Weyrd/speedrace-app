@@ -72,11 +72,22 @@ export type AuthStatePayload =
   | { state: typeof AuthState.Authenticated; user: { username: string } }
   | { state: typeof AuthState.Unauthenticated };
 
+export const PlayerStatus = {
+  Preparing: "preparing",
+  Ready: "ready",
+  Racing: "racing",
+  Finished: "finished",
+  Forfeited: "forfeited",
+} as const;
+
+export type PlayerStatus = (typeof PlayerStatus)[keyof typeof PlayerStatus];
+
 export interface PlayerResult {
   user_id: string;
   username: string;
+  status: PlayerStatus;
   finishing_time_ms: number | null;
-  forfeited: boolean;
+  finish_position: number | null;
 }
 
 export interface RaceResults {

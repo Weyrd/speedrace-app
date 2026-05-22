@@ -25,7 +25,12 @@
   },
   "race": {
     "in_race": "racing",
-    "stop_forfeit": "▪ Stop / Forfeit"
+    "stop_forfeit": "▪ Stop / Forfeit",
+    "finish": "✓ Finish",
+    "forfeit": "✗ Forfeit",
+    "finished_title": "Race Complete",
+    "finished_subtitle": "Results have been saved.",
+    "new_race": "New Race?"
   },
   "stop_modal": {
     "title": "⚠ Stop stream?",
