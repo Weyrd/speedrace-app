@@ -1,27 +1,31 @@
 use serde::{Deserialize, Serialize};
 
+use super::race::PlayerStatus;
 use super::AppState;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LobbyStatus {
     InProgress,
     WaitingForStart,
+    Finished,
     Other,
 }
 
 impl LobbyStatus {
-    pub fn from_opt(s: Option<&str>) -> Self {
-        match s {
-            Some("InProgress") => Self::InProgress,
-            Some("WaitingForStart") => Self::WaitingForStart,
+    pub fn from_player_status(status: Option<&PlayerStatus>) -> Self {
+        match status {
+            Some(PlayerStatus::RaceInProgress) => Self::InProgress,
+            Some(PlayerStatus::Ready) => Self::WaitingForStart,
+            Some(PlayerStatus::Finished) | Some(PlayerStatus::Forfeited) => Self::Finished,
             _ => Self::Other,
         }
     }
 
     pub fn to_app_state(&self) -> AppState {
         match self {
-            Self::InProgress => AppState::Racing,
+            Self::InProgress => AppState::RaceInProgress,
             Self::WaitingForStart => AppState::WaitingForStart,
+            Self::Finished => AppState::Finished,
             Self::Other => AppState::StreamSetup,
         }
     }

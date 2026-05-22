@@ -3,13 +3,14 @@ use serde::Deserialize;
 use tauri::AppHandle;
 
 use crate::config;
+use crate::models::race::PlayerStatus;
 use crate::models::LobbySetup;
 
 use super::client::{ApiClient, ApiResponse};
 
 pub struct LobbyCurrentResponse {
     pub lobby: LobbySetup,
-    pub status: Option<String>,
+    pub player_status: Option<PlayerStatus>,
     pub race_start_at: Option<i64>,
 }
 
@@ -20,7 +21,7 @@ struct LobbyApiData {
     pub whip_url: String,
     pub game_name: String,
     pub category_name: Vec<String>,
-    pub status: Option<String>,
+    pub player_status: Option<PlayerStatus>,
     pub race_start_at: Option<i64>,
 }
 
@@ -59,7 +60,7 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbyCurrentResponse
             game_name: l.game_name,
             category_name: l.category_name,
         },
-        status: l.status,
+        player_status: l.player_status,
         race_start_at: l.race_start_at,
     })
 }

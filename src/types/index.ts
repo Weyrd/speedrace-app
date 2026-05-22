@@ -1,15 +1,3 @@
-export const AppState = {
-  Unauthenticated: "Unauthenticated",
-  Connecting: "Connecting",
-  Idle: "Idle",
-  StreamSetup: "StreamSetup",
-  WaitingForStart: "WaitingForStart",
-  RaceInProgress: "RaceInProgress",
-  Finished: "Finished",
-} as const;
-
-export type AppState = (typeof AppState)[keyof typeof AppState];
-
 export const WsStatus = {
   Connected: "connected",
   Connecting: "connecting",
@@ -17,14 +5,6 @@ export const WsStatus = {
 } as const;
 
 export type WsStatus = (typeof WsStatus)[keyof typeof WsStatus];
-
-export interface AppStore {
-  appState: AppState;
-  user: User | null;
-  wsStatus: WsStatus;
-  lobby: LobbySetup | null;
-  raceStartAt: number | null;
-}
 
 export interface User {
   username: string;
@@ -39,7 +19,7 @@ export interface LobbySetup {
 }
 
 export interface ClientState {
-  app_state: AppState;
+  app_state: string;
   lobby: LobbySetup | null;
 }
 
@@ -56,6 +36,7 @@ export const LobbyClosedReason = {
 
 export type LobbyClosedReason =
   (typeof LobbyClosedReason)[keyof typeof LobbyClosedReason];
+
 export interface LobbyClosedPayload {
   lobby_id: string;
   reason: LobbyClosedReason;
