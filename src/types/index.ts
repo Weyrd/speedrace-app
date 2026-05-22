@@ -4,7 +4,7 @@ export const AppState = {
   Idle: "Idle",
   StreamSetup: "StreamSetup",
   WaitingForStart: "WaitingForStart",
-  Racing: "Racing",
+  RaceInProgress: "RaceInProgress",
   Finished: "Finished",
 } as const;
 
@@ -75,7 +75,7 @@ export type AuthStatePayload =
 export const PlayerStatus = {
   Preparing: "preparing",
   Ready: "ready",
-  Racing: "racing",
+  RaceInProgress: "race_in_progress",
   Finished: "finished",
   Forfeited: "forfeited",
 } as const;
