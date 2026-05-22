@@ -25,7 +25,12 @@
   },
   "race": {
     "in_race": "en course",
-    "stop_forfeit": "▪ Arrêter / Forfeit"
+    "stop_forfeit": "▪ Arrêter / Forfeit",
+    "finish": "✓ Terminer",
+    "forfeit": "✗ Forfait",
+    "finished_title": "Course terminée",
+    "finished_subtitle": "Les résultats ont été sauvegardés.",
+    "new_race": "Nouvelle course ?"
   },
   "stop_modal": {
     "title": "⚠ Arrêter le stream ?",

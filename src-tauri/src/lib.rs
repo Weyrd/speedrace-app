@@ -51,6 +51,9 @@ pub fn run() {
             commands::send_stream_ready,
             commands::send_stream_stopped,
             commands::get_lobby_state,
+            commands::send_player_finished,
+            commands::send_player_forfeited,
+            commands::acknowledge_results,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();

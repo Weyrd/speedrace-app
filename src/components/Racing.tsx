@@ -14,7 +14,8 @@ interface Props {
   wsStatus: WsStatus;
   lobby: LobbySetup;
   raceStartAt: number;
-  onStop: () => void;
+  onFinish: (finishingTimeMs: number) => void;
+  onForfeit: () => void;
   onLogout: () => void;
 }
 
@@ -37,7 +38,7 @@ function tick() {
 
 function getNow() { return Date.now(); }
 
-export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop, onLogout }: Props) {
+export default function Racing({ user, wsStatus, lobby, raceStartAt, onFinish, onForfeit, onLogout }: Props) {
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
   const now = useSyncExternalStore(subscribeToRaf, getNow);
@@ -67,18 +68,26 @@ export default function Racing({ user, wsStatus, lobby, raceStartAt, onStop, onL
           <span className="text-2xs text-muted font-mono tracking-wide">{t("race.in_race")}</span>
         </div>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="w-full py-2 text-2xs font-mono tracking-wide border border-red text-red rounded cursor-pointer bg-transparent hover:bg-red-dim transition-colors"
-        >
-          {t("race.stop_forfeit")}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onFinish(elapsed)}
+            className="flex-1 py-2 text-2xs font-mono tracking-wide border border-green text-green rounded cursor-pointer bg-transparent hover:bg-green-dim transition-colors"
+          >
+            {t("race.finish")}
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex-1 py-2 text-2xs font-mono tracking-wide border border-red text-red rounded cursor-pointer bg-transparent hover:bg-red-dim transition-colors"
+          >
+            {t("race.forfeit")}
+          </button>
+        </div>
       </div>
 
       {showModal && (
         <StopModal
           isRacing={true}
-          onConfirm={onStop}
+          onConfirm={onForfeit}
           onCancel={() => setShowModal(false)}
         />
       )}

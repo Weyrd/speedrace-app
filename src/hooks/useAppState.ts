@@ -25,6 +25,9 @@ import {
   openLogin,
   logout,
   sendStreamStopped,
+  sendPlayerFinished,
+  sendPlayerForfeited,
+  acknowledgeResults,
 } from "../lib/commands";
 import { APP_STATE } from "../lib/events";
 import type { WhipClient } from "../stream/whip";
@@ -124,12 +127,11 @@ export function useAppState() {
         }),
       ),
 
-      onRaceResults(() => {
+      onRaceResults((_results) => {
         whipRef.current?.stop();
         whipRef.current = null;
         patchServer({
-          appState: AppState.Idle,
-          lobby: null,
+          appState: AppState.Finished,
           raceStartAt: null,
         });
       }),
@@ -198,6 +200,37 @@ export function useAppState() {
 
   const isConnected = wsStatus === WsStatus.Connected;
 
+  async function handleFinish(finishingTimeMs: number) {
+    const lobbyId = serverStore.lobby?.lobby_id;
+    if (!lobbyId) return;
+    try {
+      await sendPlayerFinished(lobbyId, finishingTimeMs);
+    } catch (e) {
+      console.error("[race] send_player_finished error", e);
+    }
+  }
+
+  async function handleForfeit() {
+    const lobbyId = serverStore.lobby?.lobby_id;
+    if (!lobbyId) return;
+    whipRef.current?.stop();
+    whipRef.current = null;
+    try {
+      await sendPlayerForfeited(lobbyId);
+    } catch (e) {
+      console.error("[race] send_player_forfeited error", e);
+    }
+  }
+
+  async function handleNewRace() {
+    try {
+      await acknowledgeResults();
+    } catch (e) {
+      console.error("[race] acknowledge_results error", e);
+    }
+    patchServer({ appState: AppState.Idle, lobby: null });
+  }
+
   return {
     store,
     isConnected,
@@ -205,6 +238,9 @@ export function useAppState() {
     handleLogout,
     handleStreamReady,
     handleStopStream,
+    handleFinish,
+    handleForfeit,
+    handleNewRace,
     _patch: patchServer,
   };
 }

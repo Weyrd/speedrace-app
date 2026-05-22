@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use serde_json::json;
 use tauri::AppHandle;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -10,7 +9,7 @@ use crate::auth::token_store::TokenStore;
 use crate::config;
 use crate::models::{AppState, LobbyStatus, WsStatus};
 use crate::state::SharedState;
-use crate::ws::commands::{WsCommand, MSG_TYPE_STREAM_READY, MSG_TYPE_STREAM_STOPPED};
+use crate::ws::commands::WsCommand;
 use crate::ws::messages::LobbySetupMsg;
 use crate::ws_debug;
 
@@ -97,28 +96,6 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
 
                         cmd = rx.recv() => {
                             match cmd {
-                                Some(WsCommand::StreamReady { lobby_id }) => {
-                                    let payload = json!({
-                                        "type": MSG_TYPE_STREAM_READY,
-                                        "lobby_id": lobby_id,
-                                    });
-                                    if let Err(e) = write.send(Message::Text(payload.to_string().into())).await {
-                                        eprintln!("[ws] send stream_ready error: {e}");
-                                        break;
-                                    }
-                                }
-
-                                Some(WsCommand::StreamStopped { lobby_id }) => {
-                                    let payload = json!({
-                                        "type": MSG_TYPE_STREAM_STOPPED,
-                                        "lobby_id": lobby_id,
-                                    });
-                                    if let Err(e) = write.send(Message::Text(payload.to_string().into())).await {
-                                        eprintln!("[ws] send stream_stopped error: {e}");
-                                        break;
-                                    }
-                                }
-
                                 Some(WsCommand::Disconnect) | None => {
                                     let _ = write.send(Message::Close(None)).await;
                                     {
@@ -127,6 +104,13 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                                     }
                                     emit_ws_status(&app, &state, WsStatus::Disconnected);
                                     return; // exit the loop entirely
+                                }
+                                Some(cmd) => {
+                                    let json = cmd.to_json().expect("non-Disconnect has json");
+                                    if let Err(e) = write.send(Message::Text(json.into())).await {
+                                        eprintln!("[ws] send error: {e}");
+                                        break;
+                                    }
                                 }
                             }
                         }

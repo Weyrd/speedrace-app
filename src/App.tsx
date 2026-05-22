@@ -6,11 +6,12 @@ import Idle from "./components/Idle";
 import StreamSetup from "./components/StreamSetup";
 import WaitingForStart from "./components/WaitingForStart";
 import Racing from "./components/Racing";
+import Finished from "./components/Finished";
 
 const IS_DEV = import.meta.env.DEV;
 
 const DEV_STATES = Object.values(AppState).filter(
-  s => s !== AppState.Connecting && s !== AppState.Finished
+  s => s !== AppState.Connecting
 ) satisfies AppState[];
 
 const MOCK_LOBBY: LobbySetup = {
@@ -29,6 +30,9 @@ export default function App() {
     handleLogout,
     handleStreamReady,
     handleStopStream,
+    handleFinish,
+    handleForfeit,
+    handleNewRace,
     _patch,
   } = useAppState();
 
@@ -73,14 +77,24 @@ export default function App() {
         );
 
       case AppState.Racing:
-      case AppState.Finished:
         return (
           <Racing
             user={store.user}
             wsStatus={store.wsStatus}
             lobby={store.lobby!}
             raceStartAt={store.raceStartAt!}
-            onStop={handleStopStream}
+            onFinish={handleFinish}
+            onForfeit={handleForfeit}
+            onLogout={handleLogout}
+          />
+        );
+
+      case AppState.Finished:
+        return (
+          <Finished
+            user={store.user}
+            wsStatus={store.wsStatus}
+            onNewRace={handleNewRace}
             onLogout={handleLogout}
           />
         );
