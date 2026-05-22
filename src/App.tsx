@@ -76,7 +76,7 @@ export default function App() {
           />
         );
 
-      case AppState.Racing:
+      case AppState.RaceInProgress:
         return (
           <Racing
             user={store.user}
@@ -120,9 +120,9 @@ export default function App() {
               case AppState.WaitingForStart:
                 _patch({ appState: AppState.WaitingForStart, lobby: MOCK_LOBBY });
                 break;
-              case AppState.Racing:
+              case AppState.RaceInProgress:
                 _patch({
-                  appState: AppState.Racing,
+                  appState: AppState.RaceInProgress,
                   lobby: MOCK_LOBBY,
                   raceStartAt: Date.now() + 3000,
                 });

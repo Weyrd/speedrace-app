@@ -50,7 +50,7 @@ export default function WaitingForStart({ user, wsStatus, lobby, onStop, onLogou
 
       {showModal && (
         <StopModal
-          isRacing={false}
+          RaceInProgress={false}
           onConfirm={onStop}
           onCancel={() => setShowModal(false)}
         />

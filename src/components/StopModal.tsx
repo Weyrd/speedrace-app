@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
 
 interface Props {
-  isRacing: boolean;
+  RaceInProgress: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export default function StopModal({ isRacing, onConfirm, onCancel }: Props) {
+export default function StopModal({ RaceInProgress, onConfirm, onCancel }: Props) {
   const { t } = useTranslation(["app", "common"]);
 
   return (
@@ -18,7 +18,7 @@ export default function StopModal({ isRacing, onConfirm, onCancel }: Props) {
             {t("app:stop_modal.title")}
           </p>
           <p className="text-2xs text-muted font-mono tracking-wide leading-relaxed mb-3 whitespace-pre-line">
-            {isRacing
+            {RaceInProgress
               ? t("app:stop_modal.message_racing")
               : t("app:stop_modal.message_idle")}
           </p>

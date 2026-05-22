@@ -32,7 +32,6 @@ import {
 import { APP_STATE } from "../lib/events";
 import type { WhipClient } from "../stream/whip";
 
-
 type ServerStore = {
   appState: AppState;
   user: User | null;
@@ -49,18 +48,18 @@ const serverInitial: ServerStore = {
 
 export function useAppState() {
   const queryClient = useQueryClient();
-    async function fetchAppState(): Promise<ServerStore> {
-      const { app_state, lobby } = await getLobbyState();
-      const user =
-        app_state !== AppState.Unauthenticated ? await getCurrentUser() : null;
-      const prev = queryClient.getQueryData<ServerStore>([APP_STATE]);
-      return {
-        appState: app_state,
-        user,
-        lobby,
-        raceStartAt: prev?.raceStartAt ?? null,
-      };
-    }
+  async function fetchAppState(): Promise<ServerStore> {
+    const { app_state, lobby } = await getLobbyState();
+    const user =
+      app_state !== AppState.Unauthenticated ? await getCurrentUser() : null;
+    const prev = queryClient.getQueryData<ServerStore>([APP_STATE]);
+    return {
+      appState: app_state,
+      user,
+      lobby,
+      raceStartAt: prev?.raceStartAt ?? null,
+    };
+  }
 
   const whipRef = useRef<WhipClient | null>(null);
   const loginPendingRef = useRef(false);
@@ -83,7 +82,6 @@ export function useAppState() {
       }),
     );
   }
-
 
   useEffect(() => {
     const unsubs = [
@@ -117,13 +115,17 @@ export function useAppState() {
       onLobbyClosed(() => {
         whipRef.current?.stop();
         whipRef.current = null;
-        patchServer({ appState: AppState.Idle, lobby: null, raceStartAt: null });
+        patchServer({
+          appState: AppState.Idle,
+          lobby: null,
+          raceStartAt: null,
+        });
       }),
 
       onLobbyStart((payload) =>
         patchServer({
           raceStartAt: payload.race_start_at,
-          appState: AppState.Racing,
+          appState: AppState.RaceInProgress,
         }),
       ),
 
@@ -138,8 +140,7 @@ export function useAppState() {
     ];
 
     return () => unsubs.forEach((fn) => fn());
-  }, []); 
-
+  }, []);
 
   async function handleLogin() {
     // We can openLogin only once (refuse if Oauth flow already in progress)
@@ -154,7 +155,7 @@ export function useAppState() {
     } catch (e) {
       const err = e as LoginError;
       if (err.type === LoginErrorType.AlreadyInProgress) return;
-      
+
       console.error("[auth] open_login error", err.message || err);
       loginPendingRef.current = false;
       patchServer({ appState: AppState.Unauthenticated });

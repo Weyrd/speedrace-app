@@ -86,7 +86,7 @@ export default function Racing({ user, wsStatus, lobby, raceStartAt, onFinish, o
 
       {showModal && (
         <StopModal
-          isRacing={true}
+          RaceInProgress={true}
           onConfirm={onForfeit}
           onCancel={() => setShowModal(false)}
         />
