@@ -9,7 +9,6 @@ import {
   WS_RACE_RESULTS,
 } from "./events";
 import type {
-  AppState,
   AuthStatePayload,
   LobbySetup,
   LobbyClosedPayload,
@@ -17,6 +16,7 @@ import type {
   WsStatus,
   RaceResults,
 } from "../types";
+import type { Phase } from "../store/types";
 
 type UnlistenFn = () => void;
 
@@ -44,8 +44,8 @@ export function onAuthState(
   return safeListen<AuthStatePayload>(AUTH_STATE, cb);
 }
 
-export function onAppState(cb: (payload: AppState) => void): UnlistenFn {
-  return safeListen<AppState>(APP_STATE, cb);
+export function onAppState(cb: (payload: Phase) => void): UnlistenFn {
+  return safeListen<Phase>(APP_STATE, cb);
 }
 
 export function onWsStatus(cb: (payload: WsStatus) => void): UnlistenFn {
@@ -56,7 +56,9 @@ export function onLobbySetup(cb: (payload: LobbySetup) => void): UnlistenFn {
   return safeListen<LobbySetup>(WS_LOBBY_SETUP, cb);
 }
 
-export function onLobbyClosed(cb: (payload: LobbyClosedPayload) => void): UnlistenFn {
+export function onLobbyClosed(
+  cb: (payload: LobbyClosedPayload) => void,
+): UnlistenFn {
   return safeListen<LobbyClosedPayload>(WS_LOBBY_CLOSED, cb);
 }
 

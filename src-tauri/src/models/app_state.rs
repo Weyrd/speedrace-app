@@ -8,7 +8,7 @@ pub enum AppState {
     Idle,
     StreamSetup,
     WaitingForStart,
-    Racing,
+    RaceInProgress,
     Finished,
 }
 

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum PlayerStatus {
     Preparing,
     Ready,
-    Racing,
+    RaceInProgress,
     Finished,
     Forfeited,
 }

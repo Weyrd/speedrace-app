@@ -4,6 +4,7 @@
   "version": "v1.0.0",
   "cancel": "Cancel",
   "stop": "▪ Stop",
+  "not_logged": "Not logged in",
   "ws_connected": "Connected",
   "ws_connecting": "Connecting...",
   "ws_disconnected": "Disconnected"

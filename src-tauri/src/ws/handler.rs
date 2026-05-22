@@ -41,7 +41,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
         ServerMessage::LobbyStart(payload) => {
             {
                 let mut guard = state.lock().unwrap();
-                guard.app_state = AppState::Racing;
+                guard.app_state = AppState::RaceInProgress;
                 guard.race_start_at = Some(payload.race_start_at.clone());
             }
             let _ = app.emit(WS_LOBBY_START, payload);
