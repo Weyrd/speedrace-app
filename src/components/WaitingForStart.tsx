@@ -26,7 +26,10 @@ export default function WaitingForStart() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <LivePill />
-        <LobbyBadge id={lobby.lobby_id} />
+        <LobbyBadge
+          gameName={lobby.game_name}
+          categories={lobby.category_name}
+        />
       </div>
 
       {/* Stream preview — view only */}

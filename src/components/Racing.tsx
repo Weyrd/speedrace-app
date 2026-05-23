@@ -51,7 +51,10 @@ export default function Racing() {
     <div className="h-full flex flex-col gap-3 px-4 py-4">
       <div className="flex items-center justify-between">
         <LivePill />
-        <LobbyBadge id={lobby.lobby_id} />
+        <LobbyBadge
+          gameName={lobby.game_name}
+          categories={lobby.category_name}
+        />
       </div>
       <div className="bg-black border border-border rounded aspect-video w-full overflow-hidden relative">
         <video
