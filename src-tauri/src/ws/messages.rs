@@ -1,13 +1,13 @@
-use crate::models::RaceResults;
+use crate::models::LobbySetup;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
-    LobbySetup(LobbySetupMsg),
+    LobbySetup(LobbySetup),
     LobbyStart(LobbyStartMsg),
-    RaceResults(RaceResultsMsg),
     LobbyClosed(LobbyClosedMsg),
+    PlayerResult(PlayerResultPayload),
     Ping,
 }
 
@@ -18,20 +18,15 @@ pub struct LobbyClosedMsg {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct LobbySetupMsg {
-    pub lobby_id: String,
-    pub stream_key: String,
-    pub whip_url: String,
-    pub game_name: String,
-    pub category_name: Vec<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LobbyStartMsg {
     pub race_start_at: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct RaceResultsMsg {
-    pub results: RaceResults,
+pub struct PlayerResultPayload {
+    pub user_id: String,
+    pub username: String,
+    pub player_status: String,
+    pub finishing_time_ms: Option<i64>,
+    pub finish_position: Option<i32>,
 }

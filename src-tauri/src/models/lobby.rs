@@ -12,8 +12,8 @@ pub enum LobbyStatus {
 }
 
 impl LobbyStatus {
-    pub fn from_player_status(status: Option<&PlayerStatus>) -> Self {
-        match status {
+    pub fn from_player_status(player_status: Option<&PlayerStatus>) -> Self {
+        match player_status {
             Some(PlayerStatus::RaceInProgress) => Self::InProgress,
             Some(PlayerStatus::Ready) => Self::WaitingForStart,
             Some(PlayerStatus::Finished) | Some(PlayerStatus::Forfeited) => Self::Finished,
@@ -38,6 +38,7 @@ pub struct LobbySetup {
     pub whip_url: String,
     pub game_name: String,
     pub category_name: Vec<String>,
+    pub race_start_at: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]

@@ -6,4 +6,3 @@ pub mod race;
 pub use app_state::{AppState, WsStatus};
 pub use auth::{AuthStatePayload, AuthUser, LoginError};
 pub use lobby::{ClientState, LobbySetup, LobbyStatus};
-pub use race::RaceResults;

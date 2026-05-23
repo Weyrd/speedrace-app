@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "Momentum",
-        "width": 480,
-        "height": 520,
+        "width": 400,
+        "height": 500,
         "resizable": false,
         "decorations": true,
         "center": true,

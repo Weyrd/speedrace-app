@@ -1,4 +1,10 @@
-import type { User, WsStatus, LobbySetup, LobbyClosedReason } from "../types";
+import type {
+  User,
+  WsStatus,
+  LobbySetup,
+  LobbyClosedReason,
+  PlayerStatus,
+} from "../types";
 
 export const Phase = {
   Unauthenticated: "Unauthenticated",
@@ -11,6 +17,20 @@ export const Phase = {
 } as const;
 
 export type Phase = (typeof Phase)[keyof typeof Phase];
+
+export interface PlayerResult {
+  player_status: PlayerStatus;
+  finishing_time_ms: number | null;
+  finish_position: number | null;
+}
+
+export interface RaceResultEntry {
+  user_id: string;
+  username: string;
+  player_status: PlayerStatus;
+  finishing_time_ms: number | null;
+  finish_position: number | null;
+}
 
 export type AppState =
   | { phase: typeof Phase.Unauthenticated }
@@ -27,6 +47,7 @@ export type AppState =
       user: User;
       wsStatus: WsStatus;
       lobby: LobbySetup;
+      stream: MediaStream;
     }
   | {
       phase: typeof Phase.RaceInProgress;
@@ -34,8 +55,14 @@ export type AppState =
       wsStatus: WsStatus;
       lobby: LobbySetup;
       raceStartAt: number;
+      stream: MediaStream;
     }
-  | { phase: typeof Phase.Finished; user: User; wsStatus: WsStatus };
+  | {
+      phase: typeof Phase.Finished;
+      user: User;
+      wsStatus: WsStatus;
+      results: PlayerResult;
+    };
 
 export const ActionType = {
   LoginStart: "LOGIN_START",
@@ -46,7 +73,7 @@ export const ActionType = {
   LobbySetup: "LOBBY_SETUP",
   LobbyClosed: "LOBBY_CLOSED",
   LobbyStart: "LOBBY_START",
-  RaceResults: "RACE_RESULTS",
+  PlayerResult: "PLAYER_RESULT",
   StreamReady: "STREAM_READY",
   StreamStopped: "STREAM_STOPPED",
   NewRace: "NEW_RACE",
@@ -59,11 +86,11 @@ export type AppAction =
   | { type: typeof ActionType.AuthOk; user: User }
   | { type: typeof ActionType.AuthFail }
   | { type: typeof ActionType.Logout }
-  | { type: typeof ActionType.WsStatus; status: WsStatus }
+  | { type: typeof ActionType.WsStatus; ws_status: WsStatus }
   | { type: typeof ActionType.LobbySetup; lobby: LobbySetup }
   | { type: typeof ActionType.LobbyClosed; reason: LobbyClosedReason }
   | { type: typeof ActionType.LobbyStart; raceStartAt: number }
-  | { type: typeof ActionType.RaceResults }
-  | { type: typeof ActionType.StreamReady }
+  | { type: typeof ActionType.PlayerResult; result: PlayerResult }
+  | { type: typeof ActionType.StreamReady; stream: MediaStream }
   | { type: typeof ActionType.StreamStopped }
   | { type: typeof ActionType.NewRace };

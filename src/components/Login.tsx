@@ -6,40 +6,42 @@ export default function Login() {
   const actions = useActions();
   const { t } = useTranslation(["common", "app"]);
 
+  const isNotLogged =
+    state.phase !== Phase.Unauthenticated && state.phase !== Phase.Connecting;
   const isAuthenticating = state.phase === Phase.Connecting;
 
+  function handleLogin() {
+    console.log("handleLogin", { isNotLogged, isAuthenticating });
+    if (!isNotLogged) {
+      actions.login();
+    }
+    if (isNotLogged) {
+      actions.logout();
+    }
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center gap-4 px-6 py-10">
-      <span className="text-2xl">🏁</span>
-      <span className="text-sm font-bold tracking-widest text-text font-mono">
+    <div className=" h-full flex flex-col items-center justify-center gap-3 px-6 py-10">
+      <span className="text-5xl">🏁</span>
+      <span className="text-2xl font-bold tracking-widest text-text font-mono">
         {t("common:brand")}
       </span>
-      <span className="text-2xs text-muted tracking-wide font-mono">
+      <span className="text-xs text-muted tracking-wide font-mono">
         {t("common:tagline")}
       </span>
 
-      <div className="w-full flex flex-col gap-2 mt-2">
+      <div className="w-full flex flex-col gap-2 mt-2 pt-8">
         <button
-          onClick={() => actions.login()}
-          disabled={isAuthenticating}
-          className="w-full py-2 text-2xs font-mono tracking-wider bg-orange text-white rounded cursor-pointer border-none hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={handleLogin}
+          className="w-full py-3.5 font-mono tracking-wider bg-orange text-white rounded cursor-pointer border-none hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isAuthenticating
             ? t("app:login.connecting")
-            : t("app:login.connect")}
+            : isNotLogged
+              ? t("app:login.disconnect")
+              : t("app:login.connect")}
         </button>
-        {isAuthenticating && (
-          <button
-            onClick={() => actions.logout()}
-            className="w-full py-1.5 text-2xs font-mono tracking-wider text-dim bg-transparent border border-border rounded cursor-pointer hover:text-text hover:border-muted transition-colors"
-          >
-            {t("app:login.disconnect")}
-          </button>
-        )}
       </div>
-      <p className="text-2xs text-dim tracking-wide font-mono">
-        {t("common:version")}
-      </p>
     </div>
   );
 }

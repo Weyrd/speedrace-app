@@ -19,14 +19,6 @@ export default {
       fontFamily: {
         mono: ["'Fira Mono'", "monospace"],
       },
-      letterSpacing: {
-        wide: "0.08em",
-        wider: "0.12em",
-        widest: "0.15em",
-      },
-      fontSize: {
-        "2xs": "0.625rem", // 10px
-      },
     },
   },
   plugins: [],
