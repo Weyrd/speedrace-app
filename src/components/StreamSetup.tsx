@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import { WhipClient } from "../stream/whip";
-import { LobbyBadge } from "./ui/RaceStatus";
+import { LobbyBadge } from "./ui/BadgeHelper";
 
 export default function StreamSetup() {
   const state = useAppState();
@@ -73,7 +73,10 @@ export default function StreamSetup() {
         <span className="text-sm text-muted font-mono tracking-wide">
           {t("stream.lobby")}
         </span>
-        <LobbyBadge id={lobby.lobby_id} />
+        <LobbyBadge
+          gameName={lobby.game_name}
+          categories={lobby.category_name}
+        />
       </div>
 
       <div
