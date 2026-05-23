@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useAppDispatch, useWhipRef } from "./AppContext";
 import { ActionType } from "./types";
-import { LoginErrorType } from "../types";
 import {
   openLogin,
   logout,
@@ -16,7 +15,11 @@ import type { WhipClient } from "../stream/whip";
 export interface Actions {
   login(): Promise<void>;
   logout(): Promise<void>;
-  streamReady(client: WhipClient, lobbyId: string): Promise<void>;
+  streamReady(
+    client: WhipClient,
+    stream: MediaStream,
+    lobbyId: string,
+  ): Promise<void>;
   stopStream(): Promise<void>;
   finish(lobbyId: string, finishingTimeMs: number): Promise<void>;
   forfeit(lobbyId: string): Promise<void>;
@@ -35,7 +38,6 @@ export function useActions(): Actions {
           await openLogin();
         } catch (e) {
           const err = e as { type?: string; message?: string };
-          if (err.type === LoginErrorType.AlreadyInProgress) return;
           console.error("[auth] open_login error", err.message || err);
           dispatch({ type: ActionType.AuthFail });
         }
@@ -52,14 +54,18 @@ export function useActions(): Actions {
         }
       },
 
-      async streamReady(client: WhipClient, lobbyId: string) {
+      async streamReady(
+        client: WhipClient,
+        stream: MediaStream,
+        lobbyId: string,
+      ) {
         whipRef.current = client;
         try {
           await sendStreamReady(lobbyId);
         } catch (e) {
           console.error("[stream] send_stream_ready error", e);
         }
-        dispatch({ type: ActionType.StreamReady });
+        dispatch({ type: ActionType.StreamReady, stream });
       },
 
       async stopStream() {

@@ -6,7 +6,7 @@ import {
   WS_LOBBY_SETUP,
   WS_LOBBY_CLOSED,
   WS_LOBBY_START,
-  WS_RACE_RESULTS,
+  WS_PLAYER_RESULT,
 } from "./events";
 import type {
   AuthStatePayload,
@@ -14,7 +14,7 @@ import type {
   LobbyClosedPayload,
   LobbyStartPayload,
   WsStatus,
-  RaceResults,
+  PlayerResult,
 } from "../types";
 import type { Phase } from "../store/types";
 
@@ -68,6 +68,8 @@ export function onLobbyStart(
   return safeListen<LobbyStartPayload>(WS_LOBBY_START, cb);
 }
 
-export function onRaceResults(cb: (payload: RaceResults) => void): UnlistenFn {
-  return safeListen<RaceResults>(WS_RACE_RESULTS, cb);
+export function onPlayerResult(
+  cb: (payload: PlayerResult) => void,
+): UnlistenFn {
+  return safeListen<PlayerResult>(WS_PLAYER_RESULT, cb);
 }

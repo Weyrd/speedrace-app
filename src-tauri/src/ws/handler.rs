@@ -1,6 +1,5 @@
-use crate::events::{WS_LOBBY_CLOSED, WS_LOBBY_SETUP, WS_LOBBY_START, WS_RACE_RESULTS};
+use crate::events::{WS_LOBBY_CLOSED, WS_LOBBY_SETUP, WS_LOBBY_START, WS_PLAYER_RESULT};
 use crate::models::AppState;
-use crate::models::LobbySetup;
 use crate::state::SharedState;
 use crate::ws::messages::ServerMessage;
 use crate::ws_debug;
@@ -27,13 +26,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             {
                 let mut guard = state.lock().unwrap();
                 guard.app_state = AppState::StreamSetup;
-                guard.lobby = Some(LobbySetup {
-                    lobby_id: payload.lobby_id.clone(),
-                    stream_key: payload.stream_key.clone(),
-                    whip_url: payload.whip_url.clone(),
-                    game_name: payload.game_name.clone(),
-                    category_name: payload.category_name.clone(),
-                });
+                guard.lobby = Some(payload.clone());
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload);
         }
@@ -45,15 +38,6 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.race_start_at = Some(payload.race_start_at.clone());
             }
             let _ = app.emit(WS_LOBBY_START, payload);
-        }
-
-        ServerMessage::RaceResults(payload) => {
-            {
-                let mut guard = state.lock().unwrap();
-                guard.app_state = AppState::Finished;
-                guard.race_start_at = None;
-            }
-            let _ = app.emit(WS_RACE_RESULTS, payload.results);
         }
 
         ServerMessage::LobbyClosed(payload) => {
@@ -69,6 +53,15 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.race_start_at = None;
             }
             let _ = app.emit(WS_LOBBY_CLOSED, payload);
+        }
+
+        ServerMessage::PlayerResult(payload) => {
+            {
+                let mut guard = state.lock().unwrap();
+                guard.app_state = AppState::Finished;
+                guard.race_start_at = None;
+            }
+            let _ = app.emit(WS_PLAYER_RESULT, payload);
         }
 
         ServerMessage::Ping => {}

@@ -8,7 +8,7 @@ import {
   onLobbySetup,
   onLobbyClosed,
   onLobbyStart,
-  onRaceResults,
+  onPlayerResult,
 } from "../lib/listeners";
 
 export function AppEventBridge(): null {
@@ -27,8 +27,8 @@ export function AppEventBridge(): null {
         }
       }),
 
-      onWsStatus((status: WsStatus) => {
-        dispatch({ type: ActionType.WsStatus, status });
+      onWsStatus((ws_status: WsStatus) => {
+        dispatch({ type: ActionType.WsStatus, ws_status: ws_status });
       }),
 
       onLobbySetup((lobby) => {
@@ -48,10 +48,10 @@ export function AppEventBridge(): null {
         });
       }),
 
-      onRaceResults(() => {
+      onPlayerResult((result) => {
         whipRef.current?.stop();
         whipRef.current = null;
-        dispatch({ type: ActionType.RaceResults });
+        dispatch({ type: ActionType.PlayerResult, result });
       }),
     ];
 

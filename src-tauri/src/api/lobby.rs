@@ -10,18 +10,17 @@ use super::client::{ApiClient, ApiResponse};
 
 pub struct LobbyCurrentResponse {
     pub lobby: LobbySetup,
-    pub player_status: Option<PlayerStatus>,
-    pub race_start_at: Option<i64>,
+    pub player_status: PlayerStatus,
 }
 
 #[derive(Debug, Deserialize)]
-struct LobbyApiData {
+struct LobbyCurrentDto {
     pub lobby_id: String,
     pub stream_key: String,
     pub whip_url: String,
     pub game_name: String,
     pub category_name: Vec<String>,
-    pub player_status: Option<PlayerStatus>,
+    pub player_status: PlayerStatus,
     pub race_start_at: Option<i64>,
 }
 
@@ -45,7 +44,7 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbyCurrentResponse
         return None;
     }
 
-    let body: ApiResponse<LobbyApiData> = resp
+    let body: ApiResponse<LobbyCurrentDto> = resp
         .json()
         .await
         .map_err(|e| eprintln!("[api] fetch_current_lobby parse error: {e}"))
@@ -59,8 +58,8 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbyCurrentResponse
             whip_url: l.whip_url,
             game_name: l.game_name,
             category_name: l.category_name,
+            race_start_at: l.race_start_at,
         },
         player_status: l.player_status,
-        race_start_at: l.race_start_at,
     })
 }

@@ -52,7 +52,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       if (!PHASES_WITH_WS.has(state.phase)) return state;
       return {
         ...(state as Extract<AppState, { wsStatus: WsStatus }>),
-        wsStatus: action.status,
+        wsStatus: action.ws_status,
       };
     }
 
@@ -84,6 +84,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         user: state.user,
         wsStatus: state.wsStatus,
         lobby: state.lobby,
+        stream: action.stream,
       };
     }
 
@@ -114,15 +115,17 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         wsStatus: state.wsStatus,
         lobby: state.lobby,
         raceStartAt: action.raceStartAt,
+        stream: state.stream,
       };
     }
 
-    case ActionType.RaceResults: {
+    case ActionType.PlayerResult: {
       if (state.phase !== Phase.RaceInProgress) return state;
       return {
         phase: Phase.Finished,
         user: state.user,
         wsStatus: state.wsStatus,
+        results: action.result,
       };
     }
 

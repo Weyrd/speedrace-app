@@ -55,8 +55,6 @@ export type AuthStatePayload =
 
 export const PlayerStatus = {
   Preparing: "preparing",
-  Ready: "ready",
-  RaceInProgress: "race_in_progress",
   Finished: "finished",
   Forfeited: "forfeited",
 } as const;
@@ -66,17 +64,12 @@ export type PlayerStatus = (typeof PlayerStatus)[keyof typeof PlayerStatus];
 export interface PlayerResult {
   user_id: string;
   username: string;
-  status: PlayerStatus;
+  player_status: PlayerStatus;
   finishing_time_ms: number | null;
   finish_position: number | null;
 }
 
-export interface RaceResults {
-  players: PlayerResult[];
-}
-
 export const LoginErrorType = {
-  AlreadyInProgress: "AlreadyInProgress",
   System: "System",
 } as const;
 
