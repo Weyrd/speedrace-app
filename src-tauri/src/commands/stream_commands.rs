@@ -1,8 +1,8 @@
 use crate::models::AppState;
 use crate::state::SharedState;
 use crate::ws::commands::WsCommand;
-use tauri::{AppHandle, State};
 use tauri::Emitter;
+use tauri::{AppHandle, State};
 
 use crate::events::APP_STATE;
 

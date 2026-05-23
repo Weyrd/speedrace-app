@@ -12,10 +12,14 @@ export const MOCK_USER: User = {
 
 export const MOCK_LOBBY: LobbySetup = {
   lobby_id: "MOCK-4821",
+  lobby_status: "waiting",
+  code: "MOCK",
+  player_status: PlayerStatus.Preparing,
   stream_key: "MOCK-stream-key",
   whip_url: "https://stream.momentum.weyrd.space:8889/MOCK-stream/whip",
   game_name: "MOCK-Game",
   category_name: ["MOCK-Game", "Any%"],
+  race_start_at: null,
 };
 
 export const MOCK_PHASE_ACTIONS: Record<Phase, () => AppAction[]> = {

@@ -1,9 +1,32 @@
+/* Tuto :
+Tauri émet un event, AppEventBridge écoute et dispatch une action
+appReducer calcule le nouvel AppState et React re-render
+
+AppAction :  liste de tout ce qui peut se passer dans l'app
+Ex : { type: "AUTH_OK", user }
+
+appReducer : fonctions qui prend l'état et une action -> renvoie le nouvel état
+Signature : (state, action) => newState
+
+AppState : l'état actuel de l'app, une union de phases.
+ex: { phase: "Idle", user, wsStatus } ou { phase: "StreamSetup", user, wsStatus, lobby }
+
+AppEventBridge : bridge Tauri  React,  listen events Tauri into actions.
+ex : onLobbySetup((lobby) => dispatch({ type: ActionType.LobbySetup, lobby }))
+
+Exemple quand un lobby ready :
+backend envoie "ws://lobby_setup" avec les data du lobby
+AppEventBridge catch via onLobbySetup() et dispatch { type: "LOBBY_SETUP", lobby }
+appReducer voit qu'on est Idle et renvoie { phase: "StreamSetup", user, wsStatus, lobby }
+React affiche StreamSetup
+*/
+
 import type {
   User,
   WsStatus,
   LobbySetup,
   LobbyClosedReason,
-  PlayerStatus,
+  PlayerResult,
 } from "../types";
 
 export const Phase = {
@@ -15,22 +38,7 @@ export const Phase = {
   RaceInProgress: "RaceInProgress",
   Finished: "Finished",
 } as const;
-
 export type Phase = (typeof Phase)[keyof typeof Phase];
-
-export interface PlayerResult {
-  player_status: PlayerStatus;
-  finishing_time_ms: number | null;
-  finish_position: number | null;
-}
-
-export interface RaceResultEntry {
-  user_id: string;
-  username: string;
-  player_status: PlayerStatus;
-  finishing_time_ms: number | null;
-  finish_position: number | null;
-}
 
 export type AppState =
   | { phase: typeof Phase.Unauthenticated }
@@ -61,7 +69,7 @@ export type AppState =
       phase: typeof Phase.Finished;
       user: User;
       wsStatus: WsStatus;
-      results: PlayerResult;
+      result: PlayerResult;
     };
 
 export const ActionType = {
@@ -78,7 +86,6 @@ export const ActionType = {
   StreamStopped: "STREAM_STOPPED",
   NewRace: "NEW_RACE",
 } as const;
-
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 
 export type AppAction =

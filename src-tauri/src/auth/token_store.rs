@@ -68,6 +68,7 @@ impl TokenStore {
         self.load().map(|a| a.tokens.access_token)
     }
 
+    #[allow(dead_code)]
     pub fn get_user(&self) -> Option<UserData> {
         self.load().map(|a| a.user)
     }

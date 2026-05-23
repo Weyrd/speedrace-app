@@ -5,6 +5,7 @@ use tauri::AppHandle;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
+use crate::api::lobby::fetch_current_lobby;
 use crate::auth::token_store::TokenStore;
 use crate::config;
 use crate::models::{AppState, LobbyStatus, WsStatus};
@@ -43,18 +44,18 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                 emit_ws_status(&app, &state, WsStatus::Connected);
                 ws_debug!("connected successfully");
 
-                let current = crate::api::lobby::fetch_current_lobby(&app).await;
+                let current = fetch_current_lobby(&app).await;
                 if let Some(lobby_resp) = current {
                     let new_app_state;
                     {
                         let mut guard = state.lock().unwrap();
-                        let lobby_status = LobbyStatus::from_player_status(Some(&lobby_resp.player_status));
-                        guard.app_state = lobby_status.to_app_state();
-                        guard.lobby = Some(lobby_resp.lobby.clone());
+
+                        guard.app_state = LobbyStatus::to_app_state(&lobby_resp.lobby_status);
+                        guard.lobby = Some(lobby_resp.clone());
                         new_app_state = guard.app_state.clone();
                     }
                     let _ = app.emit(APP_STATE, &new_app_state);
-                    let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp.lobby);
+                    let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp);
                 }
 
                 let (mut write, mut read) = ws_stream.split();
@@ -75,13 +76,13 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                                     eprintln!("[ws] receive error: {e}");
                                     break;
                                 }
-                                _ => {} 
+                                _ => {}
                             }
                         }
 
                         cmd = rx.recv() => {
                             match cmd {
-                                Some(WsCommand::Disconnect) | None => {
+                                 None => {
                                     let _ = write.send(Message::Close(None)).await;
                                     {
                                         let mut guard = state.lock().unwrap();
@@ -115,10 +116,8 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
     }
 }
 
-
-use crate::events::{WS_STATUS, APP_STATE, WS_LOBBY_SETUP};
+use crate::events::{APP_STATE, WS_LOBBY_SETUP, WS_STATUS};
 use tauri::Emitter;
-
 
 pub fn emit_ws_status(app: &AppHandle, state: &SharedState, ws_status: WsStatus) {
     let transitioned_to_idle;
