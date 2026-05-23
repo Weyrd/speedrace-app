@@ -6,7 +6,6 @@ mod events;
 mod lifecycle;
 mod models;
 mod state;
-mod stream;
 mod ws;
 
 macro_rules! ws_debug {

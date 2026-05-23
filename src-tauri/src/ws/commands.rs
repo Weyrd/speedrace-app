@@ -7,11 +7,19 @@ pub const MSG_TYPE_PLAYER_FORFEITED: &str = "player_forfeited";
 
 #[derive(Debug)]
 pub enum WsCommand {
-    StreamReady { lobby_id: String },
-    StreamStopped { lobby_id: String },
-    PlayerFinished { lobby_id: String, finishing_time_ms: u64 },
-    PlayerForfeited { lobby_id: String },
-    Disconnect,
+    StreamReady {
+        lobby_id: String,
+    },
+    StreamStopped {
+        lobby_id: String,
+    },
+    PlayerFinished {
+        lobby_id: String,
+        finishing_time_ms: u64,
+    },
+    PlayerForfeited {
+        lobby_id: String,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -35,7 +43,10 @@ impl WsCommand {
                 lobby_id,
                 finishing_time_ms: None,
             },
-            WsCommand::PlayerFinished { lobby_id, finishing_time_ms } => OutgoingMessage {
+            WsCommand::PlayerFinished {
+                lobby_id,
+                finishing_time_ms,
+            } => OutgoingMessage {
                 r#type: MSG_TYPE_PLAYER_FINISHED,
                 lobby_id,
                 finishing_time_ms: Some(*finishing_time_ms),
@@ -45,7 +56,6 @@ impl WsCommand {
                 lobby_id,
                 finishing_time_ms: None,
             },
-            WsCommand::Disconnect => return None,
         };
         Some(serde_json::to_string(&msg).expect("WsCommand serialization failed"))
     }
