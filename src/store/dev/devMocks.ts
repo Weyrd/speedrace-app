@@ -1,4 +1,9 @@
-import { WsStatus, type User, type LobbySetup } from "../../types";
+import {
+  WsStatus,
+  type User,
+  type LobbySetup,
+  PlayerStatus,
+} from "../../types";
 import { Phase, ActionType, type AppAction } from "../types";
 
 export const MOCK_USER: User = {
@@ -22,31 +27,38 @@ export const MOCK_PHASE_ACTIONS: Record<Phase, () => AppAction[]> = {
 
   [Phase.StreamSetup]: () => [
     { type: ActionType.AuthOk, user: MOCK_USER },
-    { type: ActionType.WsStatus, status: WsStatus.Connected },
+    { type: ActionType.WsStatus, ws_status: WsStatus.Connected },
     { type: ActionType.LobbySetup, lobby: MOCK_LOBBY },
   ],
 
   [Phase.WaitingForStart]: () => [
     { type: ActionType.AuthOk, user: MOCK_USER },
-    { type: ActionType.WsStatus, status: WsStatus.Connected },
+    { type: ActionType.WsStatus, ws_status: WsStatus.Connected },
     { type: ActionType.LobbySetup, lobby: MOCK_LOBBY },
-    { type: ActionType.StreamReady },
+    { type: ActionType.StreamReady, stream: new MediaStream() },
   ],
 
   [Phase.RaceInProgress]: () => [
     { type: ActionType.AuthOk, user: MOCK_USER },
-    { type: ActionType.WsStatus, status: WsStatus.Connected },
+    { type: ActionType.WsStatus, ws_status: WsStatus.Connected },
     { type: ActionType.LobbySetup, lobby: MOCK_LOBBY },
-    { type: ActionType.StreamReady },
+    { type: ActionType.StreamReady, stream: new MediaStream() },
     { type: ActionType.LobbyStart, raceStartAt: Date.now() + 3000 },
   ],
 
   [Phase.Finished]: () => [
     { type: ActionType.AuthOk, user: MOCK_USER },
-    { type: ActionType.WsStatus, status: WsStatus.Connected },
+    { type: ActionType.WsStatus, ws_status: WsStatus.Connected },
     { type: ActionType.LobbySetup, lobby: MOCK_LOBBY },
-    { type: ActionType.StreamReady },
-    { type: ActionType.LobbyStart, raceStartAt: Date.now() - 60_000 },
-    { type: ActionType.RaceResults },
+    { type: ActionType.StreamReady, stream: new MediaStream() },
+    { type: ActionType.LobbyStart, raceStartAt: Date.now() - 10_000 },
+    {
+      type: ActionType.PlayerResult,
+      result: {
+        player_status: PlayerStatus.Finished,
+        finishing_time_ms: 125_430,
+        finish_position: 1,
+      },
+    },
   ],
 };

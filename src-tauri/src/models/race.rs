@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-
+//TODO: delete ce fichier entier?
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayerStatus {
@@ -14,12 +14,7 @@ pub enum PlayerStatus {
 pub struct PlayerResult {
     pub user_id: String,
     pub username: String,
-    pub status: PlayerStatus,
+    pub player_status: PlayerStatus,
     pub finishing_time_ms: Option<u64>,
     pub finish_position: Option<u32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RaceResults {
-    pub players: Vec<PlayerResult>,
 }

@@ -10,7 +10,6 @@ use crate::config;
 use crate::models::{AppState, LobbyStatus, WsStatus};
 use crate::state::SharedState;
 use crate::ws::commands::WsCommand;
-use crate::ws::messages::LobbySetupMsg;
 use crate::ws_debug;
 
 const CMD_CHANNEL_SIZE: usize = 32;
@@ -52,23 +51,13 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                     let new_app_state;
                     {
                         let mut guard = state.lock().unwrap();
-                        let status = LobbyStatus::from_player_status(lobby_resp.player_status.as_ref());
-                        guard.app_state = status.to_app_state();
+                        let lobby_status = LobbyStatus::from_player_status(Some(&lobby_resp.player_status));
+                        guard.app_state = lobby_status.to_app_state();
                         guard.lobby = Some(lobby_resp.lobby.clone());
-                        guard.race_start_at = lobby_resp.race_start_at.clone();
                         new_app_state = guard.app_state.clone();
                     }
                     let _ = app.emit(APP_STATE, &new_app_state);
-                    let _ = app.emit(
-                        WS_LOBBY_SETUP,
-                        LobbySetupMsg {
-                            lobby_id: lobby_resp.lobby.lobby_id,
-                            stream_key: lobby_resp.lobby.stream_key,
-                            whip_url: lobby_resp.lobby.whip_url,
-                            game_name: lobby_resp.lobby.game_name,
-                            category_name: lobby_resp.lobby.category_name,
-                        },
-                    );
+                    let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp.lobby);
                 }
 
                 let (mut write, mut read) = ws_stream.split();
@@ -135,19 +124,19 @@ use crate::events::{WS_STATUS, APP_STATE, WS_LOBBY_SETUP};
 use tauri::Emitter;
 
 
-pub fn emit_ws_status(app: &AppHandle, state: &SharedState, status: WsStatus) {
+pub fn emit_ws_status(app: &AppHandle, state: &SharedState, ws_status: WsStatus) {
     let transitioned_to_idle;
     {
         let mut guard = state.lock().unwrap();
-        guard.ws_status = status.clone();
-        if status == WsStatus::Connected && guard.app_state == AppState::Connecting {
+        guard.ws_status = ws_status.clone();
+        if ws_status == WsStatus::Connected && guard.app_state == AppState::Connecting {
             guard.app_state = AppState::Idle;
             transitioned_to_idle = true;
         } else {
             transitioned_to_idle = false;
         }
     }
-    let _ = app.emit(WS_STATUS, &status);
+    let _ = app.emit(WS_STATUS, &ws_status);
     if transitioned_to_idle {
         let _ = app.emit(APP_STATE, AppState::Idle);
     }

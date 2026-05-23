@@ -6,7 +6,7 @@ const GearIcon = () => (
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 20 20"
     fill="currentColor"
-    className="w-3.5 h-3.5"
+    className="w-4.5 h-4.5"
   >
     <path
       fillRule="evenodd"
@@ -26,12 +26,12 @@ export default function Header() {
     isAuthenticated && "user" in state ? state.user.username : null;
 
   return (
-    <div className="px-4 py-2.5 flex items-center justify-between border-b border-border">
+    <div className="px-4 py-3 flex items-center justify-between border-b border-border">
       <span className="flex items-center gap-1.5">
         <span
           className={`w-2 h-2 rounded-full ${isAuthenticated ? "bg-green" : "bg-red"}`}
         />
-        <span className="text-2xs font-mono tracking-wide text-muted">
+        <span className="text-xs font-mono tracking-wide text-muted">
           {isAuthenticated ? username : t("not_logged")}
         </span>
       </span>

@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
+import { formatTime } from "../lib/formatTime";
+import { PlayerStatus } from "../types";
 
 export default function Finished() {
   const state = useAppState();
@@ -7,17 +9,73 @@ export default function Finished() {
   const { t } = useTranslation("app");
 
   if (state.phase !== Phase.Finished) return null;
+  const { results } = state;
+
+  const finished = results.player_status === PlayerStatus.Finished;
+  const position = results.finish_position;
+
+  const positionLabel = position
+    ? `${position}${["st", "nd", "rd"][position - 1] ?? "th"}`
+    : null;
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-10">
-      <span className="text-lg font-bold text-text">
-        {t("race.finished_title")}
-      </span>
-      <span className="text-2xs text-muted">{t("race.finished_subtitle")}</span>
+    <div className="h-full flex flex-col items-center justify-center gap-6 px-6 py-10">
+      {/* Position / DNF */}
+      <div className="flex flex-col items-center gap-1">
+        {finished && positionLabel ? (
+          <>
+            <span className="text-4xl font-bold font-mono tracking-wide text-text">
+              {positionLabel}
+            </span>
+            <span className="text-2xs text-dim font-mono tracking-wide">
+              {t("race.finish_position")}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-4xl font-bold font-mono tracking-wide text-muted">
+              DNF
+            </span>
+            <span className="text-2xs text-dim font-mono tracking-wide">
+              {t("race.status_forfeited")}
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Time */}
+      {finished && results.finishing_time_ms != null && (
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-2xl font-bold font-mono tracking-wide text-text">
+            {formatTime(results.finishing_time_ms)}
+          </span>
+          <span className="text-2xs text-dim font-mono tracking-wide">
+            {t("race.finish_time")}
+          </span>
+        </div>
+      )}
+
+      {/* Status badge */}
+      <div
+        className={`flex items-center gap-1.5 rounded px-2.5 py-2 border ${
+          finished
+            ? "bg-green-dim border-green-dim"
+            : "bg-red-dim border-red-dim"
+        }`}
+      >
+        <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${finished ? "bg-green" : "bg-red"}`}
+        />
+        <span
+          className={`text-2xs font-mono tracking-wide mt-0.5 ${finished ? "text-green" : "text-red"}`}
+        >
+          {finished ? t("race.status_finished") : t("race.status_forfeited")}
+        </span>
+      </div>
 
       <button
         onClick={() => actions.newRace()}
-        className="w-full py-2 text-2xs font-mono tracking-wide border border-accent text-accent rounded cursor-pointer bg-transparent hover:bg-accent-dim transition-colors mt-2"
+        className="w-full py-3.5 text-xs font-mono tracking-wide border border-border text-muted rounded cursor-pointer bg-transparent hover:border-muted hover:text-text transition-colors mt-auto"
       >
         {t("race.new_race")}
       </button>

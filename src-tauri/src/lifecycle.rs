@@ -79,10 +79,11 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
     {
         let mut guard = shared_state.lock().unwrap();
         if let Some(ref resp) = lobby_response {
-            let status = LobbyStatus::from_player_status(resp.player_status.as_ref());
-            guard.app_state = status.to_app_state();
+            let lobby_status = LobbyStatus::from_player_status(Some(&resp.player_status));
+            guard.app_state = lobby_status.to_app_state();
             guard.lobby = Some(resp.lobby.clone());
-            guard.race_start_at = resp.race_start_at.clone();
+            guard.race_start_at = resp.lobby.race_start_at.clone();
+
         } else {
             guard.app_state = AppState::Connecting;
         }

@@ -9,7 +9,7 @@
     "description": "Rejoins un lobby sur\nle web pour commencer."
   },
   "stream": {
-    "lobby": "Lobby",
+    "lobby": "Dans le lobby",
     "source_screen": "Écran",
     "source_camera": "Caméra",
     "preview_placeholder": "PREVIEW — cliquer pour capturer",
@@ -18,7 +18,8 @@
     "error_source": "Impossible d'accéder à la source. Réessaie.",
     "error_connection": "Erreur de connexion au stream.",
     "stream_active": "Stream actif",
-    "stop_stream": "▪ Arrêter le stream"
+    "stop_stream": "▪ Arrêter le stream",
+    "click_to_change": "Cliquer pour changer"
   },
   "waiting": {
     "waiting_host": "En attente que l'hôte\nlance la race..."
@@ -30,7 +31,12 @@
     "forfeit": "✗ Forfait",
     "finished_title": "Course terminée",
     "finished_subtitle": "Les résultats ont été sauvegardés.",
-    "new_race": "Nouvelle course ?"
+    "new_race": "Nouvelle course ?",
+    "starting_soon": "La course commence bientôt...",
+    "finish_position": "Position finale",
+    "finish_time": "Temps final",
+    "status_finished": "Terminé",
+    "status_forfeited": "Forfait"
   },
   "stop_modal": {
     "title": "⚠ Arrêter le stream ?",

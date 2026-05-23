@@ -27,7 +27,10 @@ pub fn open_browser_login(app: &AppHandle) -> Result<(), LoginError> {
     {
         let pending = PENDING_PKCE_VERIFIER.lock().map_err(|e| LoginError::System(e.to_string()))?;
         if pending.is_some() {
-            return Err(LoginError::AlreadyInProgress);
+            eprintln!("[auth] login already in progress, cancelling and starting new login");
+            drop(pending);
+            clear_pending_verifier();
+
         }
     }
 
