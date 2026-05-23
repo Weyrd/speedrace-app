@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
-import { LivePill, LobbyBadge } from "./ui/RaceStatus";
+import { LivePill, LobbyBadge } from "./ui/BadgeHelper";
 import { formatTime } from "../lib/formatTime";
 
 let rafId: number;

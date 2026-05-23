@@ -11,7 +11,6 @@ export interface User {
 }
 
 export interface LobbySetup {
-  // TODO add category id and game id
   lobby_id: string;
   game_name: string;
   category_name: string[];
