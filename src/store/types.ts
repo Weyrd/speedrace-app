@@ -1,11 +1,42 @@
+/* Tuto :
+Tauri backend → émet un event
+AppEventBridge l'attrape → dispatch(action)
+appReducer → nouvel AppState → React re-render
+
+AppAction — c'est juste une liste de tout ce qui peut "se passer" dans l'app :
+- { type: "AUTH_OK", user: ... }
+
+appReducer — c'est une fonction pure qui reçoit l'état actuel + une action, et retourne le nouvel état :
+- (state, action) => newState
+
+AppState — c'est l'état actuel de l'app, une union de phases :
+- { phase: "Idle", user, wsStatus }
+- { phase: "StreamSetup", user, wsStatus, lobby }
+
+AppEventBridge — c'est le pont entre Tauri et React. Il écoute les events Tauri et les traduit en actions :
+onLobbySetup((lobby) => {
+  dispatch({ type: ActionType.LobbySetup, lobby }) // → reducer
+})
+
+Ex :
+1. Backend envoie "ws://lobby_setup" avec les données du lobby
+2. AppEventBridge attrape l'event via onLobbySetup()
+3. Il dispatch({ type: "LOBBY_SETUP", lobby })
+4. appReducer reçoit ça, voit qu'on est en Idle
+   → retourne { phase: "StreamSetup", user, wsStatus, lobby }
+5. React voit le nouvel état → affiche le composant StreamSetup
+*/
+
 import type {
   User,
   WsStatus,
   LobbySetup,
   LobbyClosedReason,
-  PlayerStatus,
+  PlayerResult,
 } from "../types";
 
+// Phase = the React app's current screen/state
+// This mirrors Rust's AppState enum
 export const Phase = {
   Unauthenticated: "Unauthenticated",
   Connecting: "Connecting",
@@ -15,22 +46,7 @@ export const Phase = {
   RaceInProgress: "RaceInProgress",
   Finished: "Finished",
 } as const;
-
 export type Phase = (typeof Phase)[keyof typeof Phase];
-
-export interface PlayerResult {
-  player_status: PlayerStatus;
-  finishing_time_ms: number | null;
-  finish_position: number | null;
-}
-
-export interface RaceResultEntry {
-  user_id: string;
-  username: string;
-  player_status: PlayerStatus;
-  finishing_time_ms: number | null;
-  finish_position: number | null;
-}
 
 export type AppState =
   | { phase: typeof Phase.Unauthenticated }
@@ -61,7 +77,7 @@ export type AppState =
       phase: typeof Phase.Finished;
       user: User;
       wsStatus: WsStatus;
-      results: PlayerResult;
+      result: PlayerResult;
     };
 
 export const ActionType = {
@@ -78,7 +94,6 @@ export const ActionType = {
   StreamStopped: "STREAM_STOPPED",
   NewRace: "NEW_RACE",
 } as const;
-
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 
 export type AppAction =

@@ -6,7 +6,6 @@ mod events;
 mod lifecycle;
 mod models;
 mod state;
-mod stream;
 mod ws;
 
 /// Debug macro for WS tracing.

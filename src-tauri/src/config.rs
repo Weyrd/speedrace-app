@@ -12,7 +12,6 @@ pub const AUTH_REFRESH_PATH: &str = "/api/v1/auth/desktop/refresh";
 pub const AUTH_LOGOUT_PATH: &str = "/api/v1/auth/desktop/logout";
 
 // OAuth client constants
-pub const DEEP_LINK_SCHEME: &str = "momentum";
 pub const AUTH_CALLBACK_PREFIX: &str = "momentum://auth/callback";
 pub const OAUTH_CLIENT_ID: &str = "tauri_desktop";
 pub const OAUTH_REDIRECT_URI: &str = "momentum://auth/callback";

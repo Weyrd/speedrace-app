@@ -125,7 +125,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         phase: Phase.Finished,
         user: state.user,
         wsStatus: state.wsStatus,
-        results: action.result,
+        result: action.result,
       };
     }
 

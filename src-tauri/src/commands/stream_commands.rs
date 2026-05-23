@@ -1,12 +1,13 @@
 use crate::models::AppState;
 use crate::state::SharedState;
 use crate::ws::commands::WsCommand;
-use tauri::{AppHandle, State};
 use tauri::Emitter;
+use tauri::{AppHandle, State};
 
 use crate::events::APP_STATE;
 
 #[tauri::command]
+//When stream ready -> WS into AppState::WaitingForStart
 pub fn send_stream_ready(lobby_id: String, state: State<SharedState>) -> Result<(), String> {
     let sender = {
         let guard = state.lock().map_err(|e| e.to_string())?;
@@ -26,6 +27,7 @@ pub fn send_stream_ready(lobby_id: String, state: State<SharedState>) -> Result<
 }
 
 #[tauri::command]
+//When stream stopped (either by finishing or forfeiting) -> WS into AppState::Idle and clear lobby info
 pub fn send_stream_stopped(state: State<SharedState>, app: AppHandle) -> Result<(), String> {
     let (sender, lobby_id) = {
         let guard = state.lock().map_err(|e| e.to_string())?;

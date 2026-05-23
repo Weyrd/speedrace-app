@@ -1,39 +1,41 @@
 use serde::{Deserialize, Serialize};
 
-use super::race::PlayerStatus;
 use super::AppState;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LobbyStatus {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PlayerStatus {
+    Preparing,
     InProgress,
-    WaitingForStart,
     Finished,
-    Other,
+    Forfeited,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LobbyStatus {
+    Waiting,
+    InProgress,
+    Finished,
 }
 
 impl LobbyStatus {
-    pub fn from_player_status(player_status: Option<&PlayerStatus>) -> Self {
-        match player_status {
-            Some(PlayerStatus::RaceInProgress) => Self::InProgress,
-            Some(PlayerStatus::Ready) => Self::WaitingForStart,
-            Some(PlayerStatus::Finished) | Some(PlayerStatus::Forfeited) => Self::Finished,
-            _ => Self::Other,
-        }
-    }
-
     pub fn to_app_state(&self) -> AppState {
         match self {
             Self::InProgress => AppState::RaceInProgress,
-            Self::WaitingForStart => AppState::WaitingForStart,
             Self::Finished => AppState::Finished,
-            Self::Other => AppState::StreamSetup,
+            Self::Waiting => AppState::StreamSetup, //ou WaitingForStart
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbySetup {
+    // match AppEvent::LobbySetup ET get lobby/current response pour n'avoir qu'une struct
     pub lobby_id: String,
+    pub code: String,
+    pub lobby_status: LobbyStatus,
+    pub player_status: PlayerStatus,
     pub stream_key: String,
     pub whip_url: String,
     pub game_name: String,

@@ -2,31 +2,27 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use tauri::AppHandle;
 
-use crate::config;
-use crate::models::race::PlayerStatus;
+use crate::models::lobby::PlayerStatus;
 use crate::models::LobbySetup;
+use crate::{config, models::LobbyStatus};
 
 use super::client::{ApiClient, ApiResponse};
 
-/// Response from the lobby/current endpoint, combining lobby data + race state.
-pub struct LobbyCurrentResponse {
-    pub lobby: LobbySetup,
-    pub player_status: PlayerStatus,
-}
-
-/// Matches the backend's LobbyCurrentDto — private, only used for deserialization.
+/// Response from the lobby/current endpoint from backend (used only here)
 #[derive(Debug, Deserialize)]
-struct LobbyCurrentDto {
+pub struct LobbyCurrentResponse {
     pub lobby_id: String,
+    pub code: String,
+    pub lobby_status: LobbyStatus,
+    pub player_status: PlayerStatus,
     pub stream_key: String,
     pub whip_url: String,
     pub game_name: String,
     pub category_name: Vec<String>,
-    pub player_status: PlayerStatus,
     pub race_start_at: Option<i64>,
 }
 
-pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbyCurrentResponse> {
+pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
     let client = ApiClient::new(app);
     let authed = client.authenticated()?;
 
@@ -42,26 +38,29 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbyCurrentResponse
     }
 
     if !resp.status().is_success() {
-        eprintln!("[api] fetch_current_lobby unexpected status: {}", resp.status());
+        eprintln!(
+            "[api] fetch_current_lobby unexpected status: {}",
+            resp.status()
+        );
         return None;
     }
 
-    let body: ApiResponse<LobbyCurrentDto> = resp
+    let body: ApiResponse<LobbyCurrentResponse> = resp
         .json()
         .await
         .map_err(|e| eprintln!("[api] fetch_current_lobby parse error: {e}"))
         .ok()?;
 
-    let l = body.data;
-    Some(LobbyCurrentResponse {
-        lobby: LobbySetup {
-            lobby_id: l.lobby_id,
-            stream_key: l.stream_key,
-            whip_url: l.whip_url,
-            game_name: l.game_name,
-            category_name: l.category_name,
-            race_start_at: l.race_start_at,
-        },
+    let l: LobbyCurrentResponse = body.data;
+    Some(LobbySetup {
+        lobby_id: l.lobby_id,
+        code: l.code,
+        lobby_status: l.lobby_status,
         player_status: l.player_status,
+        stream_key: l.stream_key,
+        whip_url: l.whip_url,
+        game_name: l.game_name,
+        category_name: l.category_name,
+        race_start_at: l.race_start_at,
     })
 }

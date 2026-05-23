@@ -48,13 +48,13 @@ impl<'a> AuthenticatedClient<'a> {
             .get(ApiClient::base_url(path))
             .headers(self.auth_headers())
     }
-
+    #[allow(dead_code)]
     pub fn post(&self, path: &str) -> reqwest::RequestBuilder {
         self.http
             .post(ApiClient::base_url(path))
             .headers(self.auth_headers())
     }
-
+    #[allow(dead_code)]
     pub fn delete(&self, path: &str) -> reqwest::RequestBuilder {
         self.http
             .delete(ApiClient::base_url(path))

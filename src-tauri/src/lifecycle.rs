@@ -1,8 +1,11 @@
+use crate::api::lobby::fetch_current_lobby;
 use crate::auth::oauth::emit_auth_state;
 use crate::auth::token_store::TokenStore;
+use crate::events::WS_LOBBY_SETUP;
 use crate::models::{AppState, AuthStatePayload, AuthUser, LobbyStatus};
 use crate::state::SharedState;
 use tauri::AppHandle;
+use tauri::Emitter;
 
 /// Spawn refresh + WS loops if not already running.
 pub fn start_background_loops(app: &AppHandle, state: &SharedState) {
@@ -74,16 +77,14 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
     };
 
     // Check if the user is already in a lobby
-    let lobby_response = crate::api::lobby::fetch_current_lobby(&app).await;
+    let lobby_response = fetch_current_lobby(&app).await;
 
     {
         let mut guard = shared_state.lock().unwrap();
         if let Some(ref resp) = lobby_response {
-            let lobby_status = LobbyStatus::from_player_status(Some(&resp.player_status));
-            guard.app_state = lobby_status.to_app_state();
-            guard.lobby = Some(resp.lobby.clone());
-            guard.race_start_at = resp.lobby.race_start_at.clone();
-
+            guard.app_state = LobbyStatus::to_app_state(&resp.lobby_status);
+            guard.lobby = Some(resp.clone());
+            guard.race_start_at = resp.race_start_at.clone();
         } else {
             guard.app_state = AppState::Connecting;
         }
@@ -98,6 +99,9 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
             },
         },
     );
+    if let Some(ref lobby) = lobby_response {
+        let _ = app.emit(WS_LOBBY_SETUP, lobby);
+    }
 
     start_background_loops(&app, &shared_state);
 }
