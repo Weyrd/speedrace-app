@@ -1,7 +1,8 @@
-use crate::models::ClientState;
+use crate::api;
+use crate::events::WS_PLAYER_RESULT;
+use crate::models::{AppState, ClientState};
 use crate::state::SharedState;
-use crate::ws::commands::WsCommand;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
 pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String> {
@@ -13,23 +14,36 @@ pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String>
 }
 
 #[tauri::command]
-pub fn send_player_finished(
-    state: State<SharedState>,
+pub async fn send_player_finished(
+    app: AppHandle,
+    state: State<'_, SharedState>,
     lobby_id: String,
     finishing_time_ms: u64,
 ) -> Result<(), String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
-    let tx = guard.ws_cmd_tx.as_ref().ok_or("WebSocket not connected")?;
-    tx.try_send(WsCommand::PlayerFinished { lobby_id, finishing_time_ms })
-        .map_err(|e| e.to_string())
+    let result = api::lobby::post_player_finished(&app, &lobby_id, finishing_time_ms).await?;
+    {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.app_state = AppState::Finished;
+        guard.race_start_at = None;
+    }
+    let _ = app.emit(WS_PLAYER_RESULT, result);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn send_player_forfeited(state: State<SharedState>, lobby_id: String) -> Result<(), String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
-    let tx = guard.ws_cmd_tx.as_ref().ok_or("WebSocket not connected")?;
-    tx.try_send(WsCommand::PlayerForfeited { lobby_id })
-        .map_err(|e| e.to_string())
+pub async fn send_player_forfeited(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    lobby_id: String,
+) -> Result<(), String> {
+    let result = api::lobby::post_player_forfeited(&app, &lobby_id).await?;
+    {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.app_state = AppState::Finished;
+        guard.race_start_at = None;
+    }
+    let _ = app.emit(WS_PLAYER_RESULT, result);
+    Ok(())
 }
 
 #[tauri::command]
