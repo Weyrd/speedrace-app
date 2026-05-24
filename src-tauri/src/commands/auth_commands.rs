@@ -41,7 +41,6 @@ pub async fn logout(app: AppHandle, state: State<'_, SharedState>) -> Result<(),
         guard.user = None;
         guard.lobby = None;
         guard.race_start_at = None;
-        guard.ws_cmd_tx = None;
     }
 
     emit_auth_state(&app, AuthStatePayload::Unauthenticated);

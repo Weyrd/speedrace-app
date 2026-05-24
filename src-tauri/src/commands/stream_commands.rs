@@ -1,21 +1,18 @@
+use crate::api;
 use crate::models::AppState;
 use crate::state::SharedState;
-use crate::ws::commands::WsCommand;
 use tauri::Emitter;
 use tauri::{AppHandle, State};
 
 use crate::events::APP_STATE;
 
 #[tauri::command]
-pub fn send_stream_ready(lobby_id: String, state: State<SharedState>) -> Result<(), String> {
-    let sender = {
-        let guard = state.lock().map_err(|e| e.to_string())?;
-        guard.ws_cmd_tx.clone()
-    };
-
-    if let Some(tx) = sender {
-        let _ = tx.try_send(WsCommand::StreamReady { lobby_id });
-    }
+pub async fn send_stream_ready(
+    lobby_id: String,
+    state: State<'_, SharedState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    api::lobby::post_stream_ready(&app, &lobby_id).await?;
 
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
@@ -26,16 +23,19 @@ pub fn send_stream_ready(lobby_id: String, state: State<SharedState>) -> Result<
 }
 
 #[tauri::command]
-pub fn send_stream_stopped(state: State<SharedState>, app: AppHandle) -> Result<(), String> {
-    let (sender, lobby_id) = {
+pub async fn send_stream_stopped(
+    state: State<'_, SharedState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let lobby_id = {
         let guard = state.lock().map_err(|e| e.to_string())?;
-        let tx = guard.ws_cmd_tx.clone();
-        let lid = guard.lobby.as_ref().map(|l| l.lobby_id.clone());
-        (tx, lid)
+        guard.lobby.as_ref().map(|l| l.lobby_id.clone())
     };
 
-    if let (Some(tx), Some(lid)) = (sender, lobby_id) {
-        let _ = tx.try_send(WsCommand::StreamStopped { lobby_id: lid });
+    if let Some(lid) = lobby_id {
+        if let Err(e) = api::lobby::post_stream_stopped(&app, &lid).await {
+            eprintln!("[cmd] send_stream_stopped: {e}");
+        }
     }
 
     {
