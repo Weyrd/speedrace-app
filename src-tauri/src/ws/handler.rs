@@ -63,7 +63,5 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             }
             let _ = app.emit(WS_PLAYER_RESULT, payload);
         }
-
-        ServerMessage::Ping => {}
     }
 }
