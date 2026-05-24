@@ -18,6 +18,22 @@ pub const OAUTH_REDIRECT_URI: &str = "momentum://auth/callback";
 
 pub const LOBBY_CURRENT_PATH: &str = "/api/v1/lobby/current";
 
+pub fn lobby_stream_ready_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/stream-ready")
+}
+
+pub fn lobby_stream_stopped_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/stream-stopped")
+}
+
+pub fn lobby_finish_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/finish")
+}
+
+pub fn lobby_forfeit_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/forfeit")
+}
+
 // WS reconnect — exponential back-off bounds
 pub const WS_RECONNECT_BASE_SECS: u64 = 1;
 pub const WS_RECONNECT_MAX_SECS: u64 = 30;

@@ -1,5 +1,5 @@
 use reqwest::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::models::lobby::PlayerStatus;
@@ -7,6 +7,14 @@ use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
 use super::client::{ApiClient, ApiResponse};
+
+/// Result returned by the finish/forfeit HTTP endpoints.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PlayerResult {
+    pub player_status: PlayerStatus,
+    pub finishing_time_ms: Option<u64>,
+    pub finish_position: Option<u32>,
+}
 
 /// Response from the lobby/current endpoint from backend (used only here)
 #[derive(Debug, Deserialize)]
@@ -63,4 +71,110 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         category_name: l.category_name,
         race_start_at: l.race_start_at,
     })
+}
+
+// Tauri -> Backend HTTP actions
+
+pub async fn post_stream_ready(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
+    let client = ApiClient::new(app);
+    let authed = client
+        .authenticated()
+        .ok_or_else(|| "Not authenticated".to_string())?;
+
+    let resp = authed
+        .post(&config::lobby_stream_ready_path(lobby_id))
+        .send()
+        .await
+        .map_err(|e| format!("[api] post_stream_ready network error: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!(
+            "[api] post_stream_ready server error: {}",
+            resp.status()
+        ));
+    }
+    Ok(())
+}
+
+pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
+    let client = ApiClient::new(app);
+    let authed = client
+        .authenticated()
+        .ok_or_else(|| "Not authenticated".to_string())?;
+
+    let resp = authed
+        .post(&config::lobby_stream_stopped_path(lobby_id))
+        .send()
+        .await
+        .map_err(|e| format!("[api] post_stream_stopped network error: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!(
+            "[api] post_stream_stopped server error: {}",
+            resp.status()
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct FinishPlayerBody {
+    finishing_time_ms: u64,
+}
+
+pub async fn post_player_finished(
+    app: &AppHandle,
+    lobby_id: &str,
+    finishing_time_ms: u64,
+) -> Result<PlayerResult, String> {
+    let client = ApiClient::new(app);
+    let authed = client
+        .authenticated()
+        .ok_or_else(|| "Not authenticated".to_string())?;
+
+    let resp = authed
+        .post(&config::lobby_finish_path(lobby_id))
+        .json(&FinishPlayerBody { finishing_time_ms })
+        .send()
+        .await
+        .map_err(|e| format!("[api] post_player_finished network error: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!(
+            "[api] post_player_finished server error: {}",
+            resp.status()
+        ));
+    }
+
+    let body: ApiResponse<PlayerResult> = resp
+        .json()
+        .await
+        .map_err(|e| format!("[api] post_player_finished parse error: {e}"))?;
+    Ok(body.data)
+}
+
+pub async fn post_player_forfeited(app: &AppHandle, lobby_id: &str) -> Result<PlayerResult, String> {
+    let client = ApiClient::new(app);
+    let authed = client
+        .authenticated()
+        .ok_or_else(|| "Not authenticated".to_string())?;
+
+    let resp = authed
+        .post(&config::lobby_forfeit_path(lobby_id))
+        .send()
+        .await
+        .map_err(|e| format!("[api] post_player_forfeited network error: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!(
+            "[api] post_player_forfeited server error: {}",
+            resp.status()
+        ));
+    }
+
+    let body: ApiResponse<PlayerResult> = resp
+        .json()
+        .await
+        .map_err(|e| format!("[api] post_player_forfeited parse error: {e}"))?;
+    Ok(body.data)
 }

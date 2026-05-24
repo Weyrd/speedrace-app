@@ -1,8 +1,7 @@
 use std::time::Duration;
 
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 use tauri::AppHandle;
-use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use crate::api::lobby::fetch_current_lobby;
@@ -10,20 +9,9 @@ use crate::auth::token_store::TokenStore;
 use crate::config;
 use crate::models::{AppState, LobbyStatus, WsStatus};
 use crate::state::SharedState;
-use crate::ws::commands::WsCommand;
 use crate::ws_debug;
 
-const CMD_CHANNEL_SIZE: usize = 32;
-
 pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
-    let (tx, mut rx) = mpsc::channel::<WsCommand>(CMD_CHANNEL_SIZE);
-
-    // Register the sender so Tauri commands can reach us
-    {
-        let mut guard = state.lock().unwrap();
-        guard.ws_cmd_tx = Some(tx);
-    }
-
     let mut backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
 
     loop {
@@ -61,49 +49,23 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                     let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp);
                 }
 
-                let (mut write, mut read) = ws_stream.split();
+                let mut ws_stream = ws_stream;
 
                 loop {
-                    tokio::select! {
-                        // Incoming message from server
-                        msg = read.next() => {
-                            match msg {
-                                Some(Ok(Message::Text(text))) => {
-                                    ws_debug!("received message: {}", text);
-                                    crate::ws::handler::handle_message(&text, &app, &state);
-                                }
-                                Some(Ok(Message::Close(_))) | None => {
-                                    eprintln!("[ws] connection closed by server");
-                                    break;
-                                }
-                                Some(Err(e)) => {
-                                    eprintln!("[ws] receive error: {e}");
-                                    break;
-                                }
-                                _ => {}
-                            }
+                    match ws_stream.next().await {
+                        Some(Ok(Message::Text(text))) => {
+                            ws_debug!("received message: {}", text);
+                            crate::ws::handler::handle_message(&text, &app, &state);
                         }
-
-                        cmd = rx.recv() => {
-                            match cmd {
-                                 None => {
-                                    let _ = write.send(Message::Close(None)).await;
-                                    {
-                                        let mut guard = state.lock().unwrap();
-                                        guard.ws_cmd_tx = None;
-                                    }
-                                    emit_ws_status(&app, &state, WsStatus::Disconnected);
-                                    return; // exit the loop entirely
-                                }
-                                Some(cmd) => {
-                                    let json = cmd.to_json().expect("non-Disconnect has json");
-                                    if let Err(e) = write.send(Message::Text(json.into())).await {
-                                        eprintln!("[ws] send error: {e}");
-                                        break;
-                                    }
-                                }
-                            }
+                        Some(Ok(Message::Close(_))) | None => {
+                            eprintln!("[ws] connection closed by server");
+                            break;
                         }
+                        Some(Err(e)) => {
+                            eprintln!("[ws] receive error: {e}");
+                            break;
+                        }
+                        _ => {}
                     }
                 }
             }
