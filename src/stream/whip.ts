@@ -72,8 +72,17 @@ export class WhipClient {
       throw new Error(`[whip] handshake failed (${res.status}): ${body}`);
     }
 
-    // Save the resource URL so we can DELETE it on stop (clean WHIP teardown)
-    this.resourceUrl = res.headers.get("Location") ?? null;
+    // Save the resource URL so we can DELETE it on stop (clean WHIP teardown).
+    // The Location header may be a relative path — resolve it against the WHIP
+    // server origin so the DELETE goes to MediaMTX, not the page origin.
+    const location = res.headers.get("Location");
+    if (location) {
+      try {
+        this.resourceUrl = new URL(location, whipUrl).toString();
+      } catch {
+        this.resourceUrl = location;
+      }
+    }
 
     const answerSdp = await res.text();
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });

@@ -9,10 +9,10 @@ export default function Finished() {
   const { t } = useTranslation("app");
 
   if (state.phase !== Phase.Finished) return null;
-  const { results } = state;
+  const { result } = state;
 
-  const finished = results.player_status === PlayerStatus.Finished;
-  const position = results.finish_position;
+  const finished = result.player_status === PlayerStatus.Finished;
+  const position = result.finish_position;
 
   const positionLabel = position
     ? `${position}${["st", "nd", "rd"][position - 1] ?? "th"}`
@@ -34,7 +34,7 @@ export default function Finished() {
         ) : (
           <>
             <span className="text-4xl font-bold font-mono tracking-wide text-muted">
-              DNF
+              DNF - {positionLabel}
             </span>
             <span className="text-2xs text-dim font-mono tracking-wide">
               {t("race.status_forfeited")}
@@ -44,10 +44,12 @@ export default function Finished() {
       </div>
 
       {/* Time */}
-      {finished && results.finishing_time_ms != null && (
+      {result.finishing_time_ms != null && (
         <div className="flex flex-col items-center gap-1">
-          <span className="text-2xl font-bold font-mono tracking-wide text-text">
-            {formatTime(results.finishing_time_ms)}
+          <span
+            className={`text-2xl font-bold font-mono tracking-wide ${finished ? "text-text" : "text-muted"}`}
+          >
+            {formatTime(result.finishing_time_ms)}
           </span>
           <span className="text-2xs text-dim font-mono tracking-wide">
             {t("race.finish_time")}
