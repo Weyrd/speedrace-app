@@ -40,6 +40,7 @@ export const LobbyClosedReason = {
   Deleted: "Deleted",
   DeletedByReferee: "DeletedByReferee",
   Kicked: "Kicked",
+  DeletedByAdmin: "DeletedByAdmin",
 } as const;
 export type LobbyClosedReason =
   (typeof LobbyClosedReason)[keyof typeof LobbyClosedReason];
