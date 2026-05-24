@@ -32,7 +32,14 @@ export class WhipClient {
       throw new Error(`[whip] handshake failed (${res.status}): ${body}`);
     }
 
-    this.resourceUrl = res.headers.get("Location") ?? null;
+    const location = res.headers.get("Location");
+    if (location) {
+      try {
+        this.resourceUrl = new URL(location, whipUrl).toString();
+      } catch {
+        this.resourceUrl = location;
+      }
+    }
 
     const answerSdp = await res.text();
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });

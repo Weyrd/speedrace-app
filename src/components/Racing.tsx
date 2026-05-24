@@ -7,6 +7,7 @@ import { LivePill, LobbyBadge } from "./ui/BadgeHelper";
 import { formatTime } from "../lib/formatTime";
 
 let rafId: number;
+let cachedNow = Date.now();
 const clockListeners = new Set<() => void>();
 function subscribeToRaf(cb: () => void) {
   clockListeners.add(cb);
@@ -17,11 +18,12 @@ function subscribeToRaf(cb: () => void) {
   };
 }
 function tick() {
+  cachedNow = Date.now();
   clockListeners.forEach((fn) => fn());
   rafId = requestAnimationFrame(tick);
 }
 function getNow() {
-  return Date.now();
+  return cachedNow;
 }
 
 export default function Racing() {
