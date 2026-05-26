@@ -5,7 +5,7 @@ on:
       - "v[0-9]+.*"
 
 jobs:
-  #  Changelog
+  # ── 1. Changelog ─────────────────────────────────────────────────────────────
   changelog:
     runs-on: ubuntu-22.04
     outputs:
@@ -14,8 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # git-cliff a besoin de tout l'historique
-
+          fetch-depth: 0
       - name: Generate changelog
         id: cliff
         uses: orhun/git-cliff-action@v4
@@ -23,9 +22,32 @@ jobs:
           config: cliff.toml
           args: --latest --strip header
 
-  #  Build
-  release:
+  # ── 2. Create draft release (once) ───────────────────────────────────────────
+  create-release:
     needs: changelog
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.releaseId }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Create draft release
+        id: create
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Momentum ${{ github.ref_name }}"
+          releaseBody: ${{ needs.changelog.outputs.content }}
+          releaseDraft: true
+          prerelease: false
+
+  # ── 3. Build & upload artifacts (parallel) ───────────────────────────────────
+  release:
+    needs: [changelog, create-release]
     permissions:
       contents: write
     strategy:
@@ -49,23 +71,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: latest
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: pnpm
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
       - name: Rust build cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -75,15 +102,14 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
+
       - name: Install frontend dependencies
         run: pnpm install
+
       - name: Set version from tag
         shell: bash
         env:
           TAG: ${{ github.ref_name }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BACKEND_URL: ${{ secrets.BACKEND_URL }}
-          WS_DEBUG: ${{ vars.WS_DEBUG }}
         run: |
           VERSION="${TAG#v}"
           echo "Setting app version to $VERSION"
@@ -93,15 +119,14 @@ jobs:
           mv _tmp.json package.json
           sed -i.bak "0,/^version = \"[^\"]*\"/s//version = \"$VERSION\"/" src-tauri/Cargo.toml
           rm -f src-tauri/Cargo.toml.bak
-      - name: Build and publish release
+
+      - name: Build and upload artifacts
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          WS_DEBUG: ${{ vars.WS_DEBUG }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Momentum ${{ github.ref_name }}"
-          releaseBody: ${{ needs.changelog.outputs.content }}
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
