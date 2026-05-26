@@ -5,7 +5,7 @@ on:
       - "v[0-9]+.*"
 
 jobs:
-  # ── Changelog ───────────────────────────────────────────────────────────────
+  #  Changelog
   changelog:
     runs-on: ubuntu-22.04
     outputs:
@@ -23,7 +23,7 @@ jobs:
           config: cliff.toml
           args: --latest --strip header
 
-  # ── Build ────────────────────────────────────────────────────────────────────
+  #  Build
   release:
     needs: changelog
     permissions:
@@ -81,6 +81,9 @@ jobs:
         shell: bash
         env:
           TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          WS_DEBUG: ${{ vars.WS_DEBUG }}
         run: |
           VERSION="${TAG#v}"
           echo "Setting app version to $VERSION"
