@@ -40,6 +40,7 @@ pub struct LobbySetup {
     pub whip_url: String,
     pub game_name: String,
     pub category_name: Vec<String>,
+    pub max_duration_minutes: u32,
     pub race_start_at: Option<i64>,
 }
 

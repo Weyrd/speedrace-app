@@ -27,6 +27,7 @@ pub struct LobbyCurrentResponse {
     pub whip_url: String,
     pub game_name: String,
     pub category_name: Vec<String>,
+    pub max_duration_minutes: u32,
     pub race_start_at: Option<i64>,
 }
 
@@ -69,6 +70,7 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         whip_url: l.whip_url,
         game_name: l.game_name,
         category_name: l.category_name,
+        max_duration_minutes: l.max_duration_minutes,
         race_start_at: l.race_start_at,
     })
 }
@@ -153,7 +155,10 @@ pub async fn post_player_finished(
     Ok(body.data)
 }
 
-pub async fn post_player_forfeited(app: &AppHandle, lobby_id: &str) -> Result<PlayerResult, String> {
+pub async fn post_player_forfeited(
+    app: &AppHandle,
+    lobby_id: &str,
+) -> Result<PlayerResult, String> {
     let client = ApiClient::new(app);
     let authed = client
         .authenticated()
