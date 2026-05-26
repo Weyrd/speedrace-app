@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.*"
+
+jobs:
+  release:
+    permissions:
+      contents: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            name: macOS (Apple Silicon)
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            name: macOS (Intel)
+          - platform: ubuntu-22.04
+            args: ""
+            name: Linux
+          - platform: windows-latest
+            args: ""
+            name: Windows
+
+    name: Build – ${{ matrix.name }}
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Both macOS targets are installed on every macOS runner;
+          # the unused one is simply not compiled.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      # ── Version synchronisation ──────────────────────────────────────────────
+      # The git tag (e.g. v1.2.3) is the single source of truth.
+      # We write the bare semver into tauri.conf.json, package.json and
+      # Cargo.toml so every tool reports the same version.
+      - name: Set version from tag
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          echo "Setting app version to $VERSION"
+
+          # tauri.conf.json
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > _tmp.json
+          mv _tmp.json src-tauri/tauri.conf.json
+
+          # package.json
+          jq --arg v "$VERSION" '.version = $v' package.json > _tmp.json
+          mv _tmp.json package.json
+
+          # Cargo.toml — only the first standalone `version = "…"` line (package section)
+          sed -i.bak "0,/^version = \"[^\"]*\"/s//version = \"$VERSION\"/" src-tauri/Cargo.toml
+          rm -f src-tauri/Cargo.toml.bak
+
+      # ── Build & publish ──────────────────────────────────────────────────────
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          # Optional — only needed if you enable the Tauri updater plugin later:
+          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Momentum ${{ github.ref_name }}"
+          releaseBody: |
+            See the assets below to download and install this version of Momentum.
+          releaseDraft: true # publish manually after reviewing the artifacts
+          prerelease: false
+          args: ${{ matrix.args }}

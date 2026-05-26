@@ -8,6 +8,7 @@ pub enum ServerMessage {
     LobbyStart(LobbyStartMsg),
     LobbyClosed(LobbyClosedMsg),
     PlayerResult(PlayerResultPayload),
+    Ping,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
