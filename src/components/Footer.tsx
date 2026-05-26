@@ -1,12 +1,17 @@
-import { useTranslation } from "react-i18next";
-
+import { useQuery } from "@tanstack/react-query";
+import { getVersion } from "@tauri-apps/api/app";
 
 export default function Footer() {
-  const { t } = useTranslation("common");
+  const { data: version } = useQuery({
+    queryKey: ["app-version"],
+    queryFn: getVersion,
+    staleTime: Infinity,
+  });
+
   return (
     <div className="w-full flex justify-center border-t border-border">
       <p className="text-2xs text-dim tracking-wide font-mono py-2">
-        {t("version")}
+        v{version}
       </p>
     </div>
   );
