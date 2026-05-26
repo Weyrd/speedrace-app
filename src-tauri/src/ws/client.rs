@@ -47,6 +47,16 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                     }
                     let _ = app.emit(APP_STATE, &new_app_state);
                     let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp);
+                } else {
+                    // No active lobby (deleted or expired while disconnected) — reset to Idle
+                    let mut guard = state.lock().unwrap();
+                    if guard.app_state != AppState::Unauthenticated {
+                        guard.app_state = AppState::Idle;
+                        guard.lobby = None;
+                        guard.race_start_at = None;
+                        drop(guard);
+                        let _ = app.emit(APP_STATE, AppState::Idle);
+                    }
                 }
 
                 let mut ws_stream = ws_stream;
