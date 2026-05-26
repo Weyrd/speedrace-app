@@ -51,6 +51,7 @@ export interface LobbySetup {
   whip_url: string;
   game_name: string;
   category_name: string[];
+  max_duration_minutes: number;
   race_start_at: number | null;
 }
 export interface PlayerResult {

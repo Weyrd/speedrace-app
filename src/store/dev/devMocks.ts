@@ -19,6 +19,7 @@ export const MOCK_LOBBY: LobbySetup = {
   whip_url: "https://stream.momentum.weyrd.space:8889/MOCK-stream/whip",
   game_name: "MOCK-Game",
   category_name: ["MOCK-Game", "Any%"],
+  max_duration_minutes: 60,
   race_start_at: null,
 };
 
