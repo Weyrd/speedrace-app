@@ -5,7 +5,7 @@ export class WhipClient {
 
   async start(whipUrl: string, stream: MediaStream): Promise<void> {
     if (this.pc) {
-      throw new Error("[whip] already started — call stop() first");
+      throw new Error("[whip] already started - call stop() first");
     }
 
     this.pc = new RTCPeerConnection({

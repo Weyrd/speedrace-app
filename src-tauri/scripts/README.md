@@ -1,16 +1,17 @@
-# FFmpeg build — quick README
+# FFmpeg build - quick README
 
 This folder contains `build-ffmpeg.ps1`, a one-shot builder that produces a minimal FFmpeg sidecar for the Momentum Tauri app.
 
 This short README explains how to add the generated binary to the repo and the recommended workflow.
 
 What you get
+
 - `src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe` (expected ~15–20 MB stripped)
 - Optional UPX-compressed variant: ~8–12 MB (smaller, may be flagged by AV)
 
 Recommended repository options
 
-1) Git LFS (recommended)
+1. Git LFS (recommended)
 
 - Pros: avoids bloating `.git` history, transparent for collaborators.
 - Cons: needs LFS enabled for each dev/machine.
@@ -31,11 +32,11 @@ git commit -m "feat: add ffmpeg sidecar (LFS)"
 git push origin main
 ```
 
-2) Commit directly (only if < ~20MB and you don't rebuild often)
+2. Commit directly (only if < ~20MB and you don't rebuild often)
 
 - If you choose to commit the stripped binary directly (no LFS), it's acceptable for a single ~15–20MB file. Add it to `.gitignore` later if you want to stop tracking rebuilds.
 
-3) Ignore binary (rebuild on demand)
+3. Ignore binary (rebuild on demand)
 
 - Add to `.gitignore`:
 

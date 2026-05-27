@@ -58,10 +58,10 @@ Ces features sont **hors scope v1** mais l'architecture ci-dessus les anticipe s
 ### YouTube Upload (v2)
 
 - Ajouter `upload.rs` dans `src-tauri/src/`
-- Backend envoie `upload_ready { upload_ticket, resumable_url }` — app streame le `.mp4` local par chunks
+- Backend envoie `upload_ready { upload_ticket, resumable_url }` - app streame le `.mp4` local par chunks
 - Progress bar dans l'overlay (nouveau state `Uploading`)
 - Bloquer le bouton "Quitter" tant que l'upload n'est pas terminé
-- Pas d'OAuth côté app — le `resumable_url` est credential-free (token géré serveur)
+- Pas d'OAuth côté app - le `resumable_url` est credential-free (token géré serveur)
 
 ### LiveSplit (v2)
 

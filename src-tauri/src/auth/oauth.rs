@@ -86,7 +86,7 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
         match pending.take() {
             Some(v) => v,
             None => {
-                eprintln!("[auth] no pending PKCE verifier — possible replay attack, ignoring");
+                eprintln!("[auth] no pending PKCE verifier - possible replay attack, ignoring");
                 return;
             }
         }

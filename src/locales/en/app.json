@@ -12,7 +12,7 @@
     "lobby": "In lobby",
     "source_screen": "Screen",
     "source_camera": "Camera",
-    "preview_placeholder": "PREVIEW — click to capture",
+    "preview_placeholder": "PREVIEW - click to capture",
     "publish": "● PUBLISH",
     "publishing": "Connecting to stream...",
     "error_source": "Unable to access source. Try again.",
@@ -40,7 +40,7 @@
   },
   "stop_modal": {
     "title": "⚠ Stop stream?",
-    "message_racing": "In race — this triggers\nan automatic forfeit.",
+    "message_racing": "In race - this triggers\nan automatic forfeit.",
     "message_idle": "The stream will be stopped."
   }
 }

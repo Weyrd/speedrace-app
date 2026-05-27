@@ -31,6 +31,12 @@
       "desktop": {
         "schemes": ["momentum"]
       }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/Weyrd/momentum-app/releases/latest/download/latest.json"
+      ],
+      "pubkey": "RWSr0ciFaQDknvRh13oAN2cGckT3AFneC5PPGjFKyanzgd03s6Gz/0DM"
     }
   },
   "bundle": {
