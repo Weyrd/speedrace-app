@@ -31,7 +31,6 @@ export type PlayerStatus = (typeof PlayerStatus)[keyof typeof PlayerStatus];
 export const LobbyStatus = {
   Waiting: "waiting",
   InProgress: "in_progress",
-  Finished: "finished",
 } as const;
 export type LobbyStatus = (typeof LobbyStatus)[keyof typeof LobbyStatus];
 
