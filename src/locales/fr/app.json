@@ -12,7 +12,7 @@
     "lobby": "Dans le lobby",
     "source_screen": "Écran",
     "source_camera": "Caméra",
-    "preview_placeholder": "PREVIEW — cliquer pour capturer",
+    "preview_placeholder": "PREVIEW - cliquer pour capturer",
     "publish": "● PUBLIER",
     "publishing": "Connexion au stream...",
     "error_source": "Impossible d'accéder à la source. Réessaie.",
@@ -40,7 +40,7 @@
   },
   "stop_modal": {
     "title": "⚠ Arrêter le stream ?",
-    "message_racing": "En race — cela déclenche\nun forfeit automatique.",
+    "message_racing": "En race - cela déclenche\nun forfeit automatique.",
     "message_idle": "Le stream sera arrêté."
   }
 }

@@ -33,11 +33,11 @@ export default function App() {
   }
 
   return (
-  <div className="h-screen bg-bg0 flex flex-col">
-    <Header />
-    <div className="flex-1 min-h-0 overflow-hidden">{renderScreen()}</div>
-    <Footer />
-    {import.meta.env.DEV && <DevToolbar />}
-  </div>
-);
+    <div className="h-screen bg-bg0 flex flex-col">
+      <Header />
+      <div className="flex-1 min-h-0 overflow-hidden">{renderScreen()}</div>
+      <Footer />
+      {import.meta.env.DEV && <DevToolbar />}
+    </div>
+  );
 }

@@ -59,6 +59,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case ActionType.LobbySetup: {
       if (!PHASES_WITH_USER.has(state.phase)) return state;
       const s = state as Extract<AppState, { user: User; wsStatus: WsStatus }>;
+      if (
+        state.phase === Phase.WaitingForStart ||
+        state.phase === Phase.RaceInProgress ||
+        state.phase === Phase.Finished
+      ) {
+        return { ...state, lobby: action.lobby } as AppState;
+      }
       return {
         phase: Phase.StreamSetup,
         user: s.user,

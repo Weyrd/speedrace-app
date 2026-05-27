@@ -9,7 +9,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
     let msg: ServerMessage = match serde_json::from_str(raw) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("[ws] parse error: {e} — raw: {raw}");
+            eprintln!("[ws] parse error: {e} - raw: {raw}");
             return;
         }
     };
