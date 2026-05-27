@@ -16,14 +16,12 @@ pub enum PlayerStatus {
 pub enum LobbyStatus {
     Waiting,
     InProgress,
-    Finished,
 }
 
 impl LobbyStatus {
     pub fn to_app_state(&self) -> AppState {
         match self {
             Self::InProgress => AppState::RaceInProgress,
-            Self::Finished => AppState::Finished,
             Self::Waiting => AppState::StreamSetup, //ou WaitingForStart
         }
     }
