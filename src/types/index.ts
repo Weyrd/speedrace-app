@@ -19,7 +19,7 @@ export const WsStatus = {
 } as const;
 export type WsStatus = (typeof WsStatus)[keyof typeof WsStatus];
 
-// Domain enums — values must match Rust serde output exactly
+// Domain enums - values must match Rust serde output exactly
 export const PlayerStatus = {
   Preparing: "preparing",
   InProgress: "in_progress",

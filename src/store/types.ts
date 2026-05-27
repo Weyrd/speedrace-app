@@ -3,17 +3,17 @@ Tauri backend → émet un event
 AppEventBridge l'attrape → dispatch(action)
 appReducer → nouvel AppState → React re-render
 
-AppAction — c'est juste une liste de tout ce qui peut "se passer" dans l'app :
+AppAction - c'est juste une liste de tout ce qui peut "se passer" dans l'app :
 - { type: "AUTH_OK", user: ... }
 
-appReducer — c'est une fonction pure qui reçoit l'état actuel + une action, et retourne le nouvel état :
+appReducer - c'est une fonction pure qui reçoit l'état actuel + une action, et retourne le nouvel état :
 - (state, action) => newState
 
-AppState — c'est l'état actuel de l'app, une union de phases :
+AppState - c'est l'état actuel de l'app, une union de phases :
 - { phase: "Idle", user, wsStatus }
 - { phase: "StreamSetup", user, wsStatus, lobby }
 
-AppEventBridge — c'est le pont entre Tauri et React. Il écoute les events Tauri et les traduit en actions :
+AppEventBridge - c'est le pont entre Tauri et React. Il écoute les events Tauri et les traduit en actions :
 onLobbySetup((lobby) => {
   dispatch({ type: ActionType.LobbySetup, lobby }) // → reducer
 })

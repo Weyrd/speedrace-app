@@ -80,7 +80,7 @@ export default function StreamSetup() {
         />
       </div>
 
-      {/* Preview area — always clickable to start or change source */}
+      {/* Preview area - always clickable to start or change source */}
       <div
         onClick={!isPublishing ? startPreview : undefined}
         className="bg-black border border-border rounded aspect-video w-full flex items-center justify-center overflow-hidden relative group cursor-pointer"

@@ -1,13 +1,13 @@
 /**
- * WhipClient — WebRTC WHIP publisher (v1, webview-side).
+ * WhipClient - WebRTC WHIP publisher (v1, webview-side).
  *
  * Flow:
  *   1. Caller acquires a MediaStream (getDisplayMedia / getUserMedia)
- *   2. Call `start(whipUrl, stream)` — negotiates SDP with MediaMTX
+ *   2. Call `start(whipUrl, stream)` - negotiates SDP with MediaMTX
  *   3. On success, stream is live on MediaMTX
  *   4. Call `stop()` to tear down the RTCPeerConnection
  *
- * v2 note: when ffmpeg takes over, this file is replaced — nothing else changes.
+ * v2 note: when ffmpeg takes over, this file is replaced - nothing else changes.
  * ffpeg can  whip stream? AND save in the same time?
  */
 
@@ -17,7 +17,7 @@ export class WhipClient {
 
   async start(whipUrl: string, stream: MediaStream): Promise<void> {
     if (this.pc) {
-      throw new Error("[whip] already started — call stop() first");
+      throw new Error("[whip] already started - call stop() first");
     }
 
     this.pc = new RTCPeerConnection({
@@ -73,7 +73,7 @@ export class WhipClient {
     }
 
     // Save the resource URL so we can DELETE it on stop (clean WHIP teardown).
-    // The Location header may be a relative path — resolve it against the WHIP
+    // The Location header may be a relative path - resolve it against the WHIP
     // server origin so the DELETE goes to MediaMTX, not the page origin.
     const location = res.headers.get("Location");
     if (location) {

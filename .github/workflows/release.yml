@@ -5,7 +5,7 @@ on:
       - "v[0-9]+.*"
 
 jobs:
-  # ── 1. Changelog ─────────────────────────────────────────────────────────────
+  # Changelog
   changelog:
     runs-on: ubuntu-22.04
     outputs:
@@ -22,7 +22,7 @@ jobs:
           config: cliff.toml
           args: --latest --strip header
 
-  # ── 2. Create draft release (once, no build) ─────────────────────────────────
+  # Create draft release (once, no build)
   create-release:
     needs: changelog
     runs-on: ubuntu-22.04
@@ -47,7 +47,7 @@ jobs:
             })
             return data.id
 
-  # ── 3. Build & upload artifacts (parallel) ───────────────────────────────────
+  # Build & upload artifacts (parallel)
   release:
     needs: [changelog, create-release]
     permissions:
@@ -128,7 +128,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_URL: ${{ secrets.BACKEND_URL }}
           WS_DEBUG: ${{ vars.WS_DEBUG }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+  publish-release:
+    needs: [create-release, release]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Publish release (draft → public)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ needs.create-release.outputs.release_id }},
+              draft: false,
+            })

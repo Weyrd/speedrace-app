@@ -32,7 +32,7 @@ export default function WaitingForStart() {
         />
       </div>
 
-      {/* Stream preview — view only */}
+      {/* Stream preview - view only */}
       <div className="bg-black border border-border rounded aspect-video w-full overflow-hidden relative">
         <video
           ref={videoRef}

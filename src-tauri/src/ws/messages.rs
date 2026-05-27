@@ -24,7 +24,9 @@ pub struct LobbyStartMsg {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PlayerResultPayload {
+    #[serde(default)]
     pub user_id: String,
+    #[serde(default)]
     pub username: String,
     pub player_status: String,
     pub finishing_time_ms: Option<i64>,

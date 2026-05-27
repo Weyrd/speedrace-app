@@ -34,7 +34,7 @@ pub fn lobby_forfeit_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/forfeit")
 }
 
-// WS reconnect — exponential back-off bounds
+// WS reconnect - exponential back-off bounds
 pub const WS_RECONNECT_BASE_SECS: u64 = 1;
 pub const WS_RECONNECT_MAX_SECS: u64 = 30;
 

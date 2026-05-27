@@ -1,33 +1,34 @@
-# Stream V2 — ffmpeg Sidecar: Live WHIP + Local Replay
+# Stream V2 - ffmpeg Sidecar: Live WHIP + Local Replay
 
 ## Summary
 
 Replace the webview-based WebRTC WHIP stream with an **ffmpeg sidecar** that:
+
 1. Captures a **screen or application window** (DXGI Desktop Duplication) + system audio (WASAPI loopback)
 2. Outputs **two streams simultaneously** from a single capture:
-   - **Live (WHIP)**: Low quality, high framerate (target **60fps**), ultra-lightweight — viewers see smooth motion with minimal bandwidth
+   - **Live (WHIP)**: Low quality, high framerate (target **60fps**), ultra-lightweight - viewers see smooth motion with minimal bandwidth
    - **Replay (MP4)**: Minimum 720p60, well-compressed for long runs (3–4 hours), YouTube-ready
 
 > **Not a camera/webcam capture.** This captures what's on screen (full monitor or a specific application window). The user picks which screen/app to capture in the UI.
 
-The webview no longer handles `getDisplayMedia` or WebRTC. The Rust `FfmpegStreamHandle` replaces `WhipStreamHandle` behind the existing `StreamHandle` trait — no changes to `commands.rs` or backend.
+The webview no longer handles `getDisplayMedia` or WebRTC. The Rust `FfmpegStreamHandle` replaces `WhipStreamHandle` behind the existing `StreamHandle` trait - no changes to `commands.rs` or backend.
 
 ---
 
 ## Quality Philosophy
 
-| Output | Goal | Framerate | Resolution | Bitrate/Quality | Rationale |
-|---|---|---|---|---|---|
-| **WHIP (live)** | Smooth, lightweight, real-time | **60fps** (hard target) | 720p or lower | 1500–2500 kbps | Viewers need fluidity, not pixel-perfect quality. Lower resolution = less bandwidth = more stable WebRTC. |
-| **MP4 (replay)** | Archival, YouTube-uploadable | **60fps** minimum | **720p** minimum (native if ≥720p) | CRF 26–28, slow preset | Long runs (3–4h) must stay reasonable in file size. CRF 26 at 720p60 ≈ 1.5–2.5 GB/hour. |
+| Output           | Goal                           | Framerate               | Resolution                         | Bitrate/Quality        | Rationale                                                                                                 |
+| ---------------- | ------------------------------ | ----------------------- | ---------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| **WHIP (live)**  | Smooth, lightweight, real-time | **60fps** (hard target) | 720p or lower                      | 1500–2500 kbps         | Viewers need fluidity, not pixel-perfect quality. Lower resolution = less bandwidth = more stable WebRTC. |
+| **MP4 (replay)** | Archival, YouTube-uploadable   | **60fps** minimum       | **720p** minimum (native if ≥720p) | CRF 26–28, slow preset | Long runs (3–4h) must stay reasonable in file size. CRF 26 at 720p60 ≈ 1.5–2.5 GB/hour.                   |
 
 ### File size estimates (720p60, CRF 26, slow preset)
 
 | Duration | Estimated size |
-|---|---|
-| 1 hour | ~1.5–2.5 GB |
-| 3 hours | ~4.5–7.5 GB |
-| 4 hours | ~6–10 GB |
+| -------- | -------------- |
+| 1 hour   | ~1.5–2.5 GB    |
+| 3 hours  | ~4.5–7.5 GB    |
+| 4 hours  | ~6–10 GB       |
 
 With CRF 28 (more compression, slightly lower quality): roughly 30–40% smaller.
 With 1080p: roughly 2× larger than 720p.
@@ -77,18 +78,19 @@ With 1080p: roughly 2× larger than 720p.
 
 ## Why this approach
 
-| Criteria | ffmpeg tee/multi-output | MediaRecorder (browser API) | ffmpeg record-only |
-|---|---|---|---|
-| Single capture source | ✅ | ✅ | ❌ (two captures) |
-| Low-latency live (WHIP) | ✅ native `-f whip` | ✅ existing WhipClient | N/A |
-| YouTube-ready MP4 (H.264+AAC) | ✅ | ❌ (WebM/VP9) | ✅ |
-| Quality control (bitrate, CRF, preset) | ✅ full | ❌ limited | ✅ |
-| Hardware encoding (NVENC/QSV) | ✅ | ❌ | ✅ |
-| Cross-platform (macOS later) | ✅ (AVFoundation) | Partial | ✅ |
-| No extra dependencies | ❌ (sidecar) | ✅ | ❌ (sidecar) |
-| Configurable stream vs replay quality | ✅ | ❌ | N/A |
+| Criteria                               | ffmpeg tee/multi-output | MediaRecorder (browser API) | ffmpeg record-only |
+| -------------------------------------- | ----------------------- | --------------------------- | ------------------ |
+| Single capture source                  | ✅                      | ✅                          | ❌ (two captures)  |
+| Low-latency live (WHIP)                | ✅ native `-f whip`     | ✅ existing WhipClient      | N/A                |
+| YouTube-ready MP4 (H.264+AAC)          | ✅                      | ❌ (WebM/VP9)               | ✅                 |
+| Quality control (bitrate, CRF, preset) | ✅ full                 | ❌ limited                  | ✅                 |
+| Hardware encoding (NVENC/QSV)          | ✅                      | ❌                          | ✅                 |
+| Cross-platform (macOS later)           | ✅ (AVFoundation)       | Partial                     | ✅                 |
+| No extra dependencies                  | ❌ (sidecar)            | ✅                          | ❌ (sidecar)       |
+| Configurable stream vs replay quality  | ✅                      | ❌                          | N/A                |
 
 **ffmpeg multi-output wins** because:
+
 - WHIP requires Opus audio, YouTube requires AAC → can't use simple `tee` → need separate outputs (ffmpeg handles this natively)
 - One screen capture, two encodes with different optimization targets
 - Produces a YouTube-ready MP4 with no post-processing
@@ -96,7 +98,7 @@ With 1080p: roughly 2× larger than 720p.
 
 ---
 
-## ffmpeg Pipeline — Windows
+## ffmpeg Pipeline - Windows
 
 ### Minimal command (software encoding)
 
@@ -105,7 +107,7 @@ ffmpeg \
   -f lavfi -i "ddagrab=output_idx=0,hwdownload,format=bgra" \
   -f f32le -ar 48000 -ac 2 -i pipe:0 \
   \
-  # Output 1: WHIP live — low quality, 60fps, ultra-light
+  # Output 1: WHIP live - low quality, 60fps, ultra-light
   -map 0:v -map 1:a \
   -c:v libx264 -preset ultrafast -tune zerolatency -bf 0 -profile:v baseline \
   -r 60 -g 120 -b:v 2000k \
@@ -113,7 +115,7 @@ ffmpeg \
   -c:a libopus -ar 48000 -ac 2 -b:a 64k \
   -f whip "http://mediamtx:8889/{lobby_id}/whip" \
   \
-  # Output 2: Replay MP4 — 720p60 minimum, compressed for long runs
+  # Output 2: Replay MP4 - 720p60 minimum, compressed for long runs
   -map 0:v -map 1:a \
   -c:v libx264 -preset slow -crf 26 -profile:v high \
   -r 60 \
@@ -130,7 +132,7 @@ ffmpeg \
   -f lavfi -i "ddagrab=output_idx=0" \
   -f f32le -ar 48000 -ac 2 -i pipe:0 \
   \
-  # Output 1: WHIP live — NVENC low-latency, 60fps, 720p downscale
+  # Output 1: WHIP live - NVENC low-latency, 60fps, 720p downscale
   -map 0:v -map 1:a \
   -c:v h264_nvenc -preset p3 -tune ll -profile:v baseline -bf 0 \
   -r 60 -b:v 2000k \
@@ -138,7 +140,7 @@ ffmpeg \
   -c:a libopus -ar 48000 -ac 2 -b:a 64k \
   -f whip "http://mediamtx:8889/{lobby_id}/whip" \
   \
-  # Output 2: Replay — NVENC quality mode, 60fps, compressed
+  # Output 2: Replay - NVENC quality mode, 60fps, compressed
   -map 0:v -map 1:a \
   -c:v h264_nvenc -preset p6 -profile:v high -cq 28 -b:v 0 \
   -r 60 \
@@ -160,16 +162,17 @@ ffmpeg \
 
 ## Video Capture: Screen/App Only (no camera)
 
-This captures **what is displayed on screen** — either a full monitor or a specific application window. There is no webcam/camera capture; this is a speedrun proof-of-play recording.
+This captures **what is displayed on screen** - either a full monitor or a specific application window. There is no webcam/camera capture; this is a speedrun proof-of-play recording.
 
 The user selects what to capture in the settings UI before going live:
-- **Full screen** — captures everything on the selected monitor
-- **Specific window** — captures a single application (e.g., the game window)
 
-### Desktop Duplication API (ddagrab) — primary method
+- **Full screen** - captures everything on the selected monitor
+- **Specific window** - captures a single application (e.g., the game window)
+
+### Desktop Duplication API (ddagrab) - primary method
 
 - Available in ffmpeg 6.0+ (standard in Windows builds from gyan.dev / BtbN)
-- Uses DXGI Desktop Duplication API — GPU-accelerated, very low overhead
+- Uses DXGI Desktop Duplication API - GPU-accelerated, very low overhead
 - `output_idx=0` captures primary monitor (configurable)
 - Outputs D3D11 hardware frames → can be passed directly to NVENC for zero-copy
 - Supports 60fps capture natively
@@ -183,6 +186,7 @@ ddagrab=output_idx=1    # Secondary monitor
 ```
 
 For window capture (gdigrab mode):
+
 ```
 gdigrab -framerate 60 -i title="Game Window Name"
 ```
@@ -218,11 +222,13 @@ stream.play()?;
 ```
 
 **Why not "Stereo Mix"?**
+
 - Not available on all systems
 - Must be manually enabled in Windows Sound settings
 - Poor UX for non-technical users
 
 **Why cpal loopback?**
+
 - Zero user configuration needed
 - Works on all Windows 10+ systems
 - Pure Rust, compiles into the app
@@ -235,6 +241,7 @@ stream.play()?;
 ### Sidecar bundling
 
 In `tauri.conf.json`:
+
 ```json
 {
   "bundle": {
@@ -244,6 +251,7 @@ In `tauri.conf.json`:
 ```
 
 Place the ffmpeg binary at:
+
 ```
 src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
 ```
@@ -280,7 +288,7 @@ impl StreamHandle for FfmpegStreamHandle {
 }
 ```
 
-### StreamConfig (subset of app settings — stream-specific)
+### StreamConfig (subset of app settings - stream-specific)
 
 ```rust
 pub struct StreamConfig {
@@ -288,12 +296,12 @@ pub struct StreamConfig {
     pub monitor_index: u32,              // 0 = primary
     pub capture_target: CaptureTarget,   // FullScreen | Window(window_id)
 
-    // Live stream (WHIP) — priority: framerate > quality
+    // Live stream (WHIP) - priority: framerate > quality
     pub stream_framerate: u32,           // target 60
     pub stream_resolution: (u32, u32),   // 1280x720 default (downscale if native is higher)
     pub stream_bitrate_kbps: u32,        // 1500–2500, default 2000
 
-    // Replay (MP4) — priority: compression > quality, minimum 720p60
+    // Replay (MP4) - priority: compression > quality, minimum 720p60
     pub replay_framerate: u32,           // minimum 60
     pub replay_resolution: ReplayResolution, // Native | 720p | 1080p
     pub replay_crf: u8,                  // 24–30, default 26 (good compression)
@@ -416,9 +424,9 @@ At app startup or first stream, probe available encoders:
 ```rust
 // Run: ffmpeg -encoders 2>&1 | grep h264
 // Look for:
-//   h264_nvenc  — NVIDIA GPU
-//   h264_qsv   — Intel QuickSync
-//   h264_amf   — AMD AMF
+//   h264_nvenc  - NVIDIA GPU
+//   h264_qsv   - Intel QuickSync
+//   h264_amf   - AMD AMF
 
 pub fn detect_hw_encoders(ffmpeg_path: &Path) -> HwEncoders {
     let output = Command::new(ffmpeg_path)
@@ -439,7 +447,7 @@ Auto-select the best encoder: NVENC > QSV > AMF > libx264 (software fallback).
 
 ## Settings Module (app-wide, extensible)
 
-The app needs a **robust, extensible settings system** — not just stream config. Stream settings are one category among many (language, theme, keybinds, etc.). The module is designed to grow.
+The app needs a **robust, extensible settings system** - not just stream config. Stream settings are one category among many (language, theme, keybinds, etc.). The module is designed to grow.
 
 ### Architecture
 
@@ -460,7 +468,7 @@ src/
         └── AdvancedSettings.tsx    ← Encoder override, debug flags
 ```
 
-### Settings schema (Rust — persisted as JSON file)
+### Settings schema (Rust - persisted as JSON file)
 
 ```rust
 // src-tauri/src/settings/schema.rs
@@ -492,12 +500,12 @@ pub struct StreamSettings {
     pub monitor_index: u32,
     pub capture_target: CaptureTarget,
 
-    // WHIP (live) — lightweight, max fluidity
+    // WHIP (live) - lightweight, max fluidity
     pub stream_framerate: u32,           // default: 60
     pub stream_resolution: (u32, u32),   // default: (1280, 720)
     pub stream_bitrate_kbps: u32,        // default: 2000
 
-    // Replay (MP4) — compressed, archival quality
+    // Replay (MP4) - compressed, archival quality
     pub replay_framerate: u32,           // default: 60, minimum enforced: 60
     pub replay_resolution: ReplayResolution, // default: Native (min 720p enforced)
     pub replay_compression: ReplayCompression, // default: Balanced
@@ -574,8 +582,8 @@ async fn get_available_encoders(state: State<'_, AppState>) -> Result<HwEncoders
 
 ```typescript
 // src/stores/settings.ts
-import { create } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
+import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
 
 interface SettingsStore {
   settings: AppSettings | null;
@@ -588,16 +596,16 @@ The settings modal renders category tabs. Each tab is a standalone component tha
 
 ### Stream settings UI
 
-| Setting | Control | Default | Notes |
-|---|---|---|---|
-| **Capture source** | Dropdown (monitors + windows) | Primary monitor | Refreshed on open |
-| **Stream framerate** | 60 (locked) | 60 | Always 60fps for WHIP — non-negotiable for smooth viewing |
-| **Stream quality** | Slider: Light / Medium | Light (2000k) | Lower = more stable WebRTC |
-| **Replay framerate** | 60 (locked) | 60 | Minimum 60fps enforced |
-| **Replay resolution** | 720p / 1080p / Native | Native | Minimum 720p enforced |
-| **Replay compression** | Light / Balanced / Heavy | Balanced | Shows estimated GB/hour |
-| **Replay folder** | Folder picker | ~/Videos/Momentum/ | |
-| **Encoder** | Auto / NVENC / QSV / Software | Auto | Greyed-out options if not available |
+| Setting                | Control                       | Default            | Notes                                                     |
+| ---------------------- | ----------------------------- | ------------------ | --------------------------------------------------------- |
+| **Capture source**     | Dropdown (monitors + windows) | Primary monitor    | Refreshed on open                                         |
+| **Stream framerate**   | 60 (locked)                   | 60                 | Always 60fps for WHIP - non-negotiable for smooth viewing |
+| **Stream quality**     | Slider: Light / Medium        | Light (2000k)      | Lower = more stable WebRTC                                |
+| **Replay framerate**   | 60 (locked)                   | 60                 | Minimum 60fps enforced                                    |
+| **Replay resolution**  | 720p / 1080p / Native         | Native             | Minimum 720p enforced                                     |
+| **Replay compression** | Light / Balanced / Heavy      | Balanced           | Shows estimated GB/hour                                   |
+| **Replay folder**      | Folder picker                 | ~/Videos/Momentum/ |                                                           |
+| **Encoder**            | Auto / NVENC / QSV / Software | Auto               | Greyed-out options if not available                       |
 
 ---
 
@@ -617,27 +625,29 @@ dirs = "5"             # OS-standard directories (Videos, AppData, etc.)
 - Source: [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (GPL builds include all codecs)
 - Required build flags: `--enable-libx264 --enable-libopus`
 - Size: ~80MB uncompressed, ~30MB compressed in the installer
-- The binary is NOT compiled from source — it's a pre-built static binary bundled as a Tauri sidecar
+- The binary is NOT compiled from source - it's a pre-built static binary bundled as a Tauri sidecar
 
 ---
 
 ## Migration from v1
 
-| Component | v1 (current) | v2 (this) |
-|---|---|---|
-| Screen capture | `getDisplayMedia` in webview | `ddagrab` via ffmpeg |
-| Audio capture | Browser audio track | WASAPI loopback via cpal |
-| Live stream | WhipClient (TypeScript WebRTC) | ffmpeg `-f whip` |
-| Local recording | ❌ none | ffmpeg MP4 output |
-| Stream control | Frontend → Tauri IPC (notify only) | Rust spawns/kills ffmpeg |
-| Frontend role | Capture + WebRTC + UI | UI only |
+| Component       | v1 (current)                       | v2 (this)                |
+| --------------- | ---------------------------------- | ------------------------ |
+| Screen capture  | `getDisplayMedia` in webview       | `ddagrab` via ffmpeg     |
+| Audio capture   | Browser audio track                | WASAPI loopback via cpal |
+| Live stream     | WhipClient (TypeScript WebRTC)     | ffmpeg `-f whip`         |
+| Local recording | ❌ none                            | ffmpeg MP4 output        |
+| Stream control  | Frontend → Tauri IPC (notify only) | Rust spawns/kills ffmpeg |
+| Frontend role   | Capture + WebRTC + UI              | UI only                  |
 
 ### What gets deleted
+
 - `src/stream/whip.ts`
 - `getDisplayMedia` calls in StreamSetup
 - WhipClient references in components
 
 ### What stays the same
+
 - `StreamHandle` trait interface
 - Backend WS events (`stream_live`, etc.)
 - SSE to website viewers (they still consume WHEP from MediaMTX)
@@ -647,25 +657,25 @@ dirs = "5"             # OS-standard directories (Videos, AppData, etc.)
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| ffmpeg sidecar increases app size (+80MB) | Compress with UPX, or use ffmpeg-light custom build |
-| ddagrab not available on old Windows | Fallback to gdigrab (detect at runtime) |
-| WASAPI loopback fails (no output device) | Detect and warn user, allow mic-only fallback |
-| MP4 incomplete if crash/force-kill | Post-process with `ffmpeg -i broken.mp4 -c copy fixed.mp4` |
-| WHIP handshake fails | Retry logic with exponential backoff, surface error to UI |
-| User has no GPU (software encoding too slow) | Reduce resolution/framerate automatically, warn user |
+| Risk                                         | Mitigation                                                 |
+| -------------------------------------------- | ---------------------------------------------------------- |
+| ffmpeg sidecar increases app size (+80MB)    | Compress with UPX, or use ffmpeg-light custom build        |
+| ddagrab not available on old Windows         | Fallback to gdigrab (detect at runtime)                    |
+| WASAPI loopback fails (no output device)     | Detect and warn user, allow mic-only fallback              |
+| MP4 incomplete if crash/force-kill           | Post-process with `ffmpeg -i broken.mp4 -c copy fixed.mp4` |
+| WHIP handshake fails                         | Retry logic with exponential backoff, surface error to UI  |
+| User has no GPU (software encoding too slow) | Reduce resolution/framerate automatically, warn user       |
 
 ---
 
 ## Implementation Order
 
-1. **Settings module** (`settings/`) — schema, load/save, defaults, Tauri commands (needed by everything else)
-2. **Audio capture module** (`audio_capture.rs`) — cpal WASAPI loopback → pipe
-3. **Pipeline builder** (`pipeline.rs`) — construct ffmpeg args from StreamSettings
-4. **Hardware detection** (`hardware_detect.rs`) — probe available encoders
-5. **FfmpegStreamHandle** (`ffmpeg.rs`) — spawn, monitor, stop
-6. **Bundle ffmpeg binary** — add to Tauri sidecar config
-7. **Frontend settings store + UI** — Zustand store, SettingsModal with tabs
-8. **Simplify StreamSetup** — remove getDisplayMedia, WhipClient; wire to settings
-9. **Integration test** — verify WHIP connects to MediaMTX + MP4 is valid
+1. **Settings module** (`settings/`) - schema, load/save, defaults, Tauri commands (needed by everything else)
+2. **Audio capture module** (`audio_capture.rs`) - cpal WASAPI loopback → pipe
+3. **Pipeline builder** (`pipeline.rs`) - construct ffmpeg args from StreamSettings
+4. **Hardware detection** (`hardware_detect.rs`) - probe available encoders
+5. **FfmpegStreamHandle** (`ffmpeg.rs`) - spawn, monitor, stop
+6. **Bundle ffmpeg binary** - add to Tauri sidecar config
+7. **Frontend settings store + UI** - Zustand store, SettingsModal with tabs
+8. **Simplify StreamSetup** - remove getDisplayMedia, WhipClient; wire to settings
+9. **Integration test** - verify WHIP connects to MediaMTX + MP4 is valid

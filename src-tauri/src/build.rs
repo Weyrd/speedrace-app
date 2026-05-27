@@ -1,4 +1,4 @@
-// build.rs — forward BACKEND_URL from .env to the crate via option_env!()
+// build.rs - forward BACKEND_URL from .env to the crate via option_env!()
 // Place a `.env` file next to this build.rs (i.e. inside src-tauri/) and add:
 //   BACKEND_URL=https://api.momentum.app
 // The file is gitignored; CI sets the variable directly in the environment.

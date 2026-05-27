@@ -1,4 +1,4 @@
-# ffmpeg Sidecar — Build & Integration
+# ffmpeg Sidecar - Build & Integration
 
 The Momentum desktop app bundles a **custom minimal ffmpeg** (~15–20MB instead of ~130MB) as a Tauri sidecar. It handles screen capture → WHIP live stream + local MP4 replay simultaneously.
 
@@ -14,7 +14,7 @@ This folder contains the build script and this guide.
 - ~10GB free disk space (for build toolchain + intermediate files)
 - Optional: `winget install upx` for extra compression (~50% smaller binary)
 
-### Step 1 — Clone media-autobuild_suite
+### Step 1 - Clone media-autobuild_suite
 
 ```powershell
 git clone https://github.com/m-ab-s/media-autobuild_suite.git C:\media-autobuild_suite
@@ -22,7 +22,7 @@ git clone https://github.com/m-ab-s/media-autobuild_suite.git C:\media-autobuild
 
 You can put it anywhere. The script will ask for the path.
 
-### Step 2 — Run the build script
+### Step 2 - Run the build script
 
 ```powershell
 cd momentum-app
@@ -35,11 +35,11 @@ Or skip the prompt:
 .\src-tauri\scripts\build-ffmpeg.ps1 -SuitePath "C:\media-autobuild_suite"
 ```
 
-**First run is interactive** — media-autobuild_suite will ask setup questions (MSYS2 install location, toolchain, etc.). Accept defaults. Subsequent runs are fully automatic.
+**First run is interactive** - media-autobuild_suite will ask setup questions (MSYS2 install location, toolchain, etc.). Accept defaults. Subsequent runs are fully automatic.
 
 Build time: **~30–60min** first run (downloads + compiles x264, opus, openssl, ffmpeg), **~5–10min** on rebuilds.
 
-### Step 3 — Done
+### Step 3 - Done
 
 The script places the binary at:
 
@@ -47,7 +47,7 @@ The script places the binary at:
 src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
 ```
 
-No further steps needed — Tauri picks it up automatically on the next build.
+No further steps needed - Tauri picks it up automatically on the next build.
 
 ---
 
@@ -82,7 +82,7 @@ Add `externalBin` to the bundle config:
 
 Tauri automatically resolves the platform-specific binary name. On Windows it looks for `binaries/ffmpeg-x86_64-pc-windows-msvc.exe`.
 
-### Rust side — spawning the sidecar
+### Rust side - spawning the sidecar
 
 ```rust
 use tauri::Manager;
@@ -107,12 +107,9 @@ tauri-plugin-shell = "2"
 ```
 
 ```json
-// src-tauri/capabilities/default.json — add shell permission
+// src-tauri/capabilities/default.json - add shell permission
 {
-  "permissions": [
-    "shell:allow-spawn",
-    "shell:allow-stdin-write"
-  ]
+  "permissions": ["shell:allow-spawn", "shell:allow-stdin-write"]
 }
 ```
 
@@ -120,13 +117,15 @@ tauri-plugin-shell = "2"
 
 The binary is large (~15–20MB). Either:
 
-**Option A** — Gitignore it (recommended, rebuild when needed):
+**Option A** - Gitignore it (recommended, rebuild when needed):
+
 ```gitignore
 # src-tauri/.gitignore
 binaries/ffmpeg-*.exe
 ```
 
-**Option B** — Use Git LFS:
+**Option B** - Use Git LFS:
+
 ```bash
 git lfs track "src-tauri/binaries/ffmpeg-*.exe"
 ```
@@ -170,16 +169,17 @@ Just re-run the script. It `git pull`s the suite and rewrites the options file, 
 
 ## Troubleshooting
 
-| Problem | Fix |
-|---|---|
-| Build fails on first run | Normal — media-autobuild_suite prompts setup questions. Re-run after setup completes. |
-| `strip` not found | Add MSYS2's `mingw64/bin` to your Windows PATH |
-| Binary too large (>30MB) | Ensure the build used our `ffmpeg_options.txt` — check `C:\media-autobuild_suite\build\ffmpeg_options.txt` |
-| `ddagrab` filter missing | You need ffmpeg 7.0+. The suite should build latest by default. |
-| WHIP muxer missing | OpenSSL must be linked. Should be automatic with the suite. |
-| AV software quarantines the binary | Happens with UPX. Rebuild without UPX (remove it from PATH before running script). |
+| Problem                            | Fix                                                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Build fails on first run           | Normal - media-autobuild_suite prompts setup questions. Re-run after setup completes.                      |
+| `strip` not found                  | Add MSYS2's `mingw64/bin` to your Windows PATH                                                             |
+| Binary too large (>30MB)           | Ensure the build used our `ffmpeg_options.txt` - check `C:\media-autobuild_suite\build\ffmpeg_options.txt` |
+| `ddagrab` filter missing           | You need ffmpeg 7.0+. The suite should build latest by default.                                            |
+| WHIP muxer missing                 | OpenSSL must be linked. Should be automatic with the suite.                                                |
+| AV software quarantines the binary | Happens with UPX. Rebuild without UPX (remove it from PATH before running script).                         |
 
 ---
+
 ---
 
 ## Appendix: Technical Specifications
@@ -188,35 +188,35 @@ Just re-run the script. It `git pull`s the suite and rewrites the options file, 
 
 ### Included Components
 
-| Category | Components | Purpose |
-|---|---|---|
-| **Encoders** | libx264, h264_nvenc, h264_qsv, h264_amf, libopus, aac | H.264 video (SW + HW) + audio for WHIP/MP4 |
-| **Decoders** | rawvideo, pcm_f32le, h264, aac | Raw inputs + remux support |
-| **Muxers** | whip, mp4, mov, null | Live WebRTC output + replay file |
-| **Demuxers** | lavfi, rawvideo, pcm_f32le, mov, concat | Virtual input + raw audio + crash remux |
-| **Filters** | ddagrab, hwdownload, format, scale, scale_cuda, aresample, split/asplit | Screen capture → process → dual output |
-| **Protocols** | pipe, file, http, https, udp, tcp, tls, crypto, rtp, srtp | Audio stdin + disk + WebRTC transport |
-| **BSFs** | h264_mp4toannexb, aac_adtstoasc | Container format conversion |
-| **Input devices** | gdigrab, dshow | Fallback screen capture |
+| Category          | Components                                                              | Purpose                                    |
+| ----------------- | ----------------------------------------------------------------------- | ------------------------------------------ |
+| **Encoders**      | libx264, h264_nvenc, h264_qsv, h264_amf, libopus, aac                   | H.264 video (SW + HW) + audio for WHIP/MP4 |
+| **Decoders**      | rawvideo, pcm_f32le, h264, aac                                          | Raw inputs + remux support                 |
+| **Muxers**        | whip, mp4, mov, null                                                    | Live WebRTC output + replay file           |
+| **Demuxers**      | lavfi, rawvideo, pcm_f32le, mov, concat                                 | Virtual input + raw audio + crash remux    |
+| **Filters**       | ddagrab, hwdownload, format, scale, scale_cuda, aresample, split/asplit | Screen capture → process → dual output     |
+| **Protocols**     | pipe, file, http, https, udp, tcp, tls, crypto, rtp, srtp               | Audio stdin + disk + WebRTC transport      |
+| **BSFs**          | h264_mp4toannexb, aac_adtstoasc                                         | Container format conversion                |
+| **Input devices** | gdigrab, dshow                                                          | Fallback screen capture                    |
 
 ### Size Breakdown
 
-| Component | Size |
-|---|---|
-| libx264 (static) | ~4MB |
-| libopus (static) | ~500KB |
-| ffmpeg core (lavformat, lavcodec, lavutil, lavfilter) | ~8–12MB |
-| OpenSSL (DTLS/TLS for WHIP) | ~3MB |
-| NVENC/QSV/AMF headers | ~200KB |
-| **Total (stripped, static)** | **~15–20MB** |
-| **Total (+ UPX)** | **~8–12MB** |
+| Component                                             | Size         |
+| ----------------------------------------------------- | ------------ |
+| libx264 (static)                                      | ~4MB         |
+| libopus (static)                                      | ~500KB       |
+| ffmpeg core (lavformat, lavcodec, lavutil, lavfilter) | ~8–12MB      |
+| OpenSSL (DTLS/TLS for WHIP)                           | ~3MB         |
+| NVENC/QSV/AMF headers                                 | ~200KB       |
+| **Total (stripped, static)**                          | **~15–20MB** |
+| **Total (+ UPX)**                                     | **~8–12MB**  |
 
 ### Important Constraints
 
-- **WHIP muxer requires OpenSSL** — WebRTC needs DTLS/SRTP. Always linked.
-- **ddagrab requires ffmpeg ≥7.0** — The suite builds latest by default.
-- **HW encoder headers are build-time only** — NVENC/QSV/AMF use the user's GPU driver at runtime. If no compatible GPU, software fallback is automatic.
-- **Static linking** — Single `.exe`, no DLL dependencies. Portable.
+- **WHIP muxer requires OpenSSL** - WebRTC needs DTLS/SRTP. Always linked.
+- **ddagrab requires ffmpeg ≥7.0** - The suite builds latest by default.
+- **HW encoder headers are build-time only** - NVENC/QSV/AMF use the user's GPU driver at runtime. If no compatible GPU, software fallback is automatic.
+- **Static linking** - Single `.exe`, no DLL dependencies. Portable.
 
 ### Raw Configure Flags
 
