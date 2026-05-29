@@ -42,5 +42,10 @@
     "title": "⚠ Arrêter le stream ?",
     "message_racing": "En race - cela déclenche\nun forfeit automatique.",
     "message_idle": "Le stream sera arrêté."
+  },
+  "update_modal": {
+    "title": "Mise à jour {{version}} disponible",
+    "later": "Plus tard",
+    "install": "Installer"
   }
 }
