@@ -3,11 +3,8 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppProvider } from "./store";
 import App from "./App";
-import { checkForUpdate } from "./lib/updater";
 import "./i18n";
 import "./index.css";
-
-checkForUpdate();
 
 const queryClient = new QueryClient({
   defaultOptions: {
