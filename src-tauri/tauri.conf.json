@@ -36,7 +36,7 @@
       "endpoints": [
         "http://localhost:8080/latest.json"
       ],
-      "pubkey": "RWSr0ciFaQDknvRh13oAN2cGckT3AFneC5PPGjFKyanzgd03s6Gz/0DM",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlBNUJBNUQ4QTg1N0FGNTgKUldSWXIxZW8yS1ZibWl2Snd0c3VPdDdFSHpyQjQ3K3NmdmQzekVINS9TcXUyNGg2UFllWjZSSHYK",
       "dangerousInsecureTransportProtocol": true
     }
   },
