@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use tauri::AppHandle;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
@@ -24,12 +24,26 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
             }
         };
 
-        let url = config::ws_url(&token);
+        let url = config::ws_url();
         emit_ws_status(&app, &state, WsStatus::Connecting);
         ws_debug!("connecting to {}", url);
 
         match connect_async(&url).await {
-            Ok((ws_stream, _)) => {
+            Ok((mut ws_stream, _)) => {
+                // Send auth as first message (token never appears in the URL)
+                let auth_msg = format!(r#"{{"type":"auth","token":"{}"}}"#, token);
+                if ws_stream
+                    .send(Message::Text(auth_msg.into()))
+                    .await
+                    .is_err()
+                {
+                    eprintln!("[ws] failed to send auth message");
+                    emit_ws_status(&app, &state, WsStatus::Disconnected);
+                    tokio::time::sleep(backoff).await;
+                    backoff = (backoff * 2).min(Duration::from_secs(config::WS_RECONNECT_MAX_SECS));
+                    continue;
+                }
+
                 backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS); // reset on success
                 emit_ws_status(&app, &state, WsStatus::Connected);
                 ws_debug!("connected successfully");
@@ -58,8 +72,6 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                         let _ = app.emit(APP_STATE, AppState::Idle);
                     }
                 }
-
-                let mut ws_stream = ws_stream;
 
                 loop {
                     match ws_stream.next().await {

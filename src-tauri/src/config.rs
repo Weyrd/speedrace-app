@@ -44,7 +44,7 @@ pub const GRANT_TYPE_REFRESH: &str = "refresh_token";
 
 pub const TOKEN_REFRESH_MARGIN_SECS: u64 = 60; // refresh 60s before expiry
 
-pub fn ws_url(token: &str) -> String {
+pub fn ws_url() -> String {
     let host = BACKEND_URL
         .trim_start_matches("https://")
         .trim_start_matches("http://");
@@ -53,7 +53,7 @@ pub fn ws_url(token: &str) -> String {
     } else {
         "ws"
     };
-    format!("{scheme}://{host}{WS_PATH}?token={token}")
+    format!("{scheme}://{host}{WS_PATH}")
 }
 
 pub fn api_url(path: &str) -> String {

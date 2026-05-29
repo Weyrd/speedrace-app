@@ -14,12 +14,14 @@
 export class WhipClient {
   private pc: RTCPeerConnection | null = null;
   private resourceUrl: string | null = null;
+  private stream: MediaStream | null = null;
 
   async start(whipUrl: string, stream: MediaStream): Promise<void> {
     if (this.pc) {
       throw new Error("[whip] already started - call stop() first");
     }
 
+    this.stream = stream;
     this.pc = new RTCPeerConnection({
       iceServers: [
         /*
@@ -90,6 +92,11 @@ export class WhipClient {
   }
 
   stop(): void {
+    if (this.stream) {
+      this.stream.getTracks().forEach((t) => t.stop());
+      this.stream = null;
+    }
+
     if (this.pc) {
       this.pc.close();
       this.pc = null;
