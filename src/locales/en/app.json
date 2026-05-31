@@ -40,7 +40,7 @@
   },
   "stop_modal": {
     "title": "⚠ Stop stream?",
-    "message_racing": "In race - this triggers\nan automatic forfeit.",
+    "message_racing": "In race, triggers\nan automatic forfeit.",
     "message_idle": "The stream will be stopped."
   },
   "update_modal": {
