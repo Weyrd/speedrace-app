@@ -26,7 +26,7 @@
   },
   "race": {
     "in_race": "en course",
-    "stop_forfeit": "▪ Arrêter / Forfeit",
+    "stop_forfeit": "▪ Arrêter / Forfait",
     "finish": "✓ Terminer",
     "forfeit": "✗ Forfait",
     "finished_title": "Course terminée",
@@ -40,7 +40,7 @@
   },
   "stop_modal": {
     "title": "⚠ Arrêter le stream ?",
-    "message_racing": "En race - cela déclenche\nun forfeit automatique.",
+    "message_racing": "En race, déclenche\nun forfeit automatique.",
     "message_idle": "Le stream sera arrêté."
   },
   "update_modal": {
