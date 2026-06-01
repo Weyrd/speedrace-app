@@ -47,5 +47,8 @@
     "title": "Update {{version}} available",
     "later": "Later",
     "install": "Install"
+  },
+  "header": {
+    "open_lobby": "Open lobby in browser"
   }
 }
