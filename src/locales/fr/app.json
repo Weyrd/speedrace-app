@@ -47,5 +47,8 @@
     "title": "Mise à jour {{version}} disponible",
     "later": "Plus tard",
     "install": "Installer"
+  },
+  "header": {
+    "open_lobby": "Ouvrir le lobby dans le navigateur"
   }
 }
