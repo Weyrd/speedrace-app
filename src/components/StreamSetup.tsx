@@ -28,7 +28,7 @@ export default function StreamSetup() {
     setError(null);
     try {
       const media = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 45 }, // TODO: v2 make configurable
+        video: { frameRate: 50 }, // TODO: v2 make configurable
         audio: true,
       });
       streamRef.current = media;

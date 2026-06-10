@@ -1,7 +1,7 @@
 {
   "login": {
     "connect": "Login via web",
-    "connecting": "Connecting...",
+    "connecting": "Connecting... (click to retry)",
     "disconnect": "Disconnect"
   },
   "idle": {
@@ -50,5 +50,9 @@
   },
   "header": {
     "open_lobby": "Open lobby in browser"
+  },
+  "tray_hint": {
+    "title": "Still running",
+    "message": "Momentum keeps running in the tray.\nClick the tray icon to bring it back,\nor use the close button to quit."
   }
 }

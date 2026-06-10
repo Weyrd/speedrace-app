@@ -42,15 +42,24 @@ With 1080p: roughly 2× larger than 720p.
 │  Tauri App (Rust)                                       │
 │                                                         │
 │  ┌─────────────────┐     ┌────────────────────────┐    │
-│  │  WASAPI Loopback │────▶│  Named Pipe / stdin    │    │
+│  │  WASAPI Loopback │────▶│  Named Pipe (audio)    │    │
 │  │  (cpal crate)    │     │  (raw f32le PCM)       │    │
 │  └─────────────────┘     └──────────┬─────────────┘    │
+│                                      │                  │
+│  ┌─────────────────┐     ┌──────────┼─────────────┐    │
+│  │  WGC capture     │────▶│  Named Pipe (video)    │    │
+│  │  (window only)   │     │  (raw BGRA frames)     │    │
+│  └─────────────────┘     └──────────┼─────────────┘    │
+│   (monitor target skips this — ffmpeg ddagrab instead)  │
 │                                      │                  │
 │  ┌───────────────────────────────────▼──────────────┐   │
 │  │  ffmpeg sidecar                                   │   │
 │  │                                                   │   │
-│  │  Input 0: -f lavfi "ddagrab=0,hwdownload,bgra"   │   │
-│  │  Input 1: -f f32le -ar 48000 -ac 2 -i pipe:0     │   │
+│  │  Video in (monitor): -f lavfi "ddagrab=0,..."    │   │
+│  │  Video in (window):  -f rawvideo -pix_fmt bgra   │   │
+│  │                      -i \\.\pipe\momentum_video  │   │
+│  │  Audio in: -f f32le -ar 48000 -ac 2              │   │
+│  │            -i \\.\pipe\momentum_audio            │   │
 │  │                                                   │   │
 │  │  Output 1 (LIVE):                                 │   │
 │  │    -c:v libx264 -preset veryfast -tune zerolatency│   │
@@ -166,30 +175,61 @@ This captures **what is displayed on screen** - either a full monitor or a speci
 
 The user selects what to capture in the settings UI before going live:
 
-- **Full screen** - captures everything on the selected monitor
-- **Specific window** - captures a single application (e.g., the game window)
+- **Full screen** - captures everything on the selected monitor (`ddagrab`, in-ffmpeg)
+- **Specific window** - captures a single application, e.g. the game window (Windows Graphics Capture, in-Rust → piped to ffmpeg)
 
-### Desktop Duplication API (ddagrab) - primary method
+The two targets use **different capture engines**, because the constraints differ:
+
+| Target | Engine | Why |
+| --- | --- | --- |
+| Full monitor | DXGI Desktop Duplication (`ddagrab`) | ffmpeg captures it directly, GPU zero-copy into NVENC. Follows whatever is on the monitor, including a game that returns to fullscreen. |
+| Single window / game | **Windows Graphics Capture (WGC)** | Captures a specific `HWND` at the DWM compositor level. Game-only, GPU-accelerated, **works with fullscreen and borderless windows**, no DLL injection. |
+
+> **Why not `gdigrab` for windows?** `gdigrab` is GDI/BitBlt-based and **cannot capture GPU-accelerated or fullscreen DirectX/Vulkan/OpenGL windows** — it returns black or stale frames, the exact failure mode of the v1 webview `getDisplayMedia` window capture. It is kept only as a last-resort fallback for legacy desktop apps. WGC is the correct primitive for game-only capture.
+
+### Full screen — Desktop Duplication API (ddagrab)
 
 - Available in ffmpeg 6.0+ (standard in Windows builds from gyan.dev / BtbN)
 - Uses DXGI Desktop Duplication API - GPU-accelerated, very low overhead
 - `output_idx=0` captures primary monitor (configurable)
 - Outputs D3D11 hardware frames → can be passed directly to NVENC for zero-copy
 - Supports 60fps capture natively
-- Fallback: `gdigrab` for older systems (higher CPU, but universally available)
-
-### Monitor / window selection
 
 ```
 ddagrab=output_idx=0    # Primary monitor
 ddagrab=output_idx=1    # Secondary monitor
 ```
 
-For window capture (gdigrab mode):
+### Single window — Windows Graphics Capture (WGC)
 
+This is the **Discord / modern-OBS "Window Capture" approach without process injection**. ffmpeg has no WGC input device, so the capture runs in Rust (via the `windows` crate) and pipes raw frames into ffmpeg.
+
+**Capture loop (Rust):**
+
+1. Resolve the target `HWND` (chosen in settings) and create a `GraphicsCaptureItem` via `IGraphicsCaptureItemInterop::CreateForWindow`.
+2. Create a `Direct3D11CaptureFramePool` (free-threaded) + `GraphicsCaptureSession` bound to a shared D3D11 device.
+3. Set `IsBorderRequired = false` (removes the yellow capture border; Win11 / recent Win10) and `IsCursorCaptureEnabled` per setting.
+4. On each `FrameArrived`, copy the BGRA `ID3D11Texture2D` to a CPU-readable **staging texture**, `Map` it, and write the raw BGRA bytes to a **named pipe** (`\\.\pipe\momentum_video`).
+5. On window resize, call `framePool.Recreate(...)` with the new dimensions.
+
+**ffmpeg side — read raw frames from the pipe:**
+
+```bash
+ffmpeg \
+  -f rawvideo -pix_fmt bgra -s {win_w}x{win_h} -framerate 60 -i \\.\pipe\momentum_video \
+  -f f32le -ar 48000 -ac 2 -i \\.\pipe\momentum_audio \
+  ... (same dual WHIP + MP4 outputs as the ddagrab pipeline)
 ```
-gdigrab -framerate 60 -i title="Game Window Name"
-```
+
+Notes:
+- Both video (WGC) and audio (WASAPI loopback) now arrive over **named pipes** so ffmpeg's `stdin` stays free; the previous "audio via `pipe:0`/stdin" wording in the diagrams becomes a named pipe for symmetry.
+- Window dimensions are read once at start and on resize; the `-s` flag must match what the capture thread writes. Send a new resolution by restarting the pipe segment or padding to a fixed canvas — simplest is to lock capture to the window's client size at "Go Live" and recreate on significant resize.
+- WGC requires **Windows 10 1903+**. If unavailable, fall back to **monitor capture** (`ddagrab`), not `gdigrab` — monitor capture is more robust than GDI window capture for games.
+
+### Fullscreen / alt-tab behavior (the v1 pain point)
+
+- **Exclusive fullscreen + window capture is fundamentally fragile.** WGC handles it far better than gdigrab/`getDisplayMedia`, but the most bulletproof advice for users is still **run the game in Borderless / Windowed-Fullscreen** — visually identical to fullscreen, but a normal window that captures cleanly and survives alt-tab.
+- **Monitor capture (`ddagrab`) sidesteps the issue entirely**: it shows whatever is on the monitor, so a game that drops out of fullscreen during source selection and returns afterward is captured correctly. The settings UI should nudge users toward monitor capture when in doubt.
 
 The app enumerates available monitors and windows via Windows API and presents them in the settings UI.
 
@@ -396,8 +436,9 @@ src-tauri/
         ├── mod.rs                           ← keep StreamHandle trait
         ├── handler.rs                       ← remove WhipStreamHandle
         ├── ffmpeg.rs                        ← NEW: FfmpegStreamHandle
-        ├── audio_capture.rs                 ← NEW: cpal WASAPI loopback
-        ├── pipeline.rs                      ← NEW: build ffmpeg CLI args from settings
+        ├── audio_capture.rs                 ← NEW: cpal WASAPI loopback → named pipe
+        ├── window_capture.rs               ← NEW: Windows Graphics Capture (WGC) → raw BGRA pipe
+        ├── pipeline.rs                      ← NEW: build ffmpeg CLI args from settings (ddagrab vs rawvideo pipe)
         └── hardware_detect.rs              ← NEW: probe NVENC/QSV availability
 
 src/
@@ -618,6 +659,18 @@ The settings modal renders category tabs. Each tab is a standalone component tha
 cpal = "0.15"          # WASAPI audio capture
 bytemuck = "1"         # Safe cast f32 slices to bytes
 dirs = "5"             # OS-standard directories (Videos, AppData, etc.)
+
+[target.'cfg(windows)'.dependencies]
+# Windows Graphics Capture (WGC) for game-only / single-window capture.
+# Pulls in Graphics.Capture, Graphics.DirectX.Direct3D11, Win32.Graphics.Direct3D11.
+windows = { version = "0.58", features = [
+  "Graphics_Capture",
+  "Graphics_DirectX_Direct3D11",
+  "Win32_Graphics_Direct3D11",
+  "Win32_Graphics_Dxgi",
+  "Win32_System_WinRT_Graphics_Capture",
+  "Win32_Foundation",
+] }
 ```
 
 ### ffmpeg binary
@@ -631,10 +684,10 @@ dirs = "5"             # OS-standard directories (Videos, AppData, etc.)
 
 ## Migration from v1
 
-| Component       | v1 (current)                       | v2 (this)                |
-| --------------- | ---------------------------------- | ------------------------ |
-| Screen capture  | `getDisplayMedia` in webview       | `ddagrab` via ffmpeg     |
-| Audio capture   | Browser audio track                | WASAPI loopback via cpal |
+| Component       | v1 (current)                       | v2 (this)                                          |
+| --------------- | ---------------------------------- | -------------------------------------------------- |
+| Screen capture  | `getDisplayMedia` in webview       | `ddagrab` (monitor) / **WGC** (window) via ffmpeg  |
+| Audio capture   | Browser audio track                | WASAPI loopback via cpal                           |
 | Live stream     | WhipClient (TypeScript WebRTC)     | ffmpeg `-f whip`         |
 | Local recording | ❌ none                            | ffmpeg MP4 output        |
 | Stream control  | Frontend → Tauri IPC (notify only) | Rust spawns/kills ffmpeg |
@@ -661,6 +714,8 @@ dirs = "5"             # OS-standard directories (Videos, AppData, etc.)
 | -------------------------------------------- | ---------------------------------------------------------- |
 | ffmpeg sidecar increases app size (+80MB)    | Compress with UPX, or use ffmpeg-light custom build        |
 | ddagrab not available on old Windows         | Fallback to gdigrab (detect at runtime)                    |
+| WGC unavailable (< Win10 1903) for window capture | Fall back to monitor capture (`ddagrab`), not gdigrab — more robust for games |
+| Exclusive-fullscreen game won't window-capture cleanly | Recommend Borderless-Fullscreen in the UI; WGC handles it, monitor capture sidesteps it |
 | WASAPI loopback fails (no output device)     | Detect and warn user, allow mic-only fallback              |
 | MP4 incomplete if crash/force-kill           | Post-process with `ffmpeg -i broken.mp4 -c copy fixed.mp4` |
 | WHIP handshake fails                         | Retry logic with exponential backoff, surface error to UI  |
@@ -671,11 +726,12 @@ dirs = "5"             # OS-standard directories (Videos, AppData, etc.)
 ## Implementation Order
 
 1. **Settings module** (`settings/`) - schema, load/save, defaults, Tauri commands (needed by everything else)
-2. **Audio capture module** (`audio_capture.rs`) - cpal WASAPI loopback → pipe
-3. **Pipeline builder** (`pipeline.rs`) - construct ffmpeg args from StreamSettings
-4. **Hardware detection** (`hardware_detect.rs`) - probe available encoders
-5. **FfmpegStreamHandle** (`ffmpeg.rs`) - spawn, monitor, stop
-6. **Bundle ffmpeg binary** - add to Tauri sidecar config
-7. **Frontend settings store + UI** - Zustand store, SettingsModal with tabs
-8. **Simplify StreamSetup** - remove getDisplayMedia, WhipClient; wire to settings
-9. **Integration test** - verify WHIP connects to MediaMTX + MP4 is valid
+2. **Audio capture module** (`audio_capture.rs`) - cpal WASAPI loopback → named pipe
+3. **Window capture module** (`window_capture.rs`) - WGC → raw BGRA → named pipe (Windows-only). Start with monitor (`ddagrab`) working end-to-end first, then add WGC window capture.
+4. **Pipeline builder** (`pipeline.rs`) - construct ffmpeg args from StreamSettings, branching on `CaptureTarget` (ddagrab vs `-f rawvideo` pipe)
+5. **Hardware detection** (`hardware_detect.rs`) - probe available encoders
+6. **FfmpegStreamHandle** (`ffmpeg.rs`) - spawn, monitor, stop (owns the WGC capture thread when window-targeted)
+7. **Bundle ffmpeg binary** - add to Tauri sidecar config
+8. **Frontend settings store + UI** - Zustand store, SettingsModal with tabs; capture-source dropdown + Borderless-Fullscreen tip
+9. **Simplify StreamSetup** - remove getDisplayMedia, WhipClient; wire to settings
+10. **Integration test** - verify WHIP connects to MediaMTX + MP4 is valid (both monitor and window targets)
