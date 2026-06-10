@@ -1,7 +1,7 @@
 {
   "login": {
     "connect": "Se connecter au web",
-    "connecting": "Connexion...",
+    "connecting": "Connexion... (cliquez pour réessayer)",
     "disconnect": "Déconnexion"
   },
   "idle": {
@@ -50,5 +50,9 @@
   },
   "header": {
     "open_lobby": "Ouvrir le lobby dans le navigateur"
+  },
+  "tray_hint": {
+    "title": "Toujours actif",
+    "message": "Momentum continue de tourner dans la barre.\nClique sur l'icône pour le rouvrir,\nou utilise le bouton fermer pour quitter."
   }
 }

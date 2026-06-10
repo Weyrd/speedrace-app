@@ -11,13 +11,11 @@ export default function Login() {
   const isAuthenticating = state.phase === Phase.Connecting;
 
   function handleLogin() {
-    console.log("handleLogin", { isNotLogged, isAuthenticating });
-    if (!isNotLogged) {
-      actions.login();
-    }
     if (isNotLogged) {
       actions.logout();
+      return;
     }
+    actions.login();
   }
 
   return (
@@ -33,7 +31,7 @@ export default function Login() {
       <div className="w-full flex flex-col gap-2 mt-2 pt-8">
         <button
           onClick={handleLogin}
-          className="w-full py-3.5 font-mono tracking-wider bg-orange text-white rounded cursor-pointer border-none hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3.5 font-mono tracking-wider bg-orange text-white rounded cursor-pointer border-none hover:opacity-90 transition-opacity"
         >
           {isAuthenticating
             ? t("app:login.connecting")

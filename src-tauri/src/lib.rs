@@ -5,6 +5,7 @@ mod config;
 mod events;
 mod lifecycle;
 mod models;
+mod settings;
 mod state;
 mod ws;
 
@@ -17,10 +18,83 @@ macro_rules! ws_debug {
 }
 pub(crate) use ws_debug;
 
+use models::AppState;
 use state::{GlobalState, SharedState};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use tauri_plugin_deep_link::DeepLinkExt;
+
+fn minimize_to_tray(window: &tauri::Window) {
+    use tauri::Emitter;
+
+    let app = window.app_handle();
+
+    let flag = app
+        .path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("tray_hint_shown"));
+    let first_time = flag.as_ref().map(|p| !p.exists()).unwrap_or(false);
+
+    if first_time {
+        if let Some(path) = &flag {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(path, b"1");
+        }
+        let _ = window.unminimize();
+        let _ = window.emit("window:tray_hint", ());
+    } else {
+        let _ = window.hide();
+    }
+}
+
+fn fire_finish_hotkey(app: &tauri::AppHandle) {
+    let state = app.state::<SharedState>().inner().clone();
+
+    let (lobby_id, finishing_time_ms) = {
+        let guard = match state.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        if guard.app_state != AppState::RaceInProgress {
+            return;
+        }
+        let lobby_id = match &guard.lobby {
+            Some(l) => l.lobby_id.clone(),
+            None => return,
+        };
+        let start = match guard.race_start_at {
+            Some(s) => s,
+            None => return,
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        let elapsed = now - start;
+        if elapsed < 0 {
+            return; // still counting down
+        }
+        (lobby_id, elapsed as u64)
+    };
+
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) =
+            commands::lobby_commands::finish_race(&app, &state, lobby_id, finishing_time_ms).await
+        {
+            eprintln!("[hotkey] finish_race error: {e}");
+        }
+    });
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,6 +104,7 @@ pub fn run() {
         .plugin(
             tauri_plugin_single_instance::init(|app, _argv, _cwd| {
                 if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.unminimize();
                     let _ = w.show();
                     let _ = w.set_focus();
                 }
@@ -40,12 +115,27 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    if event.state() == ShortcutState::Pressed {
+                        fire_finish_hotkey(app);
+                    }
+                })
+                .build(),
+        )
         .manage(shared_state.clone())
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { .. } => {
+                window.app_handle().exit(0);
             }
+            tauri::WindowEvent::Resized(_) => {
+                if window.is_minimized().unwrap_or(false) {
+                    minimize_to_tray(window);
+                }
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_app_state,
@@ -58,9 +148,14 @@ pub fn run() {
             commands::send_player_finished,
             commands::send_player_forfeited,
             commands::acknowledge_results,
+            commands::get_finish_hotkey,
+            commands::set_finish_hotkey,
+            commands::register_finish_hotkey,
+            commands::unregister_finish_hotkey,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
+
 
             #[cfg(not(target_os = "macos"))]
             {
@@ -79,6 +174,7 @@ pub fn run() {
                     .on_menu_event(|app, event| match event.id.as_ref() {
                         "show" => {
                             if let Some(w) = app.get_webview_window("main") {
+                                let _ = w.unminimize();
                                 let _ = w.show();
                                 let _ = w.set_focus();
                             }
@@ -98,6 +194,7 @@ pub fn run() {
                                 if w.is_visible().unwrap_or(false) {
                                     let _ = w.hide();
                                 } else {
+                                    let _ = w.unminimize();
                                     let _ = w.show();
                                     let _ = w.set_focus();
                                 }
@@ -146,6 +243,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = _event {
                 if let Some(w) = _app_handle.get_webview_window("main") {
+                    let _ = w.unminimize();
                     let _ = w.show();
                     let _ = w.set_focus();
                 }

@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
 import { LivePill, LobbyBadge } from "./ui/BadgeHelper";
 import { formatTime } from "../lib/formatTime";
+import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 
 let rafId: number;
 let cachedNow = Date.now();
@@ -41,6 +42,17 @@ export default function Racing() {
     },
     [state],
   );
+
+  useEffect(() => {
+    registerFinishHotkey().catch((e) =>
+      console.error("[race] registerFinishHotkey error", e),
+    );
+    return () => {
+      unregisterFinishHotkey().catch((e) =>
+        console.error("[race] unregisterFinishHotkey error", e),
+      );
+    };
+  }, []);
 
   if (state.phase !== Phase.RaceInProgress) return null;
   const { lobby, raceStartAt } = state;

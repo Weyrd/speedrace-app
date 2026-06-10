@@ -46,3 +46,19 @@ export async function sendPlayerForfeited(lobbyId: string): Promise<void> {
 export async function acknowledgeResults(): Promise<void> {
   return invoke("acknowledge_results");
 }
+
+export async function getFinishHotkey(): Promise<string> {
+  return invoke<string>("get_finish_hotkey");
+}
+
+export async function setFinishHotkey(accelerator: string): Promise<void> {
+  return invoke("set_finish_hotkey", { accelerator });
+}
+
+export async function registerFinishHotkey(): Promise<void> {
+  return invoke("register_finish_hotkey");
+}
+
+export async function unregisterFinishHotkey(): Promise<void> {
+  return invoke("unregister_finish_hotkey");
+}
