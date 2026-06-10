@@ -9,6 +9,7 @@ import Finished from "./components/Finished";
 import { DevToolbar } from "./store/dev/DevToolbar";
 import Footer from "./components/Footer";
 import { UpdateChecker } from "./components/UpdateChecker";
+import { TrayHint } from "./components/TrayHint";
 
 export default function App() {
   const state = useAppState();
@@ -39,6 +40,7 @@ export default function App() {
       <div className="flex-1 min-h-0 overflow-hidden">{renderScreen()}</div>
       <Footer />
       <UpdateChecker />
+      <TrayHint />
       {import.meta.env.DEV && <DevToolbar />}
     </div>
   );

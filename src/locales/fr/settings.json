@@ -1,6 +1,7 @@
 {
   "tooltip": "Paramètres",
-  "coming_soon": "Bientôt disponible",
-  "coming_soon_description": "Les paramètres seront disponibles dans une prochaine mise à jour.",
-  "close": "Fermer"
+  "close": "Fermer",
+  "finish_hotkey_title": "Raccourci de fin de course",
+  "finish_hotkey_description": "Raccourci global pour terminer la course en cours sans ouvrir l'application. Fonctionne pendant que vous jouez.",
+  "reset_default": "Réinitialiser"
 }

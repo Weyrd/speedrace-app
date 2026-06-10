@@ -1,6 +1,7 @@
 {
   "tooltip": "Settings",
-  "coming_soon": "Coming Soon",
-  "coming_soon_description": "Settings will be available in a future update.",
-  "close": "Close"
+  "close": "Close",
+  "finish_hotkey_title": "Finish race shortcut",
+  "finish_hotkey_description": "Global shortcut to finish the current race without opening the app. Works while you're in your game.",
+  "reset_default": "Reset to default"
 }

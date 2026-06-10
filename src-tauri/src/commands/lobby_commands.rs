@@ -13,14 +13,13 @@ pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String>
     })
 }
 
-#[tauri::command]
-pub async fn send_player_finished(
-    app: AppHandle,
-    state: State<'_, SharedState>,
+pub async fn finish_race(
+    app: &AppHandle,
+    state: &SharedState,
     lobby_id: String,
     finishing_time_ms: u64,
 ) -> Result<(), String> {
-    let result = api::lobby::post_player_finished(&app, &lobby_id, finishing_time_ms).await?;
+    let result = api::lobby::post_player_finished(app, &lobby_id, finishing_time_ms).await?;
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.app_state = AppState::Finished;
@@ -28,6 +27,16 @@ pub async fn send_player_finished(
     }
     let _ = app.emit(WS_PLAYER_RESULT, result);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn send_player_finished(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    lobby_id: String,
+    finishing_time_ms: u64,
+) -> Result<(), String> {
+    finish_race(&app, state.inner(), lobby_id, finishing_time_ms).await
 }
 
 #[tauri::command]

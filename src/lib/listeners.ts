@@ -7,6 +7,7 @@ import {
   WS_LOBBY_CLOSED,
   WS_LOBBY_START,
   WS_PLAYER_RESULT,
+  WINDOW_TRAY_HINT,
 } from "./events";
 import type {
   AuthStatePayload,
@@ -46,3 +47,5 @@ export const onLobbyStart = (cb: (p: LobbyStartPayload) => void) =>
   safeListen<LobbyStartPayload>(WS_LOBBY_START, cb);
 export const onPlayerResult = (cb: (p: PlayerResult) => void) =>
   safeListen<PlayerResult>(WS_PLAYER_RESULT, cb);
+export const onTrayHint = (cb: () => void) =>
+  safeListen<null>(WINDOW_TRAY_HINT, () => cb());
