@@ -49,7 +49,10 @@
     "install": "Install"
   },
   "header": {
-    "open_lobby": "Open lobby in browser"
+    "open_lobby": "Open lobby in browser",
+    "clock_synced": "Server clock offset: {{offset}}\nClick to resync",
+    "clock_syncing": "Syncing clock...",
+    "clock_unknown": "Server clock not synced\nClick to sync"
   },
   "tray_hint": {
     "title": "Still running",
