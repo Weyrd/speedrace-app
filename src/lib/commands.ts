@@ -62,3 +62,12 @@ export async function registerFinishHotkey(): Promise<void> {
 export async function unregisterFinishHotkey(): Promise<void> {
   return invoke("unregister_finish_hotkey");
 }
+
+export interface ClockOffset {
+  offset_ms: number;
+  synced_at: number;
+}
+
+export async function syncClock(force: boolean): Promise<ClockOffset> {
+  return invoke<ClockOffset>("sync_clock", { force });
+}

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Settings, ExternalLink } from "lucide-react";
+import { Settings, ExternalLink, Clock, Loader2 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppState, Phase } from "../store";
 import { Tooltip } from "./ui/Tooltip";
 import SettingsPanel from "./SettingsPanel";
+import { useClockOffset } from "../hooks/useClockOffset";
+import { formatOffset } from "../lib/formatTime";
 
 const WEB_LIVE_LOBBY_URL = import.meta.env.WEB_LIVE_LOBBY_URL;
 const WEB_WAITING_LOBBY_URL = import.meta.env.WEB_WAITING_LOBBY_URL;
@@ -21,6 +23,7 @@ export default function Header() {
   const { t: tApp } = useTranslation("app");
   const { t: tSettings } = useTranslation("settings");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { offsetMs, isSynced, isSyncing, resync } = useClockOffset();
 
   const isAuthenticated =
     state.phase !== Phase.Unauthenticated && state.phase !== Phase.Connecting;
@@ -54,6 +57,33 @@ export default function Header() {
 
       {/* Right: action buttons */}
       <span className="flex items-center gap-1">
+        <Tooltip
+          content={
+            isSyncing
+              ? tApp("header.clock_syncing")
+              : isSynced
+                ? tApp("header.clock_synced", { offset: formatOffset(offsetMs) })
+                : tApp("header.clock_unknown")
+          }
+          side="bottom"
+        >
+          <button
+            onClick={() => resync()}
+            disabled={isSyncing}
+            className="flex items-center gap-1 text-dim hover:text-muted transition-colors cursor-pointer bg-transparent border-none p-0.5 disabled:opacity-60 disabled:cursor-default"
+            aria-label={tApp("header.clock_syncing")}
+          >
+            {isSyncing ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Clock size={13} />
+            )}
+            <span className="text-2xs font-mono tracking-wide tabular-nums">
+              {isSynced ? formatOffset(offsetMs) : "—"}
+            </span>
+          </button>
+        </Tooltip>
+
         {lobbyId && (
           <Tooltip content={tApp("header.open_lobby")} side="bottom">
             <button

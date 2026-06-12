@@ -49,7 +49,10 @@
     "install": "Installer"
   },
   "header": {
-    "open_lobby": "Ouvrir le lobby dans le navigateur"
+    "open_lobby": "Ouvrir le lobby dans le navigateur",
+    "clock_synced": "Décalage avec l'horloge du serveur : {{offset}}\nCliquer pour resynchroniser",
+    "clock_syncing": "Synchronisation de l'horloge...",
+    "clock_unknown": "Horloge serveur non synchronisée\nCliquer pour synchroniser"
   },
   "tray_hint": {
     "title": "Toujours actif",

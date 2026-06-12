@@ -8,3 +8,8 @@ export function formatTime(ms: number): string {
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
 }
+
+export function formatOffset(ms: number): string {
+  const sign = ms < 0 ? "−" : "+";
+  return `${sign}${Math.round(Math.abs(ms))}ms`;
+}

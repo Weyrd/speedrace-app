@@ -6,6 +6,7 @@ import StopModal from "./StopModal";
 import { LivePill, LobbyBadge } from "./ui/BadgeHelper";
 import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
+import { useClockOffset } from "../hooks/useClockOffset";
 
 let rafId: number;
 let cachedNow = Date.now();
@@ -33,6 +34,7 @@ export default function Racing() {
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
   const now = useSyncExternalStore(subscribeToRaf, getNow);
+  const { offsetMs } = useClockOffset();
 
   const videoRef = useCallback(
     (node: HTMLVideoElement | null) => {
@@ -57,7 +59,7 @@ export default function Racing() {
   if (state.phase !== Phase.RaceInProgress) return null;
   const { lobby, raceStartAt } = state;
 
-  const elapsed = now - raceStartAt;
+  const elapsed = now + offsetMs - raceStartAt;
   const negative = elapsed < 0;
   const display = (negative ? "-" : "") + formatTime(Math.abs(elapsed));
 
