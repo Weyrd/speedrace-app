@@ -73,7 +73,7 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as i64)
             .unwrap_or(0);
-        let elapsed = now - start;
+        let elapsed = (now + guard.clock_offset_ms) - start;
         if elapsed < 0 {
             return; // still counting down
         }
@@ -152,6 +152,7 @@ pub fn run() {
             commands::set_finish_hotkey,
             commands::register_finish_hotkey,
             commands::unregister_finish_hotkey,
+            commands::sync_clock,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
@@ -224,6 +225,12 @@ pub fn run() {
                         }
                     });
                 });
+            }
+
+            if let Some((offset, _)) = settings::load_clock_offset(&app_handle) {
+                if let Ok(mut guard) = shared_state.lock() {
+                    guard.clock_offset_ms = offset;
+                }
             }
 
             {

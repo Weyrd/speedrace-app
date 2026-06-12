@@ -8,6 +8,7 @@ pub struct GlobalState {
     pub ws_status: WsStatus,
     pub lobby: Option<LobbySetup>,
     pub race_start_at: Option<i64>,
+    pub clock_offset_ms: i64,
     pub refresh_loop_running: bool,
     pub ws_loop_running: bool,
 }
@@ -20,6 +21,7 @@ impl GlobalState {
             ws_status: WsStatus::Disconnected,
             lobby: None,
             race_start_at: None,
+            clock_offset_ms: 0,
             refresh_loop_running: false,
             ws_loop_running: false,
         }
