@@ -56,6 +56,7 @@ export interface LobbySetup {
   category_name: string[];
   max_duration_minutes: number;
   race_start_at: number | null;
+  expires_at: number;
 }
 export interface PlayerResult {
   player_status: PlayerStatus;
@@ -68,4 +69,5 @@ export interface LobbyClosedPayload {
 }
 export interface LobbyStartPayload {
   race_start_at: number;
+  expires_at: number;
 }

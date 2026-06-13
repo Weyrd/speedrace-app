@@ -20,6 +20,7 @@ pub struct LobbyClosedMsg {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LobbyStartMsg {
     pub race_start_at: i64,
+    pub expires_at: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

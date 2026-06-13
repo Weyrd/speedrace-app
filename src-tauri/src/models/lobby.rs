@@ -40,6 +40,7 @@ pub struct LobbySetup {
     pub category_name: Vec<String>,
     pub max_duration_minutes: u32,
     pub race_start_at: Option<i64>,
+    pub expires_at: i64,
 }
 
 #[derive(Debug, Serialize)]

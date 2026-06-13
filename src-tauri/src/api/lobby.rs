@@ -29,6 +29,7 @@ pub struct LobbyCurrentResponse {
     pub category_name: Vec<String>,
     pub max_duration_minutes: u32,
     pub race_start_at: Option<i64>,
+    pub expires_at: i64,
 }
 
 pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
@@ -72,6 +73,7 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         category_name: l.category_name,
         max_duration_minutes: l.max_duration_minutes,
         race_start_at: l.race_start_at,
+        expires_at: l.expires_at,
     })
 }
 
