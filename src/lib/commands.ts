@@ -24,8 +24,8 @@ export async function sendStreamReady(lobbyId: string): Promise<void> {
   return invoke("send_stream_ready", { lobbyId });
 }
 
-export async function sendStreamStopped(): Promise<void> {
-  return invoke("send_stream_stopped");
+export async function sendStreamStopped(lobbyId: string): Promise<void> {
+  return invoke("send_stream_stopped", { lobbyId });
 }
 
 export async function getLobbyState(): Promise<ClientState> {
