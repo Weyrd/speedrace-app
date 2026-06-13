@@ -20,7 +20,7 @@ export interface Actions {
     stream: MediaStream,
     lobbyId: string,
   ): Promise<void>;
-  stopStream(): Promise<void>;
+  stopStream(lobbyId: string): Promise<void>;
   finish(lobbyId: string, finishingTimeMs: number): Promise<void>;
   forfeit(lobbyId: string): Promise<void>;
   newRace(): Promise<void>;
@@ -68,11 +68,11 @@ export function useActions(): Actions {
         dispatch({ type: ActionType.StreamReady, stream });
       },
 
-      async stopStream() {
+      async stopStream(lobbyId: string) {
         whipRef.current?.stop();
         whipRef.current = null;
         try {
-          await sendStreamStopped();
+          await sendStreamStopped(lobbyId);
         } catch (e) {
           console.error("[stream] send_stream_stopped error", e);
         }
