@@ -24,19 +24,16 @@ pub async fn send_stream_ready(
 
 #[tauri::command]
 pub async fn send_stream_stopped(
+    lobby_id: String,
     state: State<'_, SharedState>,
     app: AppHandle,
 ) -> Result<(), String> {
-    let lobby_id = {
-        let guard = state.lock().map_err(|e| e.to_string())?;
-        guard.lobby.as_ref().map(|l| l.lobby_id.clone())
-    };
+    println!("[cmd] send_stream_stopped: POST stream-stopped for lobby {lobby_id}");
 
-    if let Some(lid) = lobby_id {
-        // Best-effort if the server is unreachable we still clear local state.
-        if let Err(e) = api::lobby::post_stream_stopped(&app, &lid).await {
-            eprintln!("[cmd] send_stream_stopped: {e}");
-        }
+    // Best-effort: even if the server is unreachable we still clear local state.
+    match api::lobby::post_stream_stopped(&app, &lobby_id).await {
+        Ok(()) => println!("[cmd] send_stream_stopped: back acknowledged (lobby {lobby_id})"),
+        Err(e) => eprintln!("[cmd] send_stream_stopped: POST failed (lobby {lobby_id}): {e}"),
     }
 
     {

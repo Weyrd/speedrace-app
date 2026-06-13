@@ -64,7 +64,7 @@ export default function WaitingForStart() {
       {showModal && (
         <StopModal
           raceInProgress={false}
-          onConfirm={() => actions.stopStream()}
+          onConfirm={() => actions.stopStream(lobby.lobby_id)}
           onCancel={() => setShowModal(false)}
         />
       )}
