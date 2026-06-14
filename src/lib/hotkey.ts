@@ -1,5 +1,6 @@
 const isMac =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  typeof navigator !== "undefined" &&
+  /Mac|iPhone|iPad/.test(navigator.platform);
 
 function codeToKey(code: string): string | null {
   if (/^Key[A-Z]$/.test(code)) return code.slice(3); // KeyF -> F
@@ -36,7 +37,6 @@ function codeToKey(code: string): string | null {
   return map[code] ?? null;
 }
 
-
 export function eventToAccelerator(e: KeyboardEvent): string | null {
   const key = codeToKey(e.code);
   if (!key) return null; // modifier-only or unsupported key
@@ -61,7 +61,18 @@ export function eventToLiveAccelerator(e: KeyboardEvent): string {
   return parts.join("+");
 }
 
-export function formatAccelerator(accel: string): string {
+function physicalLabel(part: string, layout: KeyboardLayoutMap | null): string {
+  if (layout && /^[A-Z]$/.test(part)) {
+    const label = layout.get(`Key${part}`);
+    if (label) return label.toUpperCase();
+  }
+  return part;
+}
+
+export function formatAccelerator(
+  accel: string,
+  layout: KeyboardLayoutMap | null = null,
+): string {
   return accel
     .split("+")
     .map((part) => {
@@ -80,8 +91,25 @@ export function formatAccelerator(accel: string): string {
         case "Meta":
           return isMac ? "⌘" : "Win";
         default:
-          return part;
+          return physicalLabel(part, layout);
       }
     })
     .join("+");
+}
+
+// Keyboard Map API
+type KeyboardLayoutMap = Map<string, string>;
+
+export async function getKeyboardLayout(): Promise<KeyboardLayoutMap | null> {
+  const kb = (
+    navigator as Navigator & {
+      keyboard?: { getLayoutMap?: () => Promise<KeyboardLayoutMap> };
+    }
+  ).keyboard;
+  if (!kb?.getLayoutMap) return null;
+  try {
+    return await kb.getLayoutMap();
+  } catch {
+    return null;
+  }
 }

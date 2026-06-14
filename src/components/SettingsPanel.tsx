@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useQuery } from "@tanstack/react-query";
 import { X, Settings, Keyboard, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,6 +12,7 @@ import {
   eventToAccelerator,
   eventToLiveAccelerator,
   formatAccelerator,
+  getKeyboardLayout,
 } from "../lib/hotkey";
 
 const DEFAULT_FINISH_HOTKEY = "CmdOrCtrl+Shift+F";
@@ -26,6 +28,11 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { mutateAsync: releaseHotkey } = useUnregisterFinishHotkey();
   const [capturing, setCapturing] = useState(false);
   const [liveCombo, setLiveCombo] = useState("");
+  const { data: layout } = useQuery({
+    queryKey: ["keyboardLayout"],
+    queryFn: getKeyboardLayout,
+    staleTime: Infinity,
+  });
 
   const startCapture = async () => {
     try {
@@ -72,6 +79,15 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       window.removeEventListener("keyup", onKeyUp, true);
     };
   }, [capturing, hotkey, applyHotkey]);
+
+  useEffect(() => {
+    if (capturing) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [capturing, onClose]);
 
   const resetDefault = () => applyHotkey(DEFAULT_FINISH_HOTKEY);
 
@@ -122,10 +138,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             >
               {capturing
                 ? liveCombo
-                  ? formatAccelerator(liveCombo)
+                  ? formatAccelerator(liveCombo, layout ?? null)
                   : " "
                 : hotkey
-                  ? formatAccelerator(hotkey)
+                  ? formatAccelerator(hotkey, layout ?? null)
                   : "—"}
             </button>
             <button
