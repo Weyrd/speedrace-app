@@ -71,3 +71,7 @@ export interface ClockOffset {
 export async function syncClock(force: boolean): Promise<ClockOffset> {
   return invoke<ClockOffset>("sync_clock", { force });
 }
+
+export async function hideToTray(): Promise<void> {
+  return invoke("hide_to_tray");
+}

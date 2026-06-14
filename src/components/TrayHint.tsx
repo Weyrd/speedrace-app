@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { onTrayHint } from "../lib/listeners";
+import { hideToTray } from "../lib/commands";
 
 export function TrayHint() {
   const { t } = useTranslation(["app", "common"]);
   const [open, setOpen] = useState(false);
 
   useEffect(() => onTrayHint(() => setOpen(true)), []);
+
+  const dismiss = () => {
+    setOpen(false);
+    void hideToTray();
+  };
 
   if (!open) return null;
 
@@ -20,7 +26,7 @@ export function TrayHint() {
           {t("app:tray_hint.message")}
         </p>
         <button
-          onClick={() => setOpen(false)}
+          onClick={dismiss}
           className="w-full py-2 text-2xs font-mono tracking-wide border border-border text-muted rounded cursor-pointer bg-transparent hover:border-muted transition-colors"
         >
           {t("common:got_it")}

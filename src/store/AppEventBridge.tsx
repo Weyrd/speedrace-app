@@ -1,7 +1,9 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useWhipRef } from "./AppContext";
 import { ActionType } from "./types";
 import { AuthState, type WsStatus } from "../types";
+import { ensureClockFresh } from "../hooks/useClockOffset";
 import {
   onAuthState,
   onWsStatus,
@@ -14,6 +16,7 @@ import {
 export function AppEventBridge(): null {
   const dispatch = useAppDispatch();
   const whipRef = useWhipRef();
+  const qc = useQueryClient();
 
   useEffect(() => {
     const unsubs = [
@@ -32,6 +35,7 @@ export function AppEventBridge(): null {
       }),
 
       onLobbySetup((lobby) => {
+        ensureClockFresh(qc);
         dispatch({ type: ActionType.LobbySetup, lobby });
       }),
 
@@ -56,7 +60,7 @@ export function AppEventBridge(): null {
     ];
 
     return () => unsubs.forEach((fn) => fn());
-  }, [dispatch, whipRef]);
+  }, [dispatch, whipRef, qc]);
 
   return null;
 }
