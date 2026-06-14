@@ -50,6 +50,11 @@ fn minimize_to_tray(window: &tauri::Window) {
     }
 }
 
+#[tauri::command]
+fn hide_to_tray(window: tauri::Window) {
+    let _ = window.hide();
+}
+
 fn fire_finish_hotkey(app: &tauri::AppHandle) {
     let state = app.state::<SharedState>().inner().clone();
 
@@ -153,6 +158,7 @@ pub fn run() {
             commands::register_finish_hotkey,
             commands::unregister_finish_hotkey,
             commands::sync_clock,
+            hide_to_tray,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
