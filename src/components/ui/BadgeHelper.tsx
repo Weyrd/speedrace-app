@@ -1,37 +1,52 @@
-export function LivePill() {
-  return (
-    <span className="inline-flex items-center gap-1.5 bg-red/15 border border-red/40 rounded px-2 py-0.5 text-2xs font-mono tracking-wider text-red font-bold">
-      <span className="w-1.5 h-1.5 rounded-full bg-red animate-pulse" />
-      LIVE
-    </span>
-  );
-}
-
-type LobbyBadgeProps = {
+type LobbyHeaderProps = {
   gameName: string;
   categories: string[];
+  code: string;
+  live?: boolean;
+  label?: string;
 };
 
-export function LobbyBadge({ gameName, categories }: LobbyBadgeProps) {
-  const lastIndex = categories.length - 1;
+export function LobbyHeader({
+  gameName,
+  categories,
+  code,
+  live = false,
+  label,
+}: LobbyHeaderProps) {
+  const dash = code.indexOf("-");
+  const codePrefix = dash >= 0 ? code.slice(0, dash) : code;
+  const codeSuffix = dash >= 0 ? code.slice(dash) : "";
 
   return (
-    <span className="bg-bg2 border border-border rounded px-2 py-0.5 text-2xs font-mono tracking-wide">
-      <span className="text-orange">{gameName}</span>
-
-      {categories.map((category, index) => {
-        const isLast = index === lastIndex;
-
-        return (
-          <span key={`${category}-${index}`}>
-            <span className="text-dim"> {" > "} </span>
-
-            <span className={isLast ? "text-[#C8A84E]" : "text-dim"}>
-              {category}
-            </span>
+    <div className="border border-border rounded-sm bg-bg1 px-3.5 py-3 flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        {live ? (
+          <span className="inline-flex items-center gap-1.5 text-2xs font-mono tracking-wider uppercase text-red font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-red animate-pulse" />
+            LIVE
           </span>
-        );
-      })}
-    </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-2xs font-mono tracking-wider uppercase text-dim">
+            <span className="text-orange">»</span>
+            {label}
+          </span>
+        )}
+
+        <span className="bg-bg2 border border-border rounded-sm px-2 py-0.5 text-2xs font-mono tracking-wider">
+          <span className="text-muted">{codePrefix}</span>
+          <span className="text-orange">{codeSuffix}</span>
+        </span>
+      </div>
+
+      <span className="text-base font-bold font-mono tracking-wide text-text leading-tight">
+        {gameName}
+      </span>
+
+      {categories.length > 0 && (
+        <span className="text-2xs font-mono tracking-wide text-dim">
+          {categories.join(" · ")}
+        </span>
+      )}
+    </div>
   );
 }
