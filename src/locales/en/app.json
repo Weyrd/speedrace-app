@@ -15,7 +15,7 @@
     "source_screen": "Screen",
     "source_camera": "Camera",
     "preview_placeholder": "▶ Start streaming a game",
-    "fullscreen_note": "Fullscreen games aren't supported yet — share your whole screen if the game runs fullscreen.",
+    "fullscreen_note": "Fullscreen games aren't supported yet, share your whole screen if the game runs fullscreen.",
     "publish": "● PUBLISH",
     "publishing": "Connecting to stream...",
     "error_source": "Unable to access source. Try again.",
@@ -44,7 +44,7 @@
   "stop_modal": {
     "title_racing": "Forfeit the race?",
     "title_idle": "Stop stream?",
-    "message_racing": "You're mid-race. Stopping your stream now counts as a <red>forfeit</red> — you won't be able to rejoin this run.",
+    "message_racing": "You're mid-race. Stopping your stream now counts as a <red>forfeit</red> and you won't be able to rejoin this run.",
     "message_idle": "The stream will be stopped.",
     "keep_racing": "Keep racing",
     "confirm_forfeit": "■ Forfeit"
