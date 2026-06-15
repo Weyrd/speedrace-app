@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
-import { LivePill, LobbyBadge } from "./ui/BadgeHelper";
+import { LobbyHeader } from "./ui/BadgeHelper";
 
 export default function WaitingForStart() {
   const state = useAppState();
@@ -23,14 +23,12 @@ export default function WaitingForStart() {
 
   return (
     <div className="h-full flex flex-col gap-3 px-4 py-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <LivePill />
-        <LobbyBadge
-          gameName={lobby.game_name}
-          categories={lobby.category_name}
-        />
-      </div>
+      <LobbyHeader
+        gameName={lobby.game_name}
+        categories={lobby.category_name}
+        code={lobby.code}
+        live
+      />
 
       {/* Stream preview - view only */}
       <div className="bg-black border border-border rounded aspect-video w-full overflow-hidden relative">

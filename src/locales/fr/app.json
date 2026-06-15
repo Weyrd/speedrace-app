@@ -2,17 +2,20 @@
   "login": {
     "connect": "Se connecter au web",
     "connecting": "Connexion... (cliquez pour réessayer)",
-    "disconnect": "Déconnexion"
+    "disconnect": "Déconnexion",
+    "opens_web": "Ouvre momentm.run dans le navigateur"
   },
   "idle": {
     "title": "En attente",
-    "description": "Rejoins un lobby sur\nle web pour commencer."
+    "description": "Crée ou rejoins un lobby sur le web\npour commencer.",
+    "create_lobby": "Créer ou rejoindre un lobby"
   },
   "stream": {
     "lobby": "Dans le lobby",
     "source_screen": "Écran",
     "source_camera": "Caméra",
-    "preview_placeholder": "PREVIEW - cliquer pour capturer",
+    "preview_placeholder": "▶ Démarrer le stream d'un jeu",
+    "fullscreen_note": "Les jeux en plein écran ne sont pas encore supportés — partage tout l'écran si le jeu est en plein écran.",
     "publish": "● PUBLIER",
     "publishing": "Connexion au stream...",
     "error_source": "Impossible d'accéder à la source. Réessaie.",
@@ -39,9 +42,12 @@
     "status_forfeited": "Forfait"
   },
   "stop_modal": {
-    "title": "⚠ Arrêter le stream ?",
-    "message_racing": "En race, déclenche\nun forfeit automatique.",
-    "message_idle": "Le stream sera arrêté."
+    "title_racing": "Abandonner la race ?",
+    "title_idle": "Arrêter le stream ?",
+    "message_racing": "Tu es en pleine race. Arrêter ton stream maintenant compte comme un <red>forfait</red> — tu ne pourras pas rejoindre cette run.",
+    "message_idle": "Le stream sera arrêté.",
+    "keep_racing": "Continuer la race",
+    "confirm_forfeit": "■ Forfait"
   },
   "update_modal": {
     "title": "Mise à jour {{version}} disponible",

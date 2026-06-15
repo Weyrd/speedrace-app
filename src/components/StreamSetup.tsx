@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import { WhipClient } from "../stream/whip";
-import { LobbyBadge } from "./ui/BadgeHelper";
+import { LobbyHeader } from "./ui/BadgeHelper";
 
 export default function StreamSetup() {
   const state = useAppState();
@@ -69,16 +69,12 @@ export default function StreamSetup() {
 
   return (
     <div className="h-full flex flex-col gap-3 px-4 py-4">
-      {/* Lobby header */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-muted font-mono tracking-wide">
-          {t("stream.lobby")}
-        </span>
-        <LobbyBadge
-          gameName={lobby.game_name}
-          categories={lobby.category_name}
-        />
-      </div>
+      <LobbyHeader
+        gameName={lobby.game_name}
+        categories={lobby.category_name}
+        code={lobby.code}
+        label={t("stream.lobby")}
+      />
 
       {/* Preview area - always clickable to start or change source */}
       <div
@@ -93,7 +89,7 @@ export default function StreamSetup() {
         />
 
         {!isPreviewing ? (
-          <span className="text-xs text-dim font-mono tracking-wide z-10 group-hover:text-muted transition-colors">
+          <span className="text-sm text-orange font-mono tracking-wide z-10 group-hover:opacity-80 transition-opacity">
             {t("stream.preview_placeholder")}
           </span>
         ) : (
@@ -104,6 +100,12 @@ export default function StreamSetup() {
           </div>
         )}
       </div>
+
+      {!isPreviewing && (
+        <p className="text-2xs text-dim font-mono tracking-wide leading-relaxed text-center">
+          {t("stream.fullscreen_note")}
+        </p>
+      )}
 
       {error && (
         <p className="text-2xs text-red font-mono tracking-wide leading-relaxed">
