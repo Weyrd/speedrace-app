@@ -1,18 +1,21 @@
 {
   "login": {
-    "connect": "Login via web",
+    "connect": "Connect to the web",
     "connecting": "Connecting... (click to retry)",
-    "disconnect": "Disconnect"
+    "disconnect": "Disconnect",
+    "opens_web": "Opens momentum.run in your browser"
   },
   "idle": {
     "title": "Waiting",
-    "description": "Join a lobby on the web\nto get started."
+    "description": "Create or join a lobby on the web\nto get started.",
+    "create_lobby": "Create or join a lobby"
   },
   "stream": {
     "lobby": "In lobby",
     "source_screen": "Screen",
     "source_camera": "Camera",
-    "preview_placeholder": "PREVIEW - click to capture",
+    "preview_placeholder": "▶ Start streaming a game",
+    "fullscreen_note": "Fullscreen games aren't supported yet — share your whole screen if the game runs fullscreen.",
     "publish": "● PUBLISH",
     "publishing": "Connecting to stream...",
     "error_source": "Unable to access source. Try again.",
@@ -39,9 +42,12 @@
     "status_forfeited": "Forfeited"
   },
   "stop_modal": {
-    "title": "⚠ Stop stream?",
-    "message_racing": "In race, triggers\nan automatic forfeit.",
-    "message_idle": "The stream will be stopped."
+    "title_racing": "Forfeit the race?",
+    "title_idle": "Stop stream?",
+    "message_racing": "You're mid-race. Stopping your stream now counts as a <red>forfeit</red> — you won't be able to rejoin this run.",
+    "message_idle": "The stream will be stopped.",
+    "keep_racing": "Keep racing",
+    "confirm_forfeit": "■ Forfeit"
   },
   "update_modal": {
     "title": "Update {{version}} available",

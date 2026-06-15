@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
-import { LivePill, LobbyBadge } from "./ui/BadgeHelper";
+import { LobbyHeader } from "./ui/BadgeHelper";
 import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useClockOffset } from "../hooks/useClockOffset";
@@ -65,13 +65,12 @@ export default function Racing() {
 
   return (
     <div className="h-full flex flex-col gap-3 px-4 py-4">
-      <div className="flex items-center justify-between">
-        <LivePill />
-        <LobbyBadge
-          gameName={lobby.game_name}
-          categories={lobby.category_name}
-        />
-      </div>
+      <LobbyHeader
+        gameName={lobby.game_name}
+        categories={lobby.category_name}
+        code={lobby.code}
+        live
+      />
       <div className="bg-black border border-border rounded aspect-video w-full overflow-hidden relative">
         <video
           ref={videoRef}
