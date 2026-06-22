@@ -3,5 +3,6 @@
   "close": "Close",
   "finish_hotkey_title": "Finish race shortcut",
   "finish_hotkey_description": "Global shortcut to finish the current race without opening the app. Works while you're in your game.",
-  "reset_default": "Reset to default"
+  "reset_default": "Reset to default",
+  "logout": "Log out"
 }
