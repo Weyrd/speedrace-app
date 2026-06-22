@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { X, Settings, Keyboard, RotateCcw } from "lucide-react";
+import { X, Settings, Keyboard, RotateCcw, LogOut } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useActions } from "../store";
 import {
   useFinishHotkey,
   useSetFinishHotkey,
@@ -23,6 +24,7 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { t } = useTranslation("settings");
+  const actions = useActions();
   const { data: hotkey } = useFinishHotkey();
   const { mutate: applyHotkey } = useSetFinishHotkey();
   const { mutateAsync: releaseHotkey } = useUnregisterFinishHotkey();
@@ -96,6 +98,12 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     onClose();
   };
 
+  const handleLogout = () => {
+    if (capturing && hotkey) applyHotkey(hotkey);
+    actions.logout();
+    onClose();
+  };
+
   return createPortal(
     <div
       style={{ backgroundColor: "#252320" }}
@@ -154,6 +162,17 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-5 py-4 border-t border-border">
+        <button
+          onClick={handleLogout}
+          className="w-full h-10 flex items-center justify-center gap-2 text-xs font-mono tracking-wide border border-border rounded text-red hover:border-red/60 transition-colors cursor-pointer bg-transparent"
+        >
+          <LogOut size={14} />
+          {t("logout")}
+        </button>
       </div>
     </div>,
     document.body,
