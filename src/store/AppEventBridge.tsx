@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useWhipRef } from "./AppContext";
 import { ActionType } from "./types";
-import { AuthState, type WsStatus } from "../types";
+import { AuthState, PlayerStatus, type WsStatus } from "../types";
 import { ensureClockFresh } from "../hooks/useClockOffset";
+import { playSound, Sound } from "../lib/sound";
 import {
   onAuthState,
   onWsStatus,
@@ -17,6 +18,7 @@ export function AppEventBridge(): null {
   const dispatch = useAppDispatch();
   const whipRef = useWhipRef();
   const qc = useQueryClient();
+  const lobbyIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const unsubs = [
@@ -36,10 +38,15 @@ export function AppEventBridge(): null {
 
       onLobbySetup((lobby) => {
         ensureClockFresh(qc);
+        if (lobby.lobby_id !== lobbyIdRef.current) {
+          lobbyIdRef.current = lobby.lobby_id;
+          playSound(Sound.LobbyEnter);
+        }
         dispatch({ type: ActionType.LobbySetup, lobby });
       }),
 
       onLobbyClosed((payload) => {
+        lobbyIdRef.current = null;
         whipRef.current?.stop();
         whipRef.current = null;
         dispatch({ type: ActionType.LobbyClosed, reason: payload.reason });
@@ -53,8 +60,14 @@ export function AppEventBridge(): null {
       }),
 
       onPlayerResult((result) => {
+        lobbyIdRef.current = null;
         whipRef.current?.stop();
         whipRef.current = null;
+        playSound(
+          result.player_status === PlayerStatus.Forfeited
+            ? Sound.RaceForfeit
+            : Sound.RaceFinish,
+        );
         dispatch({ type: ActionType.PlayerResult, result });
       }),
     ];

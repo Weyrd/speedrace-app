@@ -7,6 +7,14 @@ import { LobbyHeader } from "./ui/BadgeHelper";
 import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useClockOffset } from "../hooks/useClockOffset";
+import { playSound, Sound } from "../lib/sound";
+
+const COUNTDOWN_BEEPS = [
+  { at: -3000, sound: Sound.Countdown3 },
+  { at: -2000, sound: Sound.Countdown2 },
+  { at: -1000, sound: Sound.Countdown1 },
+  { at: 0, sound: Sound.CountdownGo },
+] as const;
 
 let rafId: number;
 let cachedNow = Date.now();
@@ -35,6 +43,8 @@ export default function Racing() {
   const { t } = useTranslation("app");
   const now = useSyncExternalStore(subscribeToRaf, getNow);
   const { offsetMs } = useClockOffset();
+  const startAt =
+    state.phase === Phase.RaceInProgress ? state.raceStartAt : null;
 
   const videoRef = useCallback(
     (node: HTMLVideoElement | null) => {
@@ -55,6 +65,17 @@ export default function Racing() {
       );
     };
   }, []);
+
+
+  useEffect(() => {
+    if (startAt == null) return;
+    const timers = COUNTDOWN_BEEPS.map((b) => {
+      const delay = startAt + b.at - offsetMs - Date.now();
+      if (delay < 0) return undefined;
+      return window.setTimeout(() => playSound(b.sound), delay);
+    });
+    return () => timers.forEach((t) => t !== undefined && clearTimeout(t));
+  }, [startAt, offsetMs]);
 
   if (state.phase !== Phase.RaceInProgress) return null;
   const { lobby, raceStartAt } = state;
