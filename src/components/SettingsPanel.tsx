@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { X, Settings, Keyboard, RotateCcw, LogOut } from "lucide-react";
+import { X, Settings, Keyboard, RotateCcw, LogOut, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActions } from "../store";
+import { getSoundVolume, setSoundVolume, playSound, Sound } from "../lib/sound";
 import {
   useFinishHotkey,
   useSetFinishHotkey,
@@ -30,6 +31,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { mutateAsync: releaseHotkey } = useUnregisterFinishHotkey();
   const [capturing, setCapturing] = useState(false);
   const [liveCombo, setLiveCombo] = useState("");
+  const [volume, setVolume] = useState(getSoundVolume);
   const { data: layout } = useQuery({
     queryKey: ["keyboardLayout"],
     queryFn: getKeyboardLayout,
@@ -92,6 +94,12 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   }, [capturing, onClose]);
 
   const resetDefault = () => applyHotkey(DEFAULT_FINISH_HOTKEY);
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = Number(e.target.value) / 100;
+    setVolume(v);
+    setSoundVolume(v);
+  };
 
   const handleClose = () => {
     if (capturing && hotkey) applyHotkey(hotkey);
@@ -160,6 +168,30 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             >
               <RotateCcw size={14} />
             </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
+            <Volume2 size={14} className="text-dim" />
+            {t("sound_title")}
+          </span>
+          <p className="text-2xs font-mono text-dim leading-relaxed">
+            {t("sound_description")}
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(volume * 100)}
+              onChange={handleVolumeChange}
+              onPointerUp={() => playSound(Sound.LobbyEnter)}
+              className="flex-1 accent-orange cursor-pointer"
+            />
+            <span className="w-10 text-right text-xs font-mono tracking-wide tabular-nums text-text">
+              {Math.round(volume * 100)}%
+            </span>
           </div>
         </div>
       </div>

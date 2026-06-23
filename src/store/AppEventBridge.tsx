@@ -49,6 +49,7 @@ export function AppEventBridge(): null {
         lobbyIdRef.current = null;
         whipRef.current?.stop();
         whipRef.current = null;
+        playSound(Sound.LobbyClosed);
         dispatch({ type: ActionType.LobbyClosed, reason: payload.reason });
       }),
 

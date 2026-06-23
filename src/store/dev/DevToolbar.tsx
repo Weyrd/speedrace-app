@@ -1,3 +1,4 @@
+import { playSound, Sound } from "../../lib/sound";
 import { useAppDispatch, useAppState } from "../AppContext";
 import { ActionType, Phase } from "../types";
 import { MOCK_PHASE_ACTIONS } from "./devMocks";
@@ -38,6 +39,18 @@ export function DevToolbar() {
           `}
         >
           {p}
+        </button>
+      ))}
+      <span className="text-2xs text-dim font-mono tracking-wide self-center mx-1">
+        SND
+      </span>
+      {Object.values(Sound).map((s) => (
+        <button
+          key={s}
+          onClick={() => playSound(s)}
+          className="text-2xs font-mono tracking-wide px-2 py-0.5 rounded cursor-pointer border border-border bg-transparent text-muted transition-colors hover:border-muted hover:text-text"
+        >
+          {s}
         </button>
       ))}
     </div>

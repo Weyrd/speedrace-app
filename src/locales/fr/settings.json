@@ -4,5 +4,7 @@
   "finish_hotkey_title": "Raccourci de fin de course",
   "finish_hotkey_description": "Raccourci global pour terminer la course en cours sans ouvrir l'application. Fonctionne pendant que vous jouez.",
   "reset_default": "Réinitialiser",
+  "sound_title": "Volume du son",
+  "sound_description": "Volume des sons de l'application (compte à rebours, lobby, résultats).",
   "logout": "Se déconnecter"
 }
