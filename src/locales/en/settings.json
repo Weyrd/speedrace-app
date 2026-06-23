@@ -4,5 +4,7 @@
   "finish_hotkey_title": "Finish race shortcut",
   "finish_hotkey_description": "Global shortcut to finish the current race without opening the app. Works while you're in your game.",
   "reset_default": "Reset to default",
+  "sound_title": "Sound volume",
+  "sound_description": "Volume of in-app sounds (countdown, lobby, race results).",
   "logout": "Log out"
 }
