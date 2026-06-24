@@ -41,3 +41,6 @@ tauri-plugin-single-instance = { version = "2.4.2", features = ["deep-link"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-global-shortcut = "2"
+livesplit-core = "0.13.0"
+# step 2: livesplit-auto-splitting — deferred. Its only crates.io publish (0.1.0, 2022)
+# drags in an ancient wasmtime 4.0.1 tree; pin it when step 2 adds the MomentumTimer.
