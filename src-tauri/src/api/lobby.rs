@@ -1,4 +1,3 @@
-use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
@@ -6,7 +5,7 @@ use crate::models::lobby::PlayerStatus;
 use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
-use super::client::{ApiClient, ApiResponse};
+use super::client::{authed_get_json, ApiClient, ApiResponse};
 
 /// Result returned by the finish/forfeit HTTP endpoints.
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -30,38 +29,19 @@ pub struct LobbyCurrentResponse {
     pub max_duration_minutes: u32,
     pub race_start_at: Option<i64>,
     pub expires_at: i64,
+    #[serde(default)]
+    pub game_id: String,
+    #[serde(default)]
+    pub category_id: String,
+    #[serde(default)]
+    pub split_resource_updated_at: Option<String>,
+    #[serde(default)]
+    pub autosplitter_updated_at: Option<String>,
 }
 
 pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
-    let client = ApiClient::new(app);
-    let authed = client.authenticated()?;
-
-    let resp = authed
-        .get(config::LOBBY_CURRENT_PATH)
-        .send()
-        .await
-        .map_err(|e| eprintln!("[api] fetch_current_lobby network error: {e}"))
-        .ok()?;
-
-    if resp.status() == StatusCode::NOT_FOUND {
-        return None;
-    }
-
-    if !resp.status().is_success() {
-        eprintln!(
-            "[api] fetch_current_lobby unexpected status: {}",
-            resp.status()
-        );
-        return None;
-    }
-
-    let body: ApiResponse<LobbyCurrentResponse> = resp
-        .json()
-        .await
-        .map_err(|e| eprintln!("[api] fetch_current_lobby parse error: {e}"))
-        .ok()?;
-
-    let l: LobbyCurrentResponse = body.data;
+    let l: LobbyCurrentResponse =
+        authed_get_json(app, config::LOBBY_CURRENT_PATH, "api").await?;
     Some(LobbySetup {
         lobby_id: l.lobby_id,
         code: l.code,
@@ -74,6 +54,10 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         max_duration_minutes: l.max_duration_minutes,
         race_start_at: l.race_start_at,
         expires_at: l.expires_at,
+        game_id: l.game_id,
+        category_id: l.category_id,
+        split_resource_updated_at: l.split_resource_updated_at,
+        autosplitter_updated_at: l.autosplitter_updated_at,
     })
 }
 

@@ -1,4 +1,6 @@
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::StatusCode;
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
 use crate::auth::token_store::TokenStore;
@@ -8,6 +10,67 @@ use tauri::AppHandle;
 #[derive(Debug, Deserialize)]
 pub struct ApiResponse<T> {
     pub data: T,
+}
+
+pub async fn authed_get_json<T: DeserializeOwned>(
+    app: &AppHandle,
+    path: &str,
+    log_tag: &str,
+) -> Option<T> {
+    let client = ApiClient::new(app);
+    let authed = client.authenticated()?;
+
+    let resp = authed
+        .get(path)
+        .send()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] fetch error: {e}"))
+        .ok()?;
+
+    if resp.status() == StatusCode::NOT_FOUND {
+        return None;
+    }
+    if !resp.status().is_success() {
+        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        return None;
+    }
+
+    let body: ApiResponse<T> = resp
+        .json()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] parse error: {e}"))
+        .ok()?;
+    Some(body.data)
+}
+
+// Same flow as authed_get_json but returns the raw body bytes (no JSON envelope).
+#[allow(dead_code)]
+pub async fn authed_get_bytes(app: &AppHandle, path: &str, log_tag: &str) -> Option<Vec<u8>> {
+    let client = ApiClient::new(app);
+    let authed = client.authenticated()?;
+
+    let resp = authed
+        .get(path)
+        .send()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] fetch error: {e}"))
+        .ok()?;
+
+    if resp.status() == StatusCode::NOT_FOUND {
+        return None;
+    }
+    if !resp.status().is_success() {
+        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        return None;
+    }
+
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] read body error: {e}"))
+        .ok()?
+        .to_vec();
+    Some(bytes)
 }
 
 pub struct ApiClient {

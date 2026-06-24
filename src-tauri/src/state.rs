@@ -11,6 +11,13 @@ pub struct GlobalState {
     pub clock_offset_ms: i64,
     pub refresh_loop_running: bool,
     pub ws_loop_running: bool,
+    #[allow(dead_code)]
+    pub split_run: Option<livesplit_core::Run>,
+    #[allow(dead_code)]
+    pub current_split_index: u32,
+    #[allow(dead_code)]
+    pub segment_start_ms: u64,
+    // step 2: autosplitter_runtime
 }
 
 impl GlobalState {
@@ -24,6 +31,9 @@ impl GlobalState {
             clock_offset_ms: 0,
             refresh_loop_running: false,
             ws_loop_running: false,
+            split_run: None,
+            current_split_index: 0,
+            segment_start_ms: 0,
         }
     }
 }

@@ -41,6 +41,14 @@ pub struct LobbySetup {
     pub max_duration_minutes: u32,
     pub race_start_at: Option<i64>,
     pub expires_at: i64,
+    #[serde(default)]
+    pub game_id: String,
+    #[serde(default)]
+    pub category_id: String,
+    #[serde(default)]
+    pub split_resource_updated_at: Option<String>,
+    #[serde(default)]
+    pub autosplitter_updated_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
