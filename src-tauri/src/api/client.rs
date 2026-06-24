@@ -1,7 +1,7 @@
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::auth::token_store::TokenStore;
 use crate::config;
@@ -71,6 +71,100 @@ pub async fn authed_get_bytes(app: &AppHandle, path: &str, log_tag: &str) -> Opt
         .ok()?
         .to_vec();
     Some(bytes)
+}
+
+/// POST with no body, checks success only.
+pub async fn authed_post_void(app: &AppHandle, path: &str, log_tag: &str) -> Option<()> {
+    let client = ApiClient::new(app);
+    let authed = client.authenticated()?;
+    let resp = authed
+        .post(path)
+        .send()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] post error: {e}"))
+        .ok()?;
+    if !resp.status().is_success() {
+        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        return None;
+    }
+    Some(())
+}
+
+/// POST with no body, parses JSON response envelope.
+pub async fn authed_post_returning<R: DeserializeOwned>(
+    app: &AppHandle,
+    path: &str,
+    log_tag: &str,
+) -> Option<R> {
+    let client = ApiClient::new(app);
+    let authed = client.authenticated()?;
+    let resp = authed
+        .post(path)
+        .send()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] post error: {e}"))
+        .ok()?;
+    if !resp.status().is_success() {
+        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        return None;
+    }
+    let body: ApiResponse<R> = resp
+        .json()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] parse error: {e}"))
+        .ok()?;
+    Some(body.data)
+}
+
+/// POST with JSON body, checks success only.
+pub async fn authed_post_body_void<B: Serialize>(
+    app: &AppHandle,
+    path: &str,
+    body: &B,
+    log_tag: &str,
+) -> Option<()> {
+    let client = ApiClient::new(app);
+    let authed = client.authenticated()?;
+    let resp = authed
+        .post(path)
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] post error: {e}"))
+        .ok()?;
+    if !resp.status().is_success() {
+        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        return None;
+    }
+    Some(())
+}
+
+/// POST with JSON body, parses JSON response envelope.
+pub async fn authed_post_body_json<B: Serialize, R: DeserializeOwned>(
+    app: &AppHandle,
+    path: &str,
+    body: &B,
+    log_tag: &str,
+) -> Option<R> {
+    let client = ApiClient::new(app);
+    let authed = client.authenticated()?;
+    let resp = authed
+        .post(path)
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] post error: {e}"))
+        .ok()?;
+    if !resp.status().is_success() {
+        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        return None;
+    }
+    let body: ApiResponse<R> = resp
+        .json()
+        .await
+        .map_err(|e| eprintln!("[{log_tag}] parse error: {e}"))
+        .ok()?;
+    Some(body.data)
 }
 
 pub struct ApiClient {

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
@@ -8,6 +10,7 @@ import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useClockOffset } from "../hooks/useClockOffset";
 import { playSound, Sound } from "../lib/sound";
+import { onSplitLoaded } from "../lib/listeners";
 
 const COUNTDOWN_BEEPS = [
   { at: -3000, sound: Sound.Countdown3 },
@@ -36,11 +39,29 @@ function getNow() {
   return cachedNow;
 }
 
+const SPLIT_SEGMENTS_KEY = ["split-segments"] as const;
+const SPLIT_INDEX_KEY = ["split-current-index"] as const;
+
 export default function Racing() {
   const state = useAppState();
   const actions = useActions();
   const [showModal, setShowModal] = useState(false);
+  const queryClient = useQueryClient();
   const { t } = useTranslation("app");
+
+  const { data: splitSegments = [] } = useQuery({
+    queryKey: SPLIT_SEGMENTS_KEY,
+    queryFn: () => invoke<string[]>("get_split_segments"),
+    enabled: false,
+    initialData: [],
+  });
+
+  const { data: currentSplitIndex = 0 } = useQuery({
+    queryKey: SPLIT_INDEX_KEY,
+    queryFn: () => invoke<number>("get_current_split_index"),
+    enabled: false,
+    initialData: 0,
+  });
   const now = useSyncExternalStore(subscribeToRaf, getNow);
   const { offsetMs } = useClockOffset();
   const startAt =
@@ -66,6 +87,13 @@ export default function Racing() {
     };
   }, []);
 
+  useEffect(() => {
+    const unlisten = onSplitLoaded(() => {
+      void queryClient.invalidateQueries({ queryKey: SPLIT_SEGMENTS_KEY });
+      void queryClient.invalidateQueries({ queryKey: SPLIT_INDEX_KEY });
+    });
+    return unlisten;
+  }, [queryClient]);
 
   useEffect(() => {
     if (startAt == null) return;
@@ -83,6 +111,10 @@ export default function Racing() {
   const elapsed = now + offsetMs - raceStartAt;
   const negative = elapsed < 0;
   const display = (negative ? "-" : "") + formatTime(Math.abs(elapsed));
+
+  const hasSplits =
+    lobby.split_resource_updated_at != null && splitSegments.length > 0;
+  const hasAutosplitter = lobby.autosplitter_updated_at != null;
 
   return (
     <div className="h-full flex flex-col gap-3 px-4 py-4">
@@ -116,14 +148,26 @@ export default function Racing() {
           {negative ? t("race.starting_soon") : t("race.in_race")}
         </span>
       </div>
+      {hasSplits && (
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-xs font-mono text-text">
+            {splitSegments[currentSplitIndex]}
+          </span>
+          <span className="text-2xs font-mono text-dim">
+            {currentSplitIndex + 1} / {splitSegments.length}
+          </span>
+        </div>
+      )}
       <div className="flex gap-2 mt-auto">
-        <button
-          onClick={() => actions.finish(lobby.lobby_id, elapsed)}
-          disabled={negative}
-          className="flex-1 py-3.5 text-xs font-mono tracking-wide border border-green text-green rounded cursor-pointer bg-transparent hover:bg-green-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {t("race.finish")}
-        </button>
+        {!hasAutosplitter && (
+          <button
+            onClick={() => actions.finish(lobby.lobby_id, elapsed)}
+            disabled={negative}
+            className="flex-1 py-3.5 text-xs font-mono tracking-wide border border-green text-green rounded cursor-pointer bg-transparent hover:bg-green-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {t("race.finish")}
+          </button>
+        )}
         <button
           onClick={() => setShowModal(true)}
           className="flex-1 py-3.5 text-xs font-mono tracking-wide border border-red text-red rounded cursor-pointer bg-transparent hover:bg-red-dim transition-colors"

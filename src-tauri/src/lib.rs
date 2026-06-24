@@ -166,15 +166,13 @@ pub fn run() {
             commands::register_finish_hotkey,
             commands::unregister_finish_hotkey,
             commands::sync_clock,
+            commands::get_split_segments,
+            commands::get_current_split_index,
             hide_to_tray,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
 
-            // The finish hotkey is registered on demand when a race starts
-            // (see register_finish_hotkey), so it isn't grabbed while idle.
-
-            // System tray (Windows/Linux) macOS -> Dock,
             #[cfg(not(target_os = "macos"))]
             {
                 use tauri::menu::{Menu, MenuItem};

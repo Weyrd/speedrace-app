@@ -22,6 +22,10 @@ export const MOCK_LOBBY: LobbySetup = {
   max_duration_minutes: 60,
   race_start_at: null,
   expires_at: Date.now() + 30 * 60 * 1000,
+  game_id: "MOCK-game-id",
+  category_id: "MOCK-category-id",
+  split_resource_updated_at: null,
+  autosplitter_updated_at: null,
 };
 
 export const MOCK_PHASE_ACTIONS: Record<Phase, () => AppAction[]> = {

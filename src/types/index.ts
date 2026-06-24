@@ -57,6 +57,10 @@ export interface LobbySetup {
   max_duration_minutes: number;
   race_start_at: number | null;
   expires_at: number;
+  game_id: string;
+  category_id: string;
+  split_resource_updated_at: string | null;
+  autosplitter_updated_at: string | null;
 }
 export interface PlayerResult {
   player_status: PlayerStatus;

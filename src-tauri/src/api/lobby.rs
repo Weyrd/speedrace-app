@@ -5,7 +5,10 @@ use crate::models::lobby::PlayerStatus;
 use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
-use super::client::{authed_get_json, ApiClient, ApiResponse};
+use super::client::{
+    authed_get_json, authed_post_body_json, authed_post_body_void, authed_post_returning,
+    authed_post_void,
+};
 
 /// Result returned by the finish/forfeit HTTP endpoints.
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -64,45 +67,19 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
 // Tauri -> Backend HTTP actions
 
 pub async fn post_stream_ready(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
-    let client = ApiClient::new(app);
-    let authed = client
-        .authenticated()
-        .ok_or_else(|| "Not authenticated".to_string())?;
-
-    let resp = authed
-        .post(&config::lobby_stream_ready_path(lobby_id))
-        .send()
+    authed_post_void(app, &config::lobby_stream_ready_path(lobby_id), "stream_ready")
         .await
-        .map_err(|e| format!("[api] post_stream_ready network error: {e}"))?;
-
-    if !resp.status().is_success() {
-        return Err(format!(
-            "[api] post_stream_ready server error: {}",
-            resp.status()
-        ));
-    }
-    Ok(())
+        .ok_or_else(|| "[api] post_stream_ready failed".to_string())
 }
 
 pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
-    let client = ApiClient::new(app);
-    let authed = client
-        .authenticated()
-        .ok_or_else(|| "Not authenticated".to_string())?;
-
-    let resp = authed
-        .post(&config::lobby_stream_stopped_path(lobby_id))
-        .send()
-        .await
-        .map_err(|e| format!("[api] post_stream_stopped network error: {e}"))?;
-
-    if !resp.status().is_success() {
-        return Err(format!(
-            "[api] post_stream_stopped server error: {}",
-            resp.status()
-        ));
-    }
-    Ok(())
+    authed_post_void(
+        app,
+        &config::lobby_stream_stopped_path(lobby_id),
+        "stream_stopped",
+    )
+    .await
+    .ok_or_else(|| "[api] post_stream_stopped failed".to_string())
 }
 
 #[derive(Serialize)]
@@ -115,57 +92,87 @@ pub async fn post_player_finished(
     lobby_id: &str,
     finishing_time_ms: u64,
 ) -> Result<PlayerResult, String> {
-    let client = ApiClient::new(app);
-    let authed = client
-        .authenticated()
-        .ok_or_else(|| "Not authenticated".to_string())?;
-
-    let resp = authed
-        .post(&config::lobby_finish_path(lobby_id))
-        .json(&FinishPlayerBody { finishing_time_ms })
-        .send()
-        .await
-        .map_err(|e| format!("[api] post_player_finished network error: {e}"))?;
-
-    if !resp.status().is_success() {
-        return Err(format!(
-            "[api] post_player_finished server error: {}",
-            resp.status()
-        ));
-    }
-
-    let body: ApiResponse<PlayerResult> = resp
-        .json()
-        .await
-        .map_err(|e| format!("[api] post_player_finished parse error: {e}"))?;
-    Ok(body.data)
+    authed_post_body_json(
+        app,
+        &config::lobby_finish_path(lobby_id),
+        &FinishPlayerBody { finishing_time_ms },
+        "finished",
+    )
+    .await
+    .ok_or_else(|| "[api] post_player_finished failed".to_string())
 }
 
 pub async fn post_player_forfeited(
     app: &AppHandle,
     lobby_id: &str,
 ) -> Result<PlayerResult, String> {
-    let client = ApiClient::new(app);
-    let authed = client
-        .authenticated()
-        .ok_or_else(|| "Not authenticated".to_string())?;
-
-    let resp = authed
-        .post(&config::lobby_forfeit_path(lobby_id))
-        .send()
+    authed_post_returning(app, &config::lobby_forfeit_path(lobby_id), "forfeited")
         .await
-        .map_err(|e| format!("[api] post_player_forfeited network error: {e}"))?;
+        .ok_or_else(|| "[api] post_player_forfeited failed".to_string())
+}
 
-    if !resp.status().is_success() {
-        return Err(format!(
-            "[api] post_player_forfeited server error: {}",
-            resp.status()
-        ));
-    }
+#[allow(dead_code)]
+#[derive(Serialize)]
+struct SubmitSplitBody {
+    split_index: u32,
+    segment_name: String,
+    start_ms: u64,
+    end_ms: u64,
+}
 
-    let body: ApiResponse<PlayerResult> = resp
-        .json()
-        .await
-        .map_err(|e| format!("[api] post_player_forfeited parse error: {e}"))?;
-    Ok(body.data)
+#[allow(dead_code)]
+pub async fn post_player_split(
+    app: &AppHandle,
+    lobby_id: &str,
+    split_index: u32,
+    segment_name: String,
+    start_ms: u64,
+    end_ms: u64,
+) -> Result<(), String> {
+    authed_post_body_void(
+        app,
+        &config::lobby_split_path(lobby_id),
+        &SubmitSplitBody {
+            split_index,
+            segment_name,
+            start_ms,
+            end_ms,
+        },
+        "split",
+    )
+    .await
+    .ok_or_else(|| "[api] post_player_split failed".to_string())
+}
+
+#[allow(dead_code)]
+#[derive(Serialize)]
+struct SubmitCounterBody {
+    counter_name: String,
+    value: i64,
+    split_index: Option<u32>,
+    timestamp_ms: u64,
+}
+
+#[allow(dead_code)]
+pub async fn post_player_counter(
+    app: &AppHandle,
+    lobby_id: &str,
+    counter_name: String,
+    value: i64,
+    split_index: Option<u32>,
+    timestamp_ms: u64,
+) -> Result<(), String> {
+    authed_post_body_void(
+        app,
+        &config::lobby_counter_path(lobby_id),
+        &SubmitCounterBody {
+            counter_name,
+            value,
+            split_index,
+            timestamp_ms,
+        },
+        "counter",
+    )
+    .await
+    .ok_or_else(|| "[api] post_player_counter failed".to_string())
 }
