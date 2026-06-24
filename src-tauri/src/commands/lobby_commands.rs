@@ -5,6 +5,21 @@ use crate::state::SharedState;
 use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
+pub fn get_split_segments(state: State<SharedState>) -> Vec<String> {
+    let guard = state.lock().unwrap();
+    guard
+        .split_run
+        .as_ref()
+        .map(|r| (0..r.len()).map(|i| r.segment(i).name().to_string()).collect())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn get_current_split_index(state: State<SharedState>) -> u32 {
+    state.lock().unwrap().current_split_index
+}
+
+#[tauri::command]
 pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String> {
     let guard = state.lock().map_err(|e| e.to_string())?;
     Ok(ClientState {
@@ -60,5 +75,8 @@ pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
     let mut guard = state.lock().map_err(|e| e.to_string())?;
     guard.app_state = crate::models::AppState::Idle;
     guard.lobby = None;
+    guard.split_run = None;
+    guard.current_split_index = 0;
+    guard.segment_start_ms = 0;
     Ok(())
 }
