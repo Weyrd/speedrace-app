@@ -8,6 +8,7 @@ import {
   WS_LOBBY_START,
   WS_PLAYER_RESULT,
   WINDOW_TRAY_HINT,
+  SPLIT_LOADED,
 } from "./events";
 import type {
   AuthStatePayload,
@@ -49,3 +50,5 @@ export const onPlayerResult = (cb: (p: PlayerResult) => void) =>
   safeListen<PlayerResult>(WS_PLAYER_RESULT, cb);
 export const onTrayHint = (cb: () => void) =>
   safeListen<null>(WINDOW_TRAY_HINT, () => cb());
+export const onSplitLoaded = (cb: () => void) =>
+  safeListen<null>(SPLIT_LOADED, () => cb());

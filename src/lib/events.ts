@@ -8,3 +8,4 @@ export const WS_LOBBY_CLOSED = "ws:lobby_closed";
 export const WS_LOBBY_START = "ws:lobby_start";
 export const WS_PLAYER_RESULT = "ws:player_result";
 export const WS_STATUS = "ws:status";
+export const SPLIT_LOADED = "split:loaded";
