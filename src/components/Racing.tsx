@@ -11,6 +11,7 @@ import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useClockOffset } from "../hooks/useClockOffset";
 import { playSound, Sound } from "../lib/sound";
 import { onSplitLoaded } from "../lib/listeners";
+import { Button } from "./ui/button";
 
 const COUNTDOWN_BEEPS = [
   { at: -3000, sound: Sound.Countdown3 },
@@ -67,6 +68,11 @@ export default function Racing() {
   const startAt =
     state.phase === Phase.RaceInProgress ? state.raceStartAt : null;
 
+  const hasAutosplitter =
+    state.phase === Phase.RaceInProgress
+      ? state.lobby.autosplitter_updated_at != null
+      : false;
+
   const videoRef = useCallback(
     (node: HTMLVideoElement | null) => {
       if (node && state.phase === Phase.RaceInProgress) {
@@ -77,6 +83,7 @@ export default function Racing() {
   );
 
   useEffect(() => {
+    if (hasAutosplitter) return;
     registerFinishHotkey().catch((e) =>
       console.error("[race] registerFinishHotkey error", e),
     );
@@ -85,7 +92,7 @@ export default function Racing() {
         console.error("[race] unregisterFinishHotkey error", e),
       );
     };
-  }, []);
+  }, [hasAutosplitter]);
 
   useEffect(() => {
     const unlisten = onSplitLoaded(() => {
@@ -114,7 +121,6 @@ export default function Racing() {
 
   const hasSplits =
     lobby.split_resource_updated_at != null && splitSegments.length > 0;
-  const hasAutosplitter = lobby.autosplitter_updated_at != null;
 
   return (
     <div className="h-full flex flex-col gap-3 px-4 py-4">
@@ -160,20 +166,18 @@ export default function Racing() {
       )}
       <div className="flex gap-2 mt-auto">
         {!hasAutosplitter && (
-          <button
+          <Button
+            variant="finish"
             onClick={() => actions.finish(lobby.lobby_id, elapsed)}
             disabled={negative}
-            className="flex-1 py-3.5 text-xs font-mono tracking-wide border border-green text-green rounded cursor-pointer bg-transparent hover:bg-green-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 py-3.5"
           >
             {t("race.finish")}
-          </button>
+          </Button>
         )}
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex-1 py-3.5 text-xs font-mono tracking-wide border border-red text-red rounded cursor-pointer bg-transparent hover:bg-red-dim transition-colors"
-        >
+        <Button variant="forfeit" onClick={() => setShowModal(true)} className="flex-1 py-3.5">
           {t("race.forfeit")}
-        </button>
+        </Button>
       </div>
       {showModal && (
         <StopModal
