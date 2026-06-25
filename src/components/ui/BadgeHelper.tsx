@@ -1,9 +1,13 @@
+import { Tooltip } from "./Tooltip";
+import { AutosplitStatus } from "../../types";
+
 type LobbyHeaderProps = {
   gameName: string;
   categories: string[];
   code: string;
   live?: boolean;
   label?: string;
+  autosplitStatus?: AutosplitStatus;
 };
 
 export function LobbyHeader({
@@ -12,6 +16,7 @@ export function LobbyHeader({
   code,
   live = false,
   label,
+  autosplitStatus,
 }: LobbyHeaderProps) {
   const dash = code.indexOf("-");
   const codePrefix = dash >= 0 ? code.slice(0, dash) : code;
@@ -32,10 +37,20 @@ export function LobbyHeader({
           </span>
         )}
 
-        <span className="bg-bg2 border border-border rounded-sm px-2 py-0.5 text-2xs font-mono tracking-wider">
-          <span className="text-muted">{codePrefix}</span>
-          <span className="text-orange">{codeSuffix}</span>
-        </span>
+        <div className="flex items-center gap-2">
+          {autosplitStatus && autosplitStatus !== AutosplitStatus.None && (
+            <Tooltip
+              content={autosplitStatus === AutosplitStatus.Wasm ? "WASM autosplitter" : "LiveSplit"}
+              side="top"
+            >
+              <span className="text-2xs font-mono text-green tracking-wide">split loaded</span>
+            </Tooltip>
+          )}
+          <span className="bg-bg2 border border-border rounded-sm px-2 py-0.5 text-2xs font-mono tracking-wider">
+            <span className="text-muted">{codePrefix}</span>
+            <span className="text-orange">{codeSuffix}</span>
+          </span>
+        </div>
       </div>
 
       <span className="text-base font-bold font-mono tracking-wide text-text leading-tight">

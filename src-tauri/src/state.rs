@@ -18,6 +18,7 @@ pub struct GlobalState {
     pub autosplitter_runtime:
         Option<Arc<livesplit_auto_splitting::AutoSplitter<crate::autosplit::timer::MomentumTimer>>>,
     pub autosplitter_cancel: Arc<AtomicBool>,
+    pub probe_running: bool,
 }
 
 impl GlobalState {
@@ -37,6 +38,7 @@ impl GlobalState {
             autosplitter_wasm: None,
             autosplitter_runtime: None,
             autosplitter_cancel: Arc::new(AtomicBool::new(false)),
+            probe_running: false,
         }
     }
 }
