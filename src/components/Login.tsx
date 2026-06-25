@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
 import { useAppState, useActions, Phase } from "../store";
+import { Button } from "./ui/button";
 
 export default function Login() {
   const state = useAppState();
@@ -31,17 +32,14 @@ export default function Login() {
       </span>
 
       <div className="w-full flex flex-col items-center gap-2 mt-2 pt-8">
-        <button
-          onClick={handleLogin}
-          className="w-full py-3.5 font-mono tracking-wider bg-green text-white rounded-sm cursor-pointer border-none hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-        >
+        <Button variant="success" onClick={handleLogin} className="w-full py-3.5 tracking-wider">
           {isAuthenticating
             ? t("app:login.connecting")
             : isNotLogged
               ? t("app:login.disconnect")
               : t("app:login.connect")}
           {isConnect && <ExternalLink size={16} />}
-        </button>
+        </Button>
         {isConnect && (
           <span className="text-2xs text-dim font-mono tracking-wide">
             {t("app:login.opens_web")}

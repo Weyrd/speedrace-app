@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Button } from "./ui/button";
 
 interface Props {
   version: string;
@@ -26,18 +27,12 @@ export default function UpdateModal({
           </p>
         )}
         <div className="flex gap-2">
-          <button
-            onClick={onDismiss}
-            className="flex-1 py-2 text-2xs font-mono tracking-wide border border-border text-muted rounded cursor-pointer bg-transparent hover:border-muted transition-colors"
-          >
+          <Button variant="outline" onClick={onDismiss} className="flex-1 py-2 text-2xs">
             {t("update_modal.later")}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2 text-2xs font-mono tracking-wide bg-green text-white rounded cursor-pointer border-none hover:opacity-90 transition-opacity"
-          >
+          </Button>
+          <Button variant="success" onClick={onConfirm} className="flex-1 py-2 text-2xs">
             {t("update_modal.install")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
