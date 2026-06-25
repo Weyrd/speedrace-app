@@ -2,6 +2,7 @@ use crate::api;
 use crate::events::WS_PLAYER_RESULT;
 use crate::models::{AppState, ClientState};
 use crate::state::SharedState;
+use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
@@ -10,7 +11,11 @@ pub fn get_split_segments(state: State<SharedState>) -> Vec<String> {
     guard
         .split_run
         .as_ref()
-        .map(|r| (0..r.len()).map(|i| r.segment(i).name().to_string()).collect())
+        .map(|r| {
+            (0..r.len())
+                .map(|i| r.segment(i).name().to_string())
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -73,6 +78,8 @@ pub async fn send_player_forfeited(
 #[tauri::command]
 pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
     let mut guard = state.lock().map_err(|e| e.to_string())?;
+    guard.autosplitter_cancel.store(true, Ordering::SeqCst);
+    guard.autosplitter_runtime = None;
     guard.app_state = crate::models::AppState::Idle;
     guard.lobby = None;
     guard.split_run = None;

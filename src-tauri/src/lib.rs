@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod autosplit;
 mod commands;
 mod config;
 mod events;
