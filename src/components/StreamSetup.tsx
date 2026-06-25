@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import { WhipClient } from "../stream/whip";
 import { LobbyHeader } from "./ui/BadgeHelper";
+import { SplitList } from "./ui/SplitList";
 import { Button } from "./ui/button";
 
 export default function StreamSetup() {
@@ -75,12 +76,13 @@ export default function StreamSetup() {
         categories={lobby.category_name}
         code={lobby.code}
         label={t("stream.lobby")}
+        autosplitStatus={state.autosplitStatus}
       />
 
       {/* Preview area - always clickable to start or change source */}
       <div
         onClick={!isPublishing ? startPreview : undefined}
-        className="bg-black border border-border rounded aspect-video w-full flex items-center justify-center overflow-hidden relative group cursor-pointer"
+        className="bg-black border border-border rounded aspect-1920/1080 w-full flex items-center justify-center overflow-hidden relative group cursor-pointer"
       >
         <video
           ref={videoRef}
@@ -102,6 +104,8 @@ export default function StreamSetup() {
         )}
       </div>
 
+      {lobby.split_resource_updated_at && <SplitList />}
+
       {!isPreviewing && (
         <p className="text-2xs text-dim font-mono tracking-wide leading-relaxed text-center">
           {t("stream.fullscreen_note")}
@@ -114,7 +118,12 @@ export default function StreamSetup() {
         </p>
       )}
 
-      <Button variant="destructive" onClick={handlePublish} disabled={!isPreviewing || isPublishing} className="w-full py-3.5">
+      <Button
+        variant="destructive"
+        onClick={handlePublish}
+        disabled={!isPreviewing || isPublishing}
+        className="w-full py-3.5"
+      >
         {isPublishing ? t("stream.publishing") : t("stream.publish")}
       </Button>
     </div>

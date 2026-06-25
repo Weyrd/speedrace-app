@@ -1,9 +1,16 @@
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager};
-use crate::events::WS_PLAYER_RESULT;
+use crate::events::{SPLIT_FIRED, WS_PLAYER_RESULT};
 use crate::models::AppState;
 use crate::state::SharedState;
 use crate::api;
+
+#[derive(serde::Serialize, Clone)]
+struct SplitFiredPayload {
+    index: u32,
+    segment_ms: u64,
+    new_start_ms: u64,
+}
 
 pub fn fire_split(app: &AppHandle, state: &SharedState) {
     let now_ms = std::time::SystemTime::now()
@@ -44,6 +51,13 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
     };
 
     let (lobby_id, split_index, segment_name, start_ms, end_ms, is_final) = result;
+
+    let _ = app.emit(SPLIT_FIRED, SplitFiredPayload {
+        index: split_index,
+        segment_ms: end_ms.saturating_sub(start_ms),
+        new_start_ms: end_ms,
+    });
+
     let app = app.clone();
     let state = state.clone();
     tauri::async_runtime::spawn(async move {

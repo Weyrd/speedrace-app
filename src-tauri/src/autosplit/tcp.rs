@@ -1,24 +1,33 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::time::{Duration, sleep, timeout};
-use tauri::AppHandle;
 use crate::state::SharedState;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use tauri::AppHandle;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::time::{sleep, timeout, Duration};
 
 const LIVESPLIT_ADDR: &str = "127.0.0.1:16834";
 const POLL_MS: u64 = 100;
 const READ_TIMEOUT_MS: u64 = 3000;
 const CONNECT_TIMEOUT_MS: u64 = 500;
 
+pub const PROBE_INTERVAL_SECS: u64 = 10;
+pub const MAX_WASM_RETRIES: u32 = 3;
+
+pub async fn probe() -> bool {
+    timeout(
+        Duration::from_millis(CONNECT_TIMEOUT_MS),
+        tokio::net::TcpStream::connect(LIVESPLIT_ADDR),
+    )
+    .await
+    .map(|r| r.is_ok())
+    .unwrap_or(false)
+}
+
 /// Try to connect to LiveSplit TCP server. If successful, spawn the poll loop and return true.
 /// Returns false immediately (within 500ms) if LiveSplit is not running.
-pub async fn start(
-    app: AppHandle,
-    state: SharedState,
-    cancel: Arc<AtomicBool>,
-) -> bool {
+pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) -> bool {
     let stream = match timeout(
         Duration::from_millis(CONNECT_TIMEOUT_MS),
         tokio::net::TcpStream::connect(LIVESPLIT_ADDR),
@@ -103,7 +112,9 @@ async fn poll_loop(
             // First positive reading: catch up on splits already completed before we connected
             let catch_up = index as usize;
             if catch_up > 0 {
-                eprintln!("[livesplit-tcp] catching up {catch_up} split(s) (index jumped to {index})");
+                eprintln!(
+                    "[livesplit-tcp] catching up {catch_up} split(s) (index jumped to {index})"
+                );
                 for _ in 0..catch_up {
                     crate::autosplit::split::fire_split(&app, &state);
                 }

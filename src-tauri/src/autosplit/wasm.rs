@@ -5,6 +5,32 @@ use std::sync::{
 };
 use tauri::AppHandle;
 
+pub async fn probe(state: &SharedState) -> bool {
+    let wasm = {
+        let guard = state.lock().unwrap();
+        guard.autosplitter_wasm.clone()
+    };
+    let Some(wasm) = wasm else { return false };
+
+    let mut cfg = livesplit_auto_splitting::Config::default();
+    cfg.optimize = true;
+
+    let runtime = match livesplit_auto_splitting::Runtime::new(cfg) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[wasm] probe: runtime error: {e}");
+            return false;
+        }
+    };
+    match runtime.compile(&wasm) {
+        Ok(_) => true,
+        Err(e) => {
+            eprintln!("[wasm] probe: compile error: {e}");
+            false
+        }
+    }
+}
+
 pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_at: Option<&str>) {
     let bytes = crate::api::autosplitter::fetch_game_autosplitter(app, game_id, updated_at).await;
     let mut guard = state.lock().unwrap();

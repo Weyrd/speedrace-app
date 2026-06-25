@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
 import { LobbyHeader } from "./ui/BadgeHelper";
+import { SplitList } from "./ui/SplitList";
 import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useClockOffset } from "../hooks/useClockOffset";
 import { playSound, Sound } from "../lib/sound";
-import { onSplitLoaded } from "../lib/listeners";
 import { Button } from "./ui/button";
 
 const COUNTDOWN_BEEPS = [
@@ -40,29 +38,12 @@ function getNow() {
   return cachedNow;
 }
 
-const SPLIT_SEGMENTS_KEY = ["split-segments"] as const;
-const SPLIT_INDEX_KEY = ["split-current-index"] as const;
-
 export default function Racing() {
   const state = useAppState();
   const actions = useActions();
   const [showModal, setShowModal] = useState(false);
-  const queryClient = useQueryClient();
   const { t } = useTranslation("app");
 
-  const { data: splitSegments = [] } = useQuery({
-    queryKey: SPLIT_SEGMENTS_KEY,
-    queryFn: () => invoke<string[]>("get_split_segments"),
-    enabled: false,
-    initialData: [],
-  });
-
-  const { data: currentSplitIndex = 0 } = useQuery({
-    queryKey: SPLIT_INDEX_KEY,
-    queryFn: () => invoke<number>("get_current_split_index"),
-    enabled: false,
-    initialData: 0,
-  });
   const now = useSyncExternalStore(subscribeToRaf, getNow);
   const { offsetMs } = useClockOffset();
   const startAt =
@@ -95,14 +76,6 @@ export default function Racing() {
   }, [hasAutosplitter]);
 
   useEffect(() => {
-    const unlisten = onSplitLoaded(() => {
-      void queryClient.invalidateQueries({ queryKey: SPLIT_SEGMENTS_KEY });
-      void queryClient.invalidateQueries({ queryKey: SPLIT_INDEX_KEY });
-    });
-    return unlisten;
-  }, [queryClient]);
-
-  useEffect(() => {
     if (startAt == null) return;
     const timers = COUNTDOWN_BEEPS.map((b) => {
       const delay = startAt + b.at - offsetMs - Date.now();
@@ -113,14 +86,11 @@ export default function Racing() {
   }, [startAt, offsetMs]);
 
   if (state.phase !== Phase.RaceInProgress) return null;
-  const { lobby, raceStartAt } = state;
+  const { lobby, raceStartAt, splitIndex, completedSegmentTimes, currentSegmentStartMs } = state;
 
   const elapsed = now + offsetMs - raceStartAt;
   const negative = elapsed < 0;
   const display = (negative ? "-" : "") + formatTime(Math.abs(elapsed));
-
-  const hasSplits =
-    lobby.split_resource_updated_at != null && splitSegments.length > 0;
 
   return (
     <div className="h-full flex flex-col gap-3 px-4 py-4">
@@ -130,7 +100,7 @@ export default function Racing() {
         code={lobby.code}
         live
       />
-      <div className="bg-black border border-border rounded aspect-video w-full overflow-hidden relative">
+      <div className="bg-black border border-border rounded aspect-[1920/1080] w-full overflow-hidden relative">
         <video
           ref={videoRef}
           autoPlay
@@ -154,15 +124,13 @@ export default function Racing() {
           {negative ? t("race.starting_soon") : t("race.in_race")}
         </span>
       </div>
-      {hasSplits && (
-        <div className="flex flex-col items-center gap-0.5">
-          <span className="text-xs font-mono text-text">
-            {splitSegments[currentSplitIndex]}
-          </span>
-          <span className="text-2xs font-mono text-dim">
-            {currentSplitIndex + 1} / {splitSegments.length}
-          </span>
-        </div>
+      {lobby.split_resource_updated_at && (
+        <SplitList
+          currentIndex={splitIndex}
+          completedTimes={completedSegmentTimes}
+          raceElapsedMs={Math.max(0, elapsed)}
+          currentSegmentStartMs={currentSegmentStartMs}
+        />
       )}
       <div className="flex gap-2 mt-auto">
         {!hasAutosplitter && (
