@@ -61,8 +61,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const s = state as Extract<AppState, { user: User; wsStatus: WsStatus }>;
       if (
         state.phase === Phase.WaitingForStart ||
-        state.phase === Phase.RaceInProgress ||
-        state.phase === Phase.Finished
+        state.phase === Phase.RaceInProgress
       ) {
         return { ...state, lobby: action.lobby } as AppState;
       }

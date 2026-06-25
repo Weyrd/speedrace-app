@@ -7,9 +7,8 @@ import { Tooltip } from "./ui/Tooltip";
 import SettingsPanel from "./SettingsPanel";
 import { useClockOffset } from "../hooks/useClockOffset";
 import { formatOffset } from "../lib/formatTime";
-
-const WEB_LIVE_LOBBY_URL = import.meta.env.WEB_LIVE_LOBBY_URL;
-const WEB_WAITING_LOBBY_URL = import.meta.env.WEB_WAITING_LOBBY_URL;
+import { webUrls } from "../lib/webUrls";
+import { Button } from "./ui/button";
 
 const LOBBY_PHASES: ReadonlySet<string> = new Set([
   Phase.StreamSetup,
@@ -31,16 +30,12 @@ export default function Header() {
     isAuthenticated && "user" in state ? state.user.username : null;
 
   const hasLobby = LOBBY_PHASES.has(state.phase);
-  const lobbyId = hasLobby && "lobby" in state ? state.lobby.lobby_id : null;
-
-  const webBaseUrl =
-    state.phase === Phase.RaceInProgress
-      ? WEB_LIVE_LOBBY_URL
-      : WEB_WAITING_LOBBY_URL;
+  const lobbyCode = hasLobby && "lobby" in state ? state.lobby.code : null;
 
   async function handleOpenLobby() {
-    if (!lobbyId) return;
-    await openUrl(`${webBaseUrl}/${lobbyId}`);
+    if (!lobbyCode) return;
+    const url = webUrls.lobby(lobbyCode);
+    await openUrl(url);
   }
 
   return (
@@ -62,15 +57,19 @@ export default function Header() {
             isSyncing
               ? tApp("header.clock_syncing")
               : isSynced
-                ? tApp("header.clock_synced", { offset: formatOffset(offsetMs) })
+                ? tApp("header.clock_synced", {
+                    offset: formatOffset(offsetMs),
+                  })
                 : tApp("header.clock_unknown")
           }
           side="bottom"
         >
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => resync()}
             disabled={isSyncing}
-            className="flex items-center gap-1 text-dim hover:text-muted transition-colors cursor-pointer bg-transparent border-none p-0.5 disabled:opacity-60 disabled:cursor-default"
+            className="gap-1"
             aria-label={tApp("header.clock_syncing")}
           >
             {isSyncing ? (
@@ -81,29 +80,31 @@ export default function Header() {
             <span className="text-2xs font-mono tracking-wide tabular-nums">
               {isSynced ? formatOffset(offsetMs) : "—"}
             </span>
-          </button>
+          </Button>
         </Tooltip>
 
-        {lobbyId && (
+        {lobbyCode && (
           <Tooltip content={tApp("header.open_lobby")} side="bottom">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleOpenLobby}
-              className="text-dim hover:text-muted transition-colors cursor-pointer bg-transparent border-none p-0.5"
               aria-label={tApp("header.open_lobby")}
             >
               <ExternalLink size={15} />
-            </button>
+            </Button>
           </Tooltip>
         )}
 
         <Tooltip content={tSettings("tooltip")} side="bottom">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setSettingsOpen(true)}
-            className="text-dim hover:text-muted transition-colors cursor-pointer bg-transparent border-none p-0.5"
             aria-label={tSettings("tooltip")}
           >
             <Settings size={15} />
-          </button>
+          </Button>
         </Tooltip>
       </span>
 

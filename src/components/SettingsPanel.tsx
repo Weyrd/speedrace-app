@@ -16,6 +16,8 @@ import {
   formatAccelerator,
   getKeyboardLayout,
 } from "../lib/hotkey";
+import { Button } from "./ui/button";
+import { cn } from "../lib/utils";
 
 const DEFAULT_FINISH_HOTKEY = "CmdOrCtrl+Shift+F";
 
@@ -123,13 +125,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           <Settings size={14} className="text-dim" />
           {t("tooltip")}
         </span>
-        <button
-          onClick={handleClose}
-          className="text-dim hover:text-muted transition-colors cursor-pointer bg-transparent border-none p-0.5"
-          aria-label={t("close")}
-        >
+        <Button variant="ghost" size="icon" onClick={handleClose} aria-label={t("close")}>
           <X size={16} />
-        </button>
+        </Button>
       </div>
 
       {/* Content */}
@@ -144,13 +142,14 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           </p>
 
           <div className="flex items-center gap-2 mt-1">
-            <button
+            <Button
               onClick={startCapture}
-              className={`flex-1 h-10 flex items-center justify-center text-xs font-mono tracking-wide border rounded cursor-pointer bg-transparent transition-colors ${
+              className={cn(
+                "flex-1 h-10",
                 capturing
-                  ? "border-green text-green ring-1 ring-green/40"
-                  : "border-border text-text hover:border-dim"
-              }`}
+                  ? "border-green text-green hover:border-green ring-1 ring-green/40"
+                  : "text-text hover:border-dim",
+              )}
             >
               {capturing
                 ? liveCombo
@@ -159,15 +158,16 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
                 : hotkey
                   ? formatAccelerator(hotkey, layout ?? null)
                   : "—"}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               onClick={resetDefault}
               title={t("reset_default")}
               aria-label={t("reset_default")}
-              className="h-10 w-10 flex items-center justify-center text-dim hover:text-muted transition-colors cursor-pointer bg-transparent border border-border rounded"
+              className="h-10 w-10 border border-border"
             >
               <RotateCcw size={14} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -198,13 +198,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-border">
-        <button
-          onClick={handleLogout}
-          className="w-full h-10 flex items-center justify-center gap-2 text-xs font-mono tracking-wide border border-border rounded text-red hover:border-red/60 transition-colors cursor-pointer bg-transparent"
-        >
+        <Button variant="danger" onClick={handleLogout} className="w-full h-10">
           <LogOut size={14} />
           {t("logout")}
-        </button>
+        </Button>
       </div>
     </div>,
     document.body,

@@ -2,6 +2,8 @@ import { playSound, Sound } from "../../lib/sound";
 import { useAppDispatch, useAppState } from "../AppContext";
 import { ActionType, Phase } from "../types";
 import { MOCK_PHASE_ACTIONS } from "./devMocks";
+import { Button } from "../../components/ui/button";
+import { cn } from "../../lib/utils";
 
 const DEV_PHASES = Object.values(Phase).filter(
   (p) => p !== Phase.Connecting,
@@ -26,32 +28,24 @@ export function DevToolbar() {
         DEV
       </span>
       {DEV_PHASES.map((p) => (
-        <button
+        <Button
           key={p}
+          size="tag"
           onClick={() => goToPhase(p)}
-          className={`
-            text-2xs font-mono tracking-wide px-2 py-0.5 rounded cursor-pointer border transition-colors
-            ${
-              state.phase === p
-                ? "bg-orange text-white border-orange"
-                : "bg-transparent text-muted border-border hover:border-muted hover:text-text"
-            }
-          `}
+          className={cn(
+            state.phase === p && "bg-orange text-white border-orange hover:opacity-90",
+          )}
         >
           {p}
-        </button>
+        </Button>
       ))}
       <span className="text-2xs text-dim font-mono tracking-wide self-center mx-1">
         SND
       </span>
       {Object.values(Sound).map((s) => (
-        <button
-          key={s}
-          onClick={() => playSound(s)}
-          className="text-2xs font-mono tracking-wide px-2 py-0.5 rounded cursor-pointer border border-border bg-transparent text-muted transition-colors hover:border-muted hover:text-text"
-        >
+        <Button key={s} size="tag" onClick={() => playSound(s)}>
           {s}
-        </button>
+        </Button>
       ))}
     </div>
   );

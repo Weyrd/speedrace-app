@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
 import { LobbyHeader } from "./ui/BadgeHelper";
+import { Button } from "./ui/button";
 
 export default function WaitingForStart() {
   const state = useAppState();
@@ -52,12 +53,9 @@ export default function WaitingForStart() {
         {t("waiting.waiting_host")}
       </p>
 
-      <button
-        onClick={() => setShowModal(true)}
-        className="w-full py-3.5 text-xs font-mono tracking-wide border border-dim text-muted rounded cursor-pointer bg-transparent hover:border-muted transition-colors mt-auto"
-      >
+      <Button variant="outline" onClick={() => setShowModal(true)} className="w-full py-3.5 mt-auto border-dim">
         {t("stream.stop_stream")}
-      </button>
+      </Button>
 
       {showModal && (
         <StopModal

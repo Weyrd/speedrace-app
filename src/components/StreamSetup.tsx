@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import { WhipClient } from "../stream/whip";
 import { LobbyHeader } from "./ui/BadgeHelper";
+import { Button } from "./ui/button";
 
 export default function StreamSetup() {
   const state = useAppState();
@@ -113,13 +114,9 @@ export default function StreamSetup() {
         </p>
       )}
 
-      <button
-        onClick={handlePublish}
-        disabled={!isPreviewing || isPublishing}
-        className="w-full py-3.5 text-xs font-mono tracking-wider bg-red text-white rounded border-none cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-      >
+      <Button variant="destructive" onClick={handlePublish} disabled={!isPreviewing || isPublishing} className="w-full py-3.5">
         {isPublishing ? t("stream.publishing") : t("stream.publish")}
-      </button>
+      </Button>
     </div>
   );
 }

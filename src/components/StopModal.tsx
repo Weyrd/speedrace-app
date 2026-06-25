@@ -1,5 +1,6 @@
 import { useTranslation, Trans } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
+import { Button } from "./ui/button";
 
 interface Props {
   raceInProgress: boolean;
@@ -40,18 +41,12 @@ export default function StopModal({
         </p>
 
         <div className="flex gap-2">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3 text-xs font-mono tracking-wide border border-border text-muted rounded-sm cursor-pointer bg-transparent hover:border-muted hover:text-text transition-colors"
-          >
+          <Button variant="outline" onClick={onCancel} className="flex-1 py-3">
             {raceInProgress ? t("app:stop_modal.keep_racing") : t("common:cancel")}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-3 text-xs font-mono tracking-wide bg-red text-white rounded-sm cursor-pointer border-none hover:opacity-90 transition-opacity"
-          >
+          </Button>
+          <Button variant="destructive" onClick={onConfirm} className="flex-1 py-3">
             {raceInProgress ? t("app:stop_modal.confirm_forfeit") : t("common:stop")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
