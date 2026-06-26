@@ -61,8 +61,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const s = state as Extract<AppState, { user: User; wsStatus: WsStatus }>;
       if (
         state.phase === Phase.WaitingForStart ||
-        state.phase === Phase.RaceInProgress ||
-        state.phase === Phase.Finished
+        state.phase === Phase.RaceInProgress
       ) {
         return { ...state, lobby: action.lobby } as AppState;
       }
@@ -123,6 +122,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         lobby: state.lobby,
         raceStartAt: action.raceStartAt,
         stream: state.stream,
+        splitIndex: 0,
+        completedSegmentTimes: [],
+        currentSegmentStartMs: 0,
       };
     }
 
@@ -142,6 +144,23 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         phase: Phase.Idle,
         user: state.user,
         wsStatus: state.wsStatus,
+      };
+    }
+
+    case ActionType.AutosplitStatus: {
+      if (state.phase !== Phase.StreamSetup && state.phase !== Phase.WaitingForStart) return state;
+      return { ...state, autosplitStatus: action.status };
+    }
+
+    case ActionType.SplitFired: {
+      if (state.phase !== Phase.RaceInProgress) return state;
+      const times = [...state.completedSegmentTimes];
+      times[action.index] = action.segmentMs;
+      return {
+        ...state,
+        splitIndex: action.index + 1,
+        completedSegmentTimes: times,
+        currentSegmentStartMs: action.newStartMs,
       };
     }
 

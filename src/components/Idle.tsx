@@ -2,15 +2,8 @@ import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppState, Phase } from "../store";
-
-const WEB_BASE = (() => {
-  try {
-    return new URL(import.meta.env.WEB_WAITING_LOBBY_URL).origin;
-  } catch {
-    return "";
-  }
-})();
-const CREATE_LOBBY_URL = WEB_BASE ? `${WEB_BASE}/lobby` : "";
+import { webUrls } from "../lib/webUrls";
+import { Button } from "./ui/button";
 
 export default function Idle() {
   const state = useAppState();
@@ -27,13 +20,10 @@ export default function Idle() {
       <p className="text-xs text-dim font-mono tracking-wide leading-relaxed whitespace-pre-line">
         {t("idle.description")}
       </p>
-      <button
-        onClick={() => openUrl(CREATE_LOBBY_URL)}
-        className="mt-2 flex items-center justify-center gap-2 px-4 py-2.5 font-mono text-sm tracking-wide text-orange border border-orange-dim rounded-sm cursor-pointer bg-transparent hover:border-orange hover:bg-orange-dim transition-colors"
-      >
+      <Button variant="start" onClick={() => openUrl(webUrls.createLobby)} className="mt-2 text-sm">
         {t("idle.create_lobby")}
         <ExternalLink size={15} />
-      </button>
+      </Button>
     </div>
   );
 }

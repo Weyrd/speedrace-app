@@ -12,6 +12,9 @@ import {
   onLobbyClosed,
   onLobbyStart,
   onPlayerResult,
+  onAutosplitProbe,
+  onSplitLoaded,
+  onSplitFired,
 } from "../lib/listeners";
 
 export function AppEventBridge(): null {
@@ -70,6 +73,23 @@ export function AppEventBridge(): null {
             : Sound.RaceFinish,
         );
         dispatch({ type: ActionType.PlayerResult, result });
+      }),
+
+      onAutosplitProbe((p) => {
+        dispatch({ type: ActionType.AutosplitStatus, status: p.kind });
+      }),
+
+      onSplitLoaded(() => {
+        void qc.invalidateQueries({ queryKey: ["split-segments"] });
+      }),
+
+      onSplitFired((p) => {
+        dispatch({
+          type: ActionType.SplitFired,
+          index: p.index,
+          segmentMs: p.segment_ms,
+          newStartMs: p.new_start_ms,
+        });
       }),
     ];
 

@@ -32,6 +32,22 @@ pub fn lobby_forfeit_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/forfeit")
 }
 
+pub fn category_split_resource_path(category_id: &str) -> String {
+    format!("/api/v1/categories/{category_id}/split-resource")
+}
+
+pub fn game_autosplitter_download_path(game_id: &str) -> String {
+    format!("/api/v1/games/{game_id}/autosplitter/download")
+}
+
+pub fn lobby_split_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/split")
+}
+
+pub fn lobby_counter_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/counter")
+}
+
 pub const WS_RECONNECT_BASE_SECS: u64 = 1;
 pub const WS_RECONNECT_MAX_SECS: u64 = 30;
 

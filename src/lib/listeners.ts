@@ -8,6 +8,9 @@ import {
   WS_LOBBY_START,
   WS_PLAYER_RESULT,
   WINDOW_TRAY_HINT,
+  SPLIT_LOADED,
+  SPLIT_FIRED,
+  AUTOSPLIT_PROBE,
 } from "./events";
 import type {
   AuthStatePayload,
@@ -16,6 +19,8 @@ import type {
   LobbyStartPayload,
   WsStatus,
   PlayerResult,
+  AutosplitStatus,
+  SplitFiredPayload,
 } from "../types";
 import type { Phase } from "../store/types";
 
@@ -49,3 +54,9 @@ export const onPlayerResult = (cb: (p: PlayerResult) => void) =>
   safeListen<PlayerResult>(WS_PLAYER_RESULT, cb);
 export const onTrayHint = (cb: () => void) =>
   safeListen<null>(WINDOW_TRAY_HINT, () => cb());
+export const onSplitLoaded = (cb: () => void) =>
+  safeListen<null>(SPLIT_LOADED, () => cb());
+export const onSplitFired = (cb: (p: SplitFiredPayload) => void) =>
+  safeListen<SplitFiredPayload>(SPLIT_FIRED, cb);
+export const onAutosplitProbe = (cb: (p: { kind: AutosplitStatus }) => void) =>
+  safeListen<{ kind: AutosplitStatus }>(AUTOSPLIT_PROBE, cb);
