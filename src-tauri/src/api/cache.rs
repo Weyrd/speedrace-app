@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager};
 
-// Disk-cache resource kinds: each owns its subdir + content extension (no magic strings).
 #[derive(Clone, Copy)]
 pub enum CacheKind {
     Split,

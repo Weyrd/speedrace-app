@@ -25,8 +25,8 @@ pub async fn probe() -> bool {
     .unwrap_or(false)
 }
 
-/// Try to connect to LiveSplit TCP server. If successful, spawn the poll loop and return true.
-/// Returns false immediately (within 500ms) if LiveSplit is not running.
+// Try to connect to LiveSplit TCP server. If successful, spawn the poll loop
+/// Returns false (500ms) if LiveSplit is not running
 pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) -> bool {
     let stream = match timeout(
         Duration::from_millis(CONNECT_TIMEOUT_MS),
@@ -121,7 +121,7 @@ async fn poll_loop(
             }
             last_index = index;
         } else if last_index >= 0 && index < 0 {
-            // Timer reset to -1 after race was running — race finished or manually reset
+            // Timer reset to -1 after race was running (race finished or manually reset)
             eprintln!("[livesplit-tcp] index reset to -1 after last={last_index}, stopping");
             break;
         } else if index > last_index {

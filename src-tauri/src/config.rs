@@ -42,12 +42,10 @@ pub fn game_autosplitter_download_path(game_id: &str) -> String {
     format!("/api/v1/games/{game_id}/autosplitter/download")
 }
 
-#[allow(dead_code)]
 pub fn lobby_split_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/split")
 }
 
-#[allow(dead_code)]
 pub fn lobby_counter_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/counter")
 }

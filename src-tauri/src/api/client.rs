@@ -43,7 +43,7 @@ pub async fn authed_get_json<T: DeserializeOwned>(
     Some(body.data)
 }
 
-// Same flow as authed_get_json but returns the raw body bytes (no JSON envelope).
+// Same as authed_get_json but raw body bytes
 #[allow(dead_code)]
 pub async fn authed_get_bytes(app: &AppHandle, path: &str, log_tag: &str) -> Option<Vec<u8>> {
     let client = ApiClient::new(app);

@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useLayoutEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { formatTime } from "../../lib/formatTime";
@@ -22,14 +22,10 @@ export function SplitList({
     staleTime: Infinity,
   });
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    const item = activeItemRef.current;
-    if (!container || !item) return;
-    container.scrollTo({ top: item.offsetTop, behavior: "smooth" });
+  useLayoutEffect(() => {
+    activeItemRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [currentIndex]);
 
   if (segments.length === 0) return null;
@@ -37,10 +33,7 @@ export function SplitList({
   const isRacing = currentIndex !== undefined;
 
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-col overflow-y-auto max-h-[140px] border border-border rounded-sm"
-    >
+    <div className="flex flex-col overflow-y-auto max-h-[140px] border border-border rounded-sm">
       {segments.map((name, i) => {
         const isActive = isRacing && i === currentIndex;
         const isCompleted = isRacing && i < currentIndex!;
