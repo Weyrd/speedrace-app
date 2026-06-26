@@ -44,6 +44,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 let mut guard = state.lock().unwrap();
                 guard.app_state = AppState::StreamSetup;
                 guard.lobby = Some(payload.clone());
+                guard.last_autosplit_reported = None;
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
             init_lobby_resources(app, state, &payload);
@@ -82,6 +83,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.autosplitter_wasm = None;
                 guard.autosplitter_runtime = None;
                 guard.probe_running = false;
+                guard.last_autosplit_reported = None;
                 guard.app_state = AppState::Idle;
                 guard.lobby = None;
                 guard.race_start_at = None;
@@ -172,7 +174,7 @@ async fn start_autosplitter(app: AppHandle, state: SharedState) {
 
 async fn wasm_probe_loop(app: AppHandle, state: SharedState) {
     use crate::autosplit::tcp::{MAX_WASM_RETRIES, PROBE_INTERVAL_SECS};
-    use tokio::time::{Duration, sleep};
+    use tokio::time::{sleep, Duration};
 
     for attempt in 0..MAX_WASM_RETRIES {
         {
@@ -186,10 +188,14 @@ async fn wasm_probe_loop(app: AppHandle, state: SharedState) {
 
         if crate::autosplit::wasm::probe(&state).await {
             let _ = app.emit(AUTOSPLIT_PROBE, AutosplitProbePayload { kind: "wasm" });
+            report_autosplit(&app, &state, true).await;
             return;
         }
 
-        eprintln!("[probe] WASM compile failed (attempt {}/{MAX_WASM_RETRIES})", attempt + 1);
+        eprintln!(
+            "[probe] WASM compile failed (attempt {}/{MAX_WASM_RETRIES})",
+            attempt + 1
+        );
         sleep(Duration::from_secs(PROBE_INTERVAL_SECS)).await;
     }
 
@@ -199,9 +205,9 @@ async fn wasm_probe_loop(app: AppHandle, state: SharedState) {
 
 async fn livesplit_probe_loop(app: AppHandle, state: SharedState) {
     use crate::autosplit::tcp::PROBE_INTERVAL_SECS;
-    use tokio::time::{Duration, sleep};
+    use tokio::time::{sleep, Duration};
 
-    emit_livesplit_probe(&app).await;
+    emit_livesplit_probe(&app, &state).await;
 
     loop {
         sleep(Duration::from_secs(PROBE_INTERVAL_SECS)).await;
@@ -211,17 +217,35 @@ async fn livesplit_probe_loop(app: AppHandle, state: SharedState) {
         {
             break;
         }
-        emit_livesplit_probe(&app).await;
+        emit_livesplit_probe(&app, &state).await;
     }
 }
 
-async fn emit_livesplit_probe(app: &AppHandle) {
-    let kind = if crate::autosplit::tcp::probe().await {
-        "livesplit"
-    } else {
-        "none"
-    };
+async fn emit_livesplit_probe(app: &AppHandle, state: &SharedState) {
+    let connected = crate::autosplit::tcp::probe().await;
+    let kind = if connected { "livesplit" } else { "none" };
     let _ = app.emit(AUTOSPLIT_PROBE, AutosplitProbePayload { kind });
+    report_autosplit(app, state, connected).await;
+}
+
+async fn report_autosplit(app: &AppHandle, state: &SharedState, connected: bool) {
+    let (lobby_id, should_send) = {
+        let guard = state.lock().unwrap();
+        let lobby_id = guard.lobby.as_ref().map(|l| l.lobby_id.clone());
+        (lobby_id, guard.last_autosplit_reported != Some(connected))
+    };
+    if !should_send {
+        return;
+    }
+    let Some(lobby_id) = lobby_id else {
+        return;
+    };
+    match crate::api::lobby::post_autosplit_status(app, &lobby_id, connected).await {
+        Ok(()) => {
+            state.lock().unwrap().last_autosplit_reported = Some(connected);
+        }
+        Err(e) => eprintln!("[autosplit] report failed: {e}"),
+    }
 }
 
 async fn load_split_resource(
