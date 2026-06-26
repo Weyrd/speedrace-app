@@ -51,6 +51,11 @@ double-fires or desyncs the index. Firing is gated:
 The back is source-agnostic. It uses `connected` for the ranked-ready gate and, in a ranked race,
 auto-forfeits the player if `connected` stays false past a grace window (`AUTOSPLIT_FORFEIT_GRACE_SECS`).
 
+`report_autosplit_state` fires only on a connection *change*, so on **startup restore** (app launches
+already in a lobby) the probe event can fire before the UI subscribes. To cover that, `get_lobby_state`
+(the hydration command) returns the current `{ wasm, livesplit }` in `ClientState`, and the frontend
+seeds the badge from it; the reducer then carries `autosplit` across in-lobby phase transitions.
+
 ## Files
 
 - `mod.rs` - module exports

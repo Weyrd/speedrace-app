@@ -1,6 +1,6 @@
 use crate::api;
 use crate::events::WS_PLAYER_RESULT;
-use crate::models::{AppState, ClientState};
+use crate::models::{AppState, AutosplitState, ClientState};
 use crate::state::SharedState;
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, State};
@@ -30,6 +30,10 @@ pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String>
     Ok(ClientState {
         app_state: guard.app_state.clone(),
         lobby: guard.lobby.clone(),
+        autosplit: AutosplitState {
+            wasm: guard.wasm_attached,
+            livesplit: guard.livesplit_connected,
+        },
     })
 }
 

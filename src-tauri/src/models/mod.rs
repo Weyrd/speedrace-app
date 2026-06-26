@@ -4,4 +4,4 @@ pub mod lobby;
 
 pub use app_state::{AppState, WsStatus};
 pub use auth::{AuthStatePayload, AuthUser, LoginError};
-pub use lobby::{ClientState, LobbySetup, LobbyStatus};
+pub use lobby::{AutosplitState, ClientState, LobbySetup, LobbyStatus};
