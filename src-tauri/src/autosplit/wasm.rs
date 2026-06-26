@@ -1,35 +1,14 @@
+use crate::autosplit::timer::MomentumTimer;
 use crate::state::SharedState;
+use livesplit_auto_splitting::{AutoSplitter, CompiledAutoSplitter, Config, Runtime};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
 use tauri::AppHandle;
+use tokio::time::{sleep, Duration};
 
-pub async fn probe(state: &SharedState) -> bool {
-    let wasm = {
-        let guard = state.lock().unwrap();
-        guard.autosplitter_wasm.clone()
-    };
-    let Some(wasm) = wasm else { return false };
-
-    let mut cfg = livesplit_auto_splitting::Config::default();
-    cfg.optimize = true;
-
-    let runtime = match livesplit_auto_splitting::Runtime::new(cfg) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("[wasm] probe: runtime error: {e}");
-            return false;
-        }
-    };
-    match runtime.compile(&wasm) {
-        Ok(_) => true,
-        Err(e) => {
-            eprintln!("[wasm] probe: compile error: {e}");
-            false
-        }
-    }
-}
+const REINSTANTIATE_DELAY_MS: u64 = 1000;
 
 pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_at: Option<&str>) {
     let bytes = crate::api::autosplitter::fetch_game_autosplitter(app, game_id, updated_at).await;
@@ -43,29 +22,26 @@ pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_
 
 pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) -> bool {
     let wasm = {
-        let guard = state.lock().unwrap();
-        guard.autosplitter_wasm.clone()
+        let g = state.lock().unwrap();
+        if g.autosplitter_runtime.is_some() {
+            return true; // already running
+        }
+        g.autosplitter_wasm.clone()
     };
     let Some(wasm) = wasm else {
         return false;
     };
 
-    let timer = crate::autosplit::timer::MomentumTimer {
-        app: app.clone(),
-        state: state.clone(),
-    };
-
-    let mut cfg = livesplit_auto_splitting::Config::default();
+    let mut cfg = Config::default();
     cfg.optimize = true;
 
-    let runtime = match livesplit_auto_splitting::Runtime::new(cfg) {
+    let runtime = match Runtime::new(cfg) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("[wasm] Runtime::new error: {e}");
             return false;
         }
     };
-
     let compiled = match runtime.compile(&wasm) {
         Ok(c) => c,
         Err(e) => {
@@ -74,46 +50,104 @@ pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) 
         }
     };
 
-    let splitter = match compiled.instantiate(timer, None, None) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("[wasm] instantiate error: {e}");
-            return false;
-        }
-    };
-
-    let splitter = Arc::new(splitter);
-
-    let (cancel_tick, splitter_tick) = {
-        let mut guard = state.lock().unwrap();
-        guard.autosplitter_runtime = Some(Arc::clone(&splitter));
-        (cancel, Arc::clone(&splitter))
+    let Some(splitter) = instantiate(&compiled, &app, &state) else {
+        return false;
     };
 
     eprintln!("[wasm] started");
-
     tauri::async_runtime::spawn(async move {
-        loop {
-            if cancel_tick.load(Ordering::SeqCst) {
-                break;
-            }
+        supervise(compiled, splitter, app, state, cancel).await;
+    });
+    true
+}
 
-            let tick_rate = splitter_tick.tick_rate();
-            tokio::time::sleep(tick_rate).await;
+fn instantiate(
+    compiled: &CompiledAutoSplitter,
+    app: &AppHandle,
+    state: &SharedState,
+) -> Option<Arc<AutoSplitter<MomentumTimer>>> {
+    let timer = MomentumTimer {
+        app: app.clone(),
+        state: state.clone(),
+    };
+    match compiled.instantiate(timer, None, None) {
+        Ok(s) => {
+            let s = Arc::new(s);
+            state.lock().unwrap().autosplitter_runtime = Some(Arc::clone(&s));
+            Some(s)
+        }
+        Err(e) => {
+            eprintln!("[wasm] instantiate error: {e}");
+            None
+        }
+    }
+}
 
-            if cancel_tick.load(Ordering::SeqCst) {
-                break;
-            }
+enum Tick {
+    Trapped,
+    Ran { attached: bool },
+    Busy,
+}
 
-            if let Some(mut exec) = splitter_tick.try_lock() {
-                if let Err(e) = exec.update() {
-                    eprintln!("[wasm] update error: {e}");
-                    break;
+async fn supervise(
+    compiled: CompiledAutoSplitter,
+    mut splitter: Arc<AutoSplitter<MomentumTimer>>,
+    app: AppHandle,
+    state: SharedState,
+    cancel: Arc<AtomicBool>,
+) {
+    let mut last_attached: Option<bool> = None;
+
+    loop {
+        let lost = state.lock().unwrap().autosplit_source
+            == Some(crate::state::AutosplitSource::LiveSplit);
+        if cancel.load(Ordering::SeqCst) || !crate::ws::handler::in_lobby(&state) || lost {
+            break;
+        }
+
+        crate::ws::handler::maybe_commit_source(&state);
+
+        let tick_rate = splitter.tick_rate();
+
+        let tick = match splitter.try_lock() {
+            Some(mut exec) => {
+                if exec.update().is_err() {
+                    Tick::Trapped
+                } else {
+                    Tick::Ran {
+                        attached: exec.attached_processes().next().is_some(),
+                    }
                 }
             }
-        }
-        eprintln!("[wasm] tick loop stopped");
-    });
+            None => Tick::Busy,
+        };
 
-    true
+        match tick {
+            Tick::Ran { attached } => {
+                if last_attached != Some(attached) {
+                    last_attached = Some(attached);
+                    state.lock().unwrap().wasm_attached = attached;
+                    crate::ws::handler::report_autosplit_state(&app, &state).await;
+                }
+                sleep(tick_rate).await;
+            }
+            Tick::Trapped => {
+                eprintln!("[wasm] update trapped, re-instantiating");
+                if last_attached != Some(false) {
+                    last_attached = Some(false);
+                    state.lock().unwrap().wasm_attached = false;
+                    crate::ws::handler::report_autosplit_state(&app, &state).await;
+                }
+                if let Some(s) = instantiate(&compiled, &app, &state) {
+                    splitter = s;
+                }
+                sleep(Duration::from_millis(REINSTANTIATE_DELAY_MS)).await;
+            }
+            Tick::Busy => sleep(tick_rate).await,
+        }
+    }
+
+    state.lock().unwrap().wasm_attached = false;
+    crate::ws::handler::report_autosplit_state(&app, &state).await;
+    eprintln!("[wasm] supervisor stopped");
 }

@@ -41,12 +41,10 @@ export const LobbyClosedReason = {
 export type LobbyClosedReason =
   (typeof LobbyClosedReason)[keyof typeof LobbyClosedReason];
 
-export const AutosplitStatus = {
-  Wasm: "wasm",
-  LiveSplit: "livesplit",
-  None: "none",
-} as const
-export type AutosplitStatus = (typeof AutosplitStatus)[keyof typeof AutosplitStatus]
+export interface AutosplitState {
+  wasm: boolean;
+  livesplit: boolean;
+}
 
 export interface LobbySetup {
   lobby_id: string;

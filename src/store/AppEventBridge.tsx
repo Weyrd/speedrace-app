@@ -76,7 +76,7 @@ export function AppEventBridge(): null {
       }),
 
       onAutosplitProbe((p) => {
-        dispatch({ type: ActionType.AutosplitStatus, status: p.kind });
+        dispatch({ type: ActionType.AutosplitStatus, status: p });
       }),
 
       onSplitLoaded(() => {

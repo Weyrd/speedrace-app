@@ -86,7 +86,13 @@ export default function Racing() {
   }, [startAt, offsetMs]);
 
   if (state.phase !== Phase.RaceInProgress) return null;
-  const { lobby, raceStartAt, splitIndex, completedSegmentTimes, currentSegmentStartMs } = state;
+  const {
+    lobby,
+    raceStartAt,
+    splitIndex,
+    completedSegmentTimes,
+    currentSegmentStartMs,
+  } = state;
 
   const elapsed = now + offsetMs - raceStartAt;
   const negative = elapsed < 0;
@@ -99,6 +105,7 @@ export default function Racing() {
         categories={lobby.category_name}
         code={lobby.code}
         live
+        autosplit={state.autosplit}
       />
       <div className="bg-black border border-border rounded aspect-[1920/1080] w-full overflow-hidden relative">
         <video
@@ -143,7 +150,11 @@ export default function Racing() {
             {t("race.finish")}
           </Button>
         )}
-        <Button variant="forfeit" onClick={() => setShowModal(true)} className="flex-1 py-3.5">
+        <Button
+          variant="forfeit"
+          onClick={() => setShowModal(true)}
+          className="flex-1 py-3.5"
+        >
           {t("race.forfeit")}
         </Button>
       </div>
