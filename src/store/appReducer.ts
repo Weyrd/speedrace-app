@@ -125,6 +125,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         splitIndex: 0,
         completedSegmentTimes: [],
         currentSegmentStartMs: 0,
+        autosplit: state.autosplit,
       };
     }
 
@@ -148,8 +149,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case ActionType.AutosplitStatus: {
-      if (state.phase !== Phase.StreamSetup && state.phase !== Phase.WaitingForStart) return state;
-      return { ...state, autosplitStatus: action.status };
+      if (
+        state.phase !== Phase.StreamSetup &&
+        state.phase !== Phase.WaitingForStart &&
+        state.phase !== Phase.RaceInProgress
+      )
+        return state;
+      return { ...state, autosplit: action.status };
     }
 
     case ActionType.SplitFired: {

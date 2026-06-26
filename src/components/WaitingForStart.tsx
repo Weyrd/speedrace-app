@@ -30,11 +30,11 @@ export default function WaitingForStart() {
         categories={lobby.category_name}
         code={lobby.code}
         live
-        autosplitStatus={state.autosplitStatus}
+        autosplit={state.autosplit}
       />
 
       {/* Stream preview - view only */}
-      <div className="bg-black border border-border rounded aspect-1920/1080 w-full overflow-hidden relative">
+      <div className="bg-black border border-border rounded aspect-[1920/1080] w-full overflow-hidden relative">
         <video
           ref={videoRef}
           autoPlay

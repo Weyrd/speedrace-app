@@ -1,5 +1,7 @@
+import { MonitorCheck } from "lucide-react";
 import { Tooltip } from "./Tooltip";
-import { AutosplitStatus } from "../../types";
+import { AutosplitState } from "../../types";
+import livesplitIcon from "../../assets/livesplit.svg";
 
 type LobbyHeaderProps = {
   gameName: string;
@@ -7,7 +9,7 @@ type LobbyHeaderProps = {
   code: string;
   live?: boolean;
   label?: string;
-  autosplitStatus?: AutosplitStatus;
+  autosplit?: AutosplitState;
 };
 
 export function LobbyHeader({
@@ -16,7 +18,7 @@ export function LobbyHeader({
   code,
   live = false,
   label,
-  autosplitStatus,
+  autosplit,
 }: LobbyHeaderProps) {
   const dash = code.indexOf("-");
   const codePrefix = dash >= 0 ? code.slice(0, dash) : code;
@@ -38,12 +40,14 @@ export function LobbyHeader({
         )}
 
         <div className="flex items-center gap-2">
-          {autosplitStatus && autosplitStatus !== AutosplitStatus.None && (
-            <Tooltip
-              content={autosplitStatus === AutosplitStatus.Wasm ? "WASM autosplitter" : "LiveSplit"}
-              side="top"
-            >
-              <span className="text-2xs font-mono text-green tracking-wide">split loaded</span>
+          {autosplit?.wasm && (
+            <Tooltip content="WASM autosplitter connected" side="top">
+              <MonitorCheck className="w-3.5 h-3.5 text-green" />
+            </Tooltip>
+          )}
+          {autosplit?.livesplit && (
+            <Tooltip content="LiveSplit connected" side="top">
+              <img src={livesplitIcon} alt="LiveSplit" className="w-3.5 h-3.5" />
             </Tooltip>
           )}
           <span className="bg-bg2 border border-border rounded-sm px-2 py-0.5 text-2xs font-mono tracking-wider">

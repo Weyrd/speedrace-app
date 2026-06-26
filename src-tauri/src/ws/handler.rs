@@ -5,13 +5,17 @@ use crate::events::{
 
 #[derive(serde::Serialize, Clone)]
 struct AutosplitProbePayload {
-    kind: &'static str,
+    wasm: bool,
+    livesplit: bool,
 }
 use crate::models::AppState;
-use crate::state::SharedState;
+use crate::state::{AutosplitSource, SharedState};
 use crate::ws::messages::ServerMessage;
 use crate::ws_debug;
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use tauri::{AppHandle, Emitter};
 
 pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
@@ -42,9 +46,13 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             );
             {
                 let mut guard = state.lock().unwrap();
+                guard.autosplitter_cancel.store(false, Ordering::SeqCst);
                 guard.app_state = AppState::StreamSetup;
                 guard.lobby = Some(payload.clone());
                 guard.last_autosplit_reported = None;
+                guard.autosplit_source = None;
+                guard.wasm_attached = false;
+                guard.livesplit_connected = false;
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
             init_lobby_resources(app, state, &payload);
@@ -83,7 +91,11 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.autosplitter_wasm = None;
                 guard.autosplitter_runtime = None;
                 guard.probe_running = false;
+                guard.livesplit_running = false;
                 guard.last_autosplit_reported = None;
+                guard.autosplit_source = None;
+                guard.wasm_attached = false;
+                guard.livesplit_connected = false;
                 guard.app_state = AppState::Idle;
                 guard.lobby = None;
                 guard.race_start_at = None;
@@ -107,9 +119,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
     }
 }
 
-/// Starts split resource load and autosplitter probe loop for a lobby.
-/// Safe to call from both the WS handler and the startup restore path.
-/// The probe loop is guarded by `probe_running` to prevent duplicate loops.
+// Loads the split file and starts the autosplitters for a lobby (WS handler + startup restore)
 pub fn init_lobby_resources(
     app: &AppHandle,
     state: &SharedState,
@@ -128,7 +138,7 @@ pub fn init_lobby_resources(
             load_split_resource(&app, &state, &category_id, updated_at.as_deref()).await;
         });
     }
-    // Probe loop: only start if not already running
+    // Guard against duplicate startup
     let can_probe = {
         let mut guard = state.lock().unwrap();
         if guard.probe_running {
@@ -145,95 +155,161 @@ pub fn init_lobby_resources(
         let updated_at = lobby.autosplitter_updated_at.clone();
         tauri::async_runtime::spawn(async move {
             crate::autosplit::wasm::fetch(&app, &state, &game_id, updated_at.as_deref()).await;
-            let has_wasm = state.lock().unwrap().autosplitter_wasm.is_some();
+            let (has_wasm, cancel) = {
+                let g = state.lock().unwrap();
+                (
+                    g.autosplitter_wasm.is_some(),
+                    Arc::clone(&g.autosplitter_cancel),
+                )
+            };
+            // Run both in parallel: WASM (if any) and LiveSplit
             if has_wasm {
-                wasm_probe_loop(app, state.clone()).await;
-            } else {
-                livesplit_probe_loop(app, state.clone()).await;
+                crate::autosplit::wasm::start(app.clone(), state.clone(), cancel).await;
             }
+            spawn_livesplit_supervisor(&app, &state);
             state.lock().unwrap().probe_running = false;
         });
     }
 }
 
-// wasm then livesplit then nothing; emits "none" if both fail so the UI badge clears
+// Both autosplitters normally start during setup and run into the race
 async fn start_autosplitter(app: AppHandle, state: SharedState) {
-    let cancel = {
-        let guard = state.lock().unwrap();
-        guard.autosplitter_cancel.store(false, Ordering::SeqCst);
-        Arc::clone(&guard.autosplitter_cancel)
+    let (has_wasm, cancel) = {
+        let g = state.lock().unwrap();
+        (
+            g.autosplitter_wasm.is_some(),
+            Arc::clone(&g.autosplitter_cancel),
+        )
     };
-
-    if crate::autosplit::wasm::start(app.clone(), state.clone(), Arc::clone(&cancel)).await {
-        eprintln!("[autosplitter] using WASM");
-        return;
+    if has_wasm {
+        crate::autosplit::wasm::start(app.clone(), state.clone(), cancel).await;
     }
-
-    if crate::autosplit::tcp::start(app.clone(), state.clone(), cancel).await {
-        eprintln!("[autosplitter] using LiveSplit TCP");
-        return;
-    }
-
-    eprintln!("[autosplitter] none available — manual finish only");
-    let _ = app.emit(AUTOSPLIT_PROBE, AutosplitProbePayload { kind: "none" });
+    spawn_livesplit_supervisor(&app, &state);
 }
 
-// Tries to compile-probe the WASM module up to MAX_WASM_RETRIES times.
-// On success emits "wasm"; on exhaustion falls through to LiveSplit probing.
-async fn wasm_probe_loop(app: AppHandle, state: SharedState) {
-    use crate::autosplit::tcp::{MAX_WASM_RETRIES, PROBE_INTERVAL_SECS};
+pub(crate) fn in_lobby(state: &SharedState) -> bool {
+    matches!(
+        state.lock().unwrap().app_state,
+        AppState::StreamSetup | AppState::WaitingForStart | AppState::RaceInProgress
+    )
+}
+
+fn now_epoch_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+// True once the synced race clock (race_start_at) has actually started counting.
+fn race_clock_started(state: &SharedState) -> bool {
+    let guard = state.lock().unwrap();
+    let Some(start) = guard.race_start_at else {
+        return false;
+    };
+    now_epoch_ms() + guard.clock_offset_ms >= start
+}
+
+// Lock the race's autosplit source once the clock starts: WASM if attached, else LiveSplit
+pub(crate) fn maybe_commit_source(state: &SharedState) {
+    let mut g = state.lock().unwrap();
+    if g.autosplit_source.is_some() {
+        return;
+    }
+    let Some(start) = g.race_start_at else {
+        return;
+    };
+    if now_epoch_ms() + g.clock_offset_ms < start {
+        return;
+    }
+    if g.wasm_attached {
+        g.autosplit_source = Some(AutosplitSource::Wasm);
+    } else if g.livesplit_connected {
+        g.autosplit_source = Some(AutosplitSource::LiveSplit);
+    }
+}
+
+fn spawn_livesplit_supervisor(app: &AppHandle, state: &SharedState) {
+    let cancel = {
+        let mut guard = state.lock().unwrap();
+        if guard.livesplit_running {
+            return;
+        }
+        guard.livesplit_running = true;
+        Arc::clone(&guard.autosplitter_cancel)
+    };
+    let app = app.clone();
+    let state = state.clone();
+    tauri::async_runtime::spawn(async move {
+        livesplit_supervisor(app.clone(), state.clone(), cancel).await;
+        {
+            let mut g = state.lock().unwrap();
+            g.livesplit_running = false;
+            g.livesplit_connected = false;
+        }
+        report_autosplit_state(&app, &state).await;
+    });
+}
+
+fn wasm_won(state: &SharedState) -> bool {
+    state.lock().unwrap().autosplit_source == Some(AutosplitSource::Wasm)
+}
+
+async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) {
+    use crate::autosplit::tcp::RECONNECT_DELAY_MS;
     use tokio::time::{sleep, Duration};
 
-    for attempt in 0..MAX_WASM_RETRIES {
-        {
-            let phase = state.lock().unwrap().app_state.clone();
-            if phase != crate::models::AppState::StreamSetup
-                && phase != crate::models::AppState::WaitingForStart
-            {
-                return;
+    let mut ever_connected = false;
+
+    loop {
+        // Stop if the lobby ended, or WASM was locked in as the source for this race.
+        if cancel.load(Ordering::SeqCst) || !in_lobby(&state) || wasm_won(&state) {
+            break;
+        }
+
+        // Give up if LiveSplit never connected once the race has started.
+        if !ever_connected && race_clock_started(&state) {
+            eprintln!("[livesplit-tcp] not connected by race start, manual finish only");
+            break;
+        }
+
+        match crate::autosplit::tcp::connect().await {
+            Some(stream) => {
+                ever_connected = true;
+                state.lock().unwrap().livesplit_connected = true;
+                report_autosplit_state(&app, &state).await;
+                crate::autosplit::tcp::poll_loop(
+                    stream,
+                    app.clone(),
+                    state.clone(),
+                    Arc::clone(&cancel),
+                )
+                .await;
+                state.lock().unwrap().livesplit_connected = false;
+                report_autosplit_state(&app, &state).await;
+            }
+            None => {
+                report_autosplit_state(&app, &state).await;
             }
         }
 
-        if crate::autosplit::wasm::probe(&state).await {
-            let _ = app.emit(AUTOSPLIT_PROBE, AutosplitProbePayload { kind: "wasm" });
-            report_autosplit(&app, &state, true).await;
-            return;
-        }
-
-        eprintln!(
-            "[probe] WASM compile failed (attempt {}/{MAX_WASM_RETRIES})",
-            attempt + 1
-        );
-        sleep(Duration::from_secs(PROBE_INTERVAL_SECS)).await;
-    }
-
-    eprintln!("[probe] WASM gave up — falling back to LiveSplit probe");
-    livesplit_probe_loop(app, state).await;
-}
-
-// Probes LiveSplit TCP immediately then every PROBE_INTERVAL_SECS until the phase changes.
-async fn livesplit_probe_loop(app: AppHandle, state: SharedState) {
-    use crate::autosplit::tcp::PROBE_INTERVAL_SECS;
-    use tokio::time::{sleep, Duration};
-
-    emit_livesplit_probe(&app, &state).await;
-
-    loop {
-        sleep(Duration::from_secs(PROBE_INTERVAL_SECS)).await;
-        let phase = state.lock().unwrap().app_state.clone();
-        if phase != crate::models::AppState::StreamSetup
-            && phase != crate::models::AppState::WaitingForStart
-        {
-            break;
-        }
-        emit_livesplit_probe(&app, &state).await;
+        sleep(Duration::from_millis(RECONNECT_DELAY_MS)).await;
     }
 }
 
-async fn emit_livesplit_probe(app: &AppHandle, state: &SharedState) {
-    let connected = crate::autosplit::tcp::probe().await;
-    let kind = if connected { "livesplit" } else { "none" };
-    let _ = app.emit(AUTOSPLIT_PROBE, AutosplitProbePayload { kind });
+// Emits per-source badges to the UI and the single "connected" signal the back gates on
+// connected = either source pre-commit, else only the committed source's health
+pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState) {
+    let (wasm, livesplit, connected) = {
+        let g = state.lock().unwrap();
+        let connected = match g.autosplit_source {
+            Some(AutosplitSource::Wasm) => g.wasm_attached,
+            Some(AutosplitSource::LiveSplit) => g.livesplit_connected,
+            None => g.wasm_attached || g.livesplit_connected,
+        };
+        (g.wasm_attached, g.livesplit_connected, connected)
+    };
+    let _ = app.emit(AUTOSPLIT_PROBE, AutosplitProbePayload { wasm, livesplit });
     report_autosplit(app, state, connected).await;
 }
 

@@ -12,49 +12,32 @@ const POLL_MS: u64 = 100;
 const READ_TIMEOUT_MS: u64 = 3000;
 const CONNECT_TIMEOUT_MS: u64 = 500;
 
-pub const PROBE_INTERVAL_SECS: u64 = 10;
-pub const MAX_WASM_RETRIES: u32 = 3;
+pub const RECONNECT_DELAY_MS: u64 = 1000;
 
-pub async fn probe() -> bool {
-    timeout(
-        Duration::from_millis(CONNECT_TIMEOUT_MS),
-        tokio::net::TcpStream::connect(LIVESPLIT_ADDR),
-    )
-    .await
-    .map(|r| r.is_ok())
-    .unwrap_or(false)
-}
-
-// Try to connect to LiveSplit TCP server. If successful, spawn the poll loop
-/// Returns false (500ms) if LiveSplit is not running
-pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) -> bool {
-    let stream = match timeout(
+pub async fn connect() -> Option<tokio::net::TcpStream> {
+    match timeout(
         Duration::from_millis(CONNECT_TIMEOUT_MS),
         tokio::net::TcpStream::connect(LIVESPLIT_ADDR),
     )
     .await
     {
-        Ok(Ok(s)) => s,
+        Ok(Ok(s)) => {
+            let _ = s.set_nodelay(true);
+            eprintln!("[livesplit-tcp] connected");
+            Some(s)
+        }
         Ok(Err(e)) => {
             eprintln!("[livesplit-tcp] not available: {e}");
-            return false;
+            None
         }
         Err(_) => {
             eprintln!("[livesplit-tcp] connect timeout");
-            return false;
+            None
         }
-    };
-
-    let _ = stream.set_nodelay(true);
-    eprintln!("[livesplit-tcp] connected");
-
-    tauri::async_runtime::spawn(async move {
-        poll_loop(stream, app, state, cancel).await;
-    });
-    true
+    }
 }
 
-async fn poll_loop(
+pub async fn poll_loop(
     stream: tokio::net::TcpStream,
     app: AppHandle,
     state: SharedState,
@@ -71,6 +54,26 @@ async fn poll_loop(
             break;
         }
 
+        let phase = state.lock().unwrap().app_state.clone();
+        if !matches!(
+            phase,
+            crate::models::AppState::StreamSetup
+                | crate::models::AppState::WaitingForStart
+                | crate::models::AppState::RaceInProgress
+        ) {
+            break;
+        }
+
+        crate::ws::handler::maybe_commit_source(&state);
+        let source = state.lock().unwrap().autosplit_source;
+        if source == Some(crate::state::AutosplitSource::Wasm) {
+            eprintln!("[livesplit-tcp] WASM locked in as source — yielding");
+            break;
+        }
+        // Fire splits only when LiveSplit is the committed source; otherwise just track position.
+        let fire = phase == crate::models::AppState::RaceInProgress
+            && source == Some(crate::state::AutosplitSource::LiveSplit);
+
         if let Err(e) = writer.write_all(b"getsplitindex\r\n").await {
             eprintln!("[livesplit-tcp] write error: {e}");
             break;
@@ -85,7 +88,7 @@ async fn poll_loop(
 
         match read_result {
             Err(_) => {
-                eprintln!("[livesplit-tcp] read timeout — LiveSplit.Server not responding");
+                eprintln!("[livesplit-tcp] read timeout — reconnecting");
                 break;
             }
             Ok(Ok(0)) => {
@@ -102,28 +105,21 @@ async fn poll_loop(
         let index = line.trim().parse::<i32>().unwrap_or(-1);
 
         if tick % 100 == 0 {
-            eprintln!("[livesplit-tcp] poll #{tick} index={index} last={last_index}");
+            eprintln!("[livesplit-tcp] poll #{tick} index={index} last={last_index} fire={fire}");
         }
         tick = tick.wrapping_add(1);
 
-        if last_index < 0 && index < 0 {
-            // Timer not yet started
+        if !fire {
+            last_index = index;
         } else if last_index < 0 && index >= 0 {
-            // First positive reading: catch up on splits already completed before we connected
-            let catch_up = index as usize;
-            if catch_up > 0 {
-                eprintln!(
-                    "[livesplit-tcp] catching up {catch_up} split(s) (index jumped to {index})"
-                );
-                for _ in 0..catch_up {
-                    crate::autosplit::split::fire_split(&app, &state);
-                }
+            // Timer just started catch up already-completed splits
+            if index > 0 {
+                eprintln!("[livesplit-tcp] catching up {index} split(s) (index jumped to {index})");
+            }
+            for _ in 0..index {
+                crate::autosplit::split::fire_split(&app, &state);
             }
             last_index = index;
-        } else if last_index >= 0 && index < 0 {
-            // Timer reset to -1 after race was running (race finished or manually reset)
-            eprintln!("[livesplit-tcp] index reset to -1 after last={last_index}, stopping");
-            break;
         } else if index > last_index {
             let steps = (index - last_index) as usize;
             eprintln!("[livesplit-tcp] split {last_index} → {index} ({steps} split(s))");
@@ -131,13 +127,14 @@ async fn poll_loop(
                 crate::autosplit::split::fire_split(&app, &state);
             }
             last_index = index;
-        } else if index >= 0 && index < last_index {
-            eprintln!("[livesplit-tcp] index reset {last_index} → {index}");
+        } else if index < last_index {
+            // Runner reset their timer
+            eprintln!("[livesplit-tcp] index reset {last_index} → {index}, re-arming");
             last_index = index;
         }
 
         sleep(Duration::from_millis(POLL_MS)).await;
     }
 
-    eprintln!("[livesplit-tcp] stopped");
+    eprintln!("[livesplit-tcp] poll stopped");
 }

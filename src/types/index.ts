@@ -44,13 +44,10 @@ export const LobbyClosedReason = {
 export type LobbyClosedReason =
   (typeof LobbyClosedReason)[keyof typeof LobbyClosedReason];
 
-// Autosplitter probe status
-export const AutosplitStatus = {
-  Wasm: "wasm",
-  LiveSplit: "livesplit",
-  None: "none",
-} as const
-export type AutosplitStatus = (typeof AutosplitStatus)[keyof typeof AutosplitStatus]
+export interface AutosplitState {
+  wasm: boolean;
+  livesplit: boolean;
+}
 
 // Tauri event payloads
 export interface LobbySetup {

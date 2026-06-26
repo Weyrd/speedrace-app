@@ -76,13 +76,13 @@ export default function StreamSetup() {
         categories={lobby.category_name}
         code={lobby.code}
         label={t("stream.lobby")}
-        autosplitStatus={state.autosplitStatus}
+        autosplit={state.autosplit}
       />
 
       {/* Preview area - always clickable to start or change source */}
       <div
         onClick={!isPublishing ? startPreview : undefined}
-        className="bg-black border border-border rounded aspect-1920/1080 w-full flex items-center justify-center overflow-hidden relative group cursor-pointer"
+        className="bg-black border border-border rounded aspect-[1920/1080] w-full flex items-center justify-center overflow-hidden relative group cursor-pointer"
       >
         <video
           ref={videoRef}

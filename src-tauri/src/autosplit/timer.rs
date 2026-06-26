@@ -1,8 +1,8 @@
-use std::fmt;
-use livesplit_auto_splitting::{LogLevel, Timer, TimerState};
-use tauri::AppHandle;
 use crate::models::AppState;
 use crate::state::SharedState;
+use livesplit_auto_splitting::{LogLevel, Timer, TimerState};
+use std::fmt;
+use tauri::AppHandle;
 
 pub struct MomentumTimer {
     pub app: AppHandle,
@@ -30,11 +30,20 @@ impl Timer for MomentumTimer {
     }
 
     fn split(&mut self) {
+        // Only fire when WASM is the committed source
+        {
+            let Ok(guard) = self.state.lock() else { return };
+            if guard.autosplit_source != Some(crate::state::AutosplitSource::Wasm) {
+                return;
+            }
+        }
         crate::autosplit::split::fire_split(&self.app, &self.state);
     }
 
     fn set_variable(&mut self, key: &str, value: &str) {
-        let Ok(parsed): Result<i64, _> = value.parse() else { return };
+        let Ok(parsed): Result<i64, _> = value.parse() else {
+            return;
+        };
 
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -46,18 +55,33 @@ impl Timer for MomentumTimer {
                 Ok(g) => g,
                 Err(_) => return,
             };
-            let Some(race_start_at) = guard.race_start_at else { return };
+            let Some(race_start_at) = guard.race_start_at else {
+                return;
+            };
             let timestamp_ms = ((now_ms + guard.clock_offset_ms) - race_start_at).max(0) as u64;
-            let Some(lobby) = guard.lobby.as_ref() else { return };
-            (lobby.lobby_id.clone(), guard.current_split_index, timestamp_ms)
+            let Some(lobby) = guard.lobby.as_ref() else {
+                return;
+            };
+            (
+                lobby.lobby_id.clone(),
+                guard.current_split_index,
+                timestamp_ms,
+            )
         };
 
         let app = self.app.clone();
         let counter_name = key.to_string();
         tauri::async_runtime::spawn(async move {
             if let Err(e) = crate::api::lobby::post_player_counter(
-                &app, &lobby_id, counter_name, parsed, Some(split_index), timestamp_ms,
-            ).await {
+                &app,
+                &lobby_id,
+                counter_name,
+                parsed,
+                Some(split_index),
+                timestamp_ms,
+            )
+            .await
+            {
                 eprintln!("[autosplit] post_player_counter: {e}");
             }
         });
