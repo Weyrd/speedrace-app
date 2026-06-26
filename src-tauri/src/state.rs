@@ -2,6 +2,12 @@ use crate::auth::token_store::UserData;
 use crate::models::{AppState, LobbySetup, WsStatus};
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AutosplitSource {
+    Wasm,
+    LiveSplit,
+}
+
 pub struct GlobalState {
     pub app_state: AppState,
     pub user: Option<UserData>,
@@ -19,7 +25,11 @@ pub struct GlobalState {
         Option<Arc<livesplit_auto_splitting::AutoSplitter<crate::autosplit::timer::MomentumTimer>>>,
     pub autosplitter_cancel: Arc<AtomicBool>,
     pub probe_running: bool,
+    pub livesplit_running: bool,
     pub last_autosplit_reported: Option<bool>,
+    pub autosplit_source: Option<AutosplitSource>,
+    pub wasm_attached: bool,
+    pub livesplit_connected: bool,
 }
 
 impl GlobalState {
@@ -40,7 +50,11 @@ impl GlobalState {
             autosplitter_runtime: None,
             autosplitter_cancel: Arc::new(AtomicBool::new(false)),
             probe_running: false,
+            livesplit_running: false,
             last_autosplit_reported: None,
+            autosplit_source: None,
+            wasm_attached: false,
+            livesplit_connected: false,
         }
     }
 }

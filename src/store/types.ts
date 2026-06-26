@@ -27,7 +27,7 @@ import type {
   LobbySetup,
   LobbyClosedReason,
   PlayerResult,
-  AutosplitStatus,
+  AutosplitState,
 } from "../types";
 
 export const Phase = {
@@ -50,7 +50,7 @@ export type AppState =
       user: User;
       wsStatus: WsStatus;
       lobby: LobbySetup;
-      autosplitStatus?: AutosplitStatus;
+      autosplit?: AutosplitState;
     }
   | {
       phase: typeof Phase.WaitingForStart;
@@ -58,7 +58,7 @@ export type AppState =
       wsStatus: WsStatus;
       lobby: LobbySetup;
       stream: MediaStream;
-      autosplitStatus?: AutosplitStatus;
+      autosplit?: AutosplitState;
     }
   | {
       phase: typeof Phase.RaceInProgress;
@@ -70,6 +70,7 @@ export type AppState =
       splitIndex: number;
       completedSegmentTimes: number[];
       currentSegmentStartMs: number;
+      autosplit?: AutosplitState;
     }
   | {
       phase: typeof Phase.Finished;
@@ -109,5 +110,5 @@ export type AppAction =
   | { type: typeof ActionType.StreamReady; stream: MediaStream }
   | { type: typeof ActionType.StreamStopped }
   | { type: typeof ActionType.NewRace }
-  | { type: typeof ActionType.AutosplitStatus; status: AutosplitStatus }
+  | { type: typeof ActionType.AutosplitStatus; status: AutosplitState }
   | { type: typeof ActionType.SplitFired; index: number; segmentMs: number; newStartMs: number };

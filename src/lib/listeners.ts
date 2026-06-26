@@ -19,7 +19,7 @@ import type {
   LobbyStartPayload,
   WsStatus,
   PlayerResult,
-  AutosplitStatus,
+  AutosplitState,
   SplitFiredPayload,
 } from "../types";
 import type { Phase } from "../store/types";
@@ -58,5 +58,5 @@ export const onSplitLoaded = (cb: () => void) =>
   safeListen<null>(SPLIT_LOADED, () => cb());
 export const onSplitFired = (cb: (p: SplitFiredPayload) => void) =>
   safeListen<SplitFiredPayload>(SPLIT_FIRED, cb);
-export const onAutosplitProbe = (cb: (p: { kind: AutosplitStatus }) => void) =>
-  safeListen<{ kind: AutosplitStatus }>(AUTOSPLIT_PROBE, cb);
+export const onAutosplitProbe = (cb: (p: AutosplitState) => void) =>
+  safeListen<AutosplitState>(AUTOSPLIT_PROBE, cb);
