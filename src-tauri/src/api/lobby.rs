@@ -86,6 +86,26 @@ pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), 
 }
 
 #[derive(Serialize)]
+struct AutosplitStatusBody {
+    connected: bool,
+}
+
+pub async fn post_autosplit_status(
+    app: &AppHandle,
+    lobby_id: &str,
+    connected: bool,
+) -> Result<(), String> {
+    authed_post_body_void(
+        app,
+        &config::lobby_autosplit_status_path(lobby_id),
+        &AutosplitStatusBody { connected },
+        "autosplit_status",
+    )
+    .await
+    .ok_or_else(|| "[api] post_autosplit_status failed".to_string())
+}
+
+#[derive(Serialize)]
 struct FinishPlayerBody {
     finishing_time_ms: u64,
 }

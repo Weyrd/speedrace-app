@@ -26,6 +26,10 @@ pub fn lobby_stream_stopped_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/stream-stopped")
 }
 
+pub fn lobby_autosplit_status_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/autosplit-status")
+}
+
 pub fn lobby_finish_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/finish")
 }
