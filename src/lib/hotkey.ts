@@ -37,8 +37,17 @@ function codeToKey(code: string): string | null {
   return map[code] ?? null;
 }
 
+// The OS global-shortcut layer matches letters by character (virtual key), not by
+// physical position, so we capture the produced char — otherwise AZERTY/non-US
+// layouts register a different physical key than the one shown (e.g. A vs Q).
+function eventToKey(e: KeyboardEvent): string | null {
+  if (/^[a-z]$/i.test(e.key)) return e.key.toUpperCase();
+  if (/^[0-9]$/.test(e.key)) return e.key;
+  return codeToKey(e.code);
+}
+
 export function eventToAccelerator(e: KeyboardEvent): string | null {
-  const key = codeToKey(e.code);
+  const key = eventToKey(e);
   if (!key) return null; // modifier-only or unsupported key
 
   const parts: string[] = [];
@@ -56,23 +65,12 @@ export function eventToLiveAccelerator(e: KeyboardEvent): string {
   if (e.ctrlKey || e.metaKey) parts.push("CmdOrCtrl");
   if (e.altKey) parts.push("Alt");
   if (e.shiftKey) parts.push("Shift");
-  const key = codeToKey(e.code);
+  const key = eventToKey(e);
   if (key) parts.push(key);
   return parts.join("+");
 }
 
-function physicalLabel(part: string, layout: KeyboardLayoutMap | null): string {
-  if (layout && /^[A-Z]$/.test(part)) {
-    const label = layout.get(`Key${part}`);
-    if (label) return label.toUpperCase();
-  }
-  return part;
-}
-
-export function formatAccelerator(
-  accel: string,
-  layout: KeyboardLayoutMap | null = null,
-): string {
+export function formatAccelerator(accel: string): string {
   return accel
     .split("+")
     .map((part) => {
@@ -91,25 +89,8 @@ export function formatAccelerator(
         case "Meta":
           return isMac ? "⌘" : "Win";
         default:
-          return physicalLabel(part, layout);
+          return part;
       }
     })
     .join("+");
-}
-
-// Keyboard Map API
-type KeyboardLayoutMap = Map<string, string>;
-
-export async function getKeyboardLayout(): Promise<KeyboardLayoutMap | null> {
-  const kb = (
-    navigator as Navigator & {
-      keyboard?: { getLayoutMap?: () => Promise<KeyboardLayoutMap> };
-    }
-  ).keyboard;
-  if (!kb?.getLayoutMap) return null;
-  try {
-    return await kb.getLayoutMap();
-  } catch {
-    return null;
-  }
 }

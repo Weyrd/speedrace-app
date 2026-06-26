@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useQuery } from "@tanstack/react-query";
 import { X, Settings, Keyboard, RotateCcw, LogOut, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActions } from "../store";
@@ -14,7 +13,6 @@ import {
   eventToAccelerator,
   eventToLiveAccelerator,
   formatAccelerator,
-  getKeyboardLayout,
 } from "../lib/hotkey";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
@@ -34,11 +32,6 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [capturing, setCapturing] = useState(false);
   const [liveCombo, setLiveCombo] = useState("");
   const [volume, setVolume] = useState(getSoundVolume);
-  const { data: layout } = useQuery({
-    queryKey: ["keyboardLayout"],
-    queryFn: getKeyboardLayout,
-    staleTime: Infinity,
-  });
 
   const startCapture = async () => {
     try {
@@ -153,10 +146,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             >
               {capturing
                 ? liveCombo
-                  ? formatAccelerator(liveCombo, layout ?? null)
+                  ? formatAccelerator(liveCombo)
                   : " "
                 : hotkey
-                  ? formatAccelerator(hotkey, layout ?? null)
+                  ? formatAccelerator(hotkey)
                   : "—"}
             </Button>
             <Button
