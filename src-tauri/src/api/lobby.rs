@@ -41,8 +41,7 @@ pub struct LobbyCurrentResponse {
 }
 
 pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
-    let l: LobbyCurrentResponse =
-        authed_get_json(app, config::LOBBY_CURRENT_PATH, "api").await?;
+    let l: LobbyCurrentResponse = authed_get_json(app, config::LOBBY_CURRENT_PATH, "api").await?;
     Some(LobbySetup {
         lobby_id: l.lobby_id,
         code: l.code,
@@ -64,9 +63,13 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
 
 
 pub async fn post_stream_ready(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
-    authed_post_void(app, &config::lobby_stream_ready_path(lobby_id), "stream_ready")
-        .await
-        .ok_or_else(|| "[api] post_stream_ready failed".to_string())
+    authed_post_void(
+        app,
+        &config::lobby_stream_ready_path(lobby_id),
+        "stream_ready",
+    )
+    .await
+    .ok_or_else(|| "[api] post_stream_ready failed".to_string())
 }
 
 pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
