@@ -6,3 +6,6 @@ pub const WS_LOBBY_CLOSED: &str = "ws:lobby_closed";
 pub const WS_LOBBY_START: &str = "ws:lobby_start";
 pub const WS_PLAYER_RESULT: &str = "ws:player_result";
 pub const WS_STATUS: &str = "ws:status";
+pub const SPLIT_LOADED: &str = "split:loaded";
+pub const SPLIT_FIRED: &str = "split:fired";
+pub const AUTOSPLIT_PROBE: &str = "autosplit:probe";

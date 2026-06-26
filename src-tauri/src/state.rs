@@ -1,6 +1,6 @@
 use crate::auth::token_store::UserData;
 use crate::models::{AppState, LobbySetup, WsStatus};
-use std::sync::{Arc, Mutex};
+use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
 pub struct GlobalState {
     pub app_state: AppState,
@@ -11,6 +11,14 @@ pub struct GlobalState {
     pub clock_offset_ms: i64,
     pub refresh_loop_running: bool,
     pub ws_loop_running: bool,
+    pub split_run: Option<livesplit_core::Run>,
+    pub current_split_index: u32,
+    pub segment_start_ms: u64,
+    pub autosplitter_wasm: Option<Vec<u8>>,
+    pub autosplitter_runtime:
+        Option<Arc<livesplit_auto_splitting::AutoSplitter<crate::autosplit::timer::MomentumTimer>>>,
+    pub autosplitter_cancel: Arc<AtomicBool>,
+    pub probe_running: bool,
 }
 
 impl GlobalState {
@@ -24,6 +32,13 @@ impl GlobalState {
             clock_offset_ms: 0,
             refresh_loop_running: false,
             ws_loop_running: false,
+            split_run: None,
+            current_split_index: 0,
+            segment_start_ms: 0,
+            autosplitter_wasm: None,
+            autosplitter_runtime: None,
+            autosplitter_cancel: Arc::new(AtomicBool::new(false)),
+            probe_running: false,
         }
     }
 }

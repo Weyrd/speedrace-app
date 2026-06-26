@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod autosplit;
 mod commands;
 mod config;
 mod events;
@@ -158,11 +159,12 @@ pub fn run() {
             commands::register_finish_hotkey,
             commands::unregister_finish_hotkey,
             commands::sync_clock,
+            commands::get_split_segments,
+            commands::get_current_split_index,
             hide_to_tray,
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
-
 
             #[cfg(not(target_os = "macos"))]
             {

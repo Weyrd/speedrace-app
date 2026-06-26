@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { onTrayHint } from "../lib/listeners";
 import { hideToTray } from "../lib/commands";
+import { Button } from "./ui/button";
 
 export function TrayHint() {
   const { t } = useTranslation(["app", "common"]);
@@ -25,12 +26,9 @@ export function TrayHint() {
         <p className="text-xs text-muted font-mono tracking-wide leading-relaxed mb-4 whitespace-pre-line">
           {t("app:tray_hint.message")}
         </p>
-        <button
-          onClick={dismiss}
-          className="w-full py-2 text-2xs font-mono tracking-wide border border-border text-muted rounded cursor-pointer bg-transparent hover:border-muted transition-colors"
-        >
+        <Button variant="outline" onClick={dismiss} className="w-full py-2 text-2xs">
           {t("common:got_it")}
-        </button>
+        </Button>
       </div>
     </div>
   );

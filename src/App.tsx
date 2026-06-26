@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { useAppState, Phase } from "./store";
 import Header from "./components/Header";
 import Login from "./components/Login";
@@ -11,8 +14,26 @@ import Footer from "./components/Footer";
 import { UpdateChecker } from "./components/UpdateChecker";
 import { TrayHint } from "./components/TrayHint";
 
+const WIN_TALL = new LogicalSize(400, 740);
+const WIN_NORMAL = new LogicalSize(400, 600);
+
+function hasSplits(state: ReturnType<typeof useAppState>): boolean {
+  return (
+    (state.phase === Phase.StreamSetup ||
+      state.phase === Phase.WaitingForStart ||
+      state.phase === Phase.RaceInProgress) &&
+    state.lobby.split_resource_updated_at != null
+  );
+}
+
 export default function App() {
   const state = useAppState();
+
+  useEffect(() => {
+    getCurrentWindow()
+      .setSize(hasSplits(state) ? WIN_TALL : WIN_NORMAL)
+      .catch((e) => console.error("[window] setSize failed:", e));
+  }, [state]);
 
   function renderScreen() {
     switch (state.phase) {
