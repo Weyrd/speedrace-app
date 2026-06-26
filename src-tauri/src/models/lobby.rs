@@ -51,8 +51,15 @@ pub struct LobbySetup {
     pub autosplitter_updated_at: Option<String>,
 }
 
+#[derive(Debug, Serialize, Default)]
+pub struct AutosplitState {
+    pub wasm: bool,
+    pub livesplit: bool,
+}
+
 #[derive(Debug, Serialize)]
 pub struct ClientState {
     pub app_state: AppState,
     pub lobby: Option<LobbySetup>,
+    pub autosplit: AutosplitState,
 }

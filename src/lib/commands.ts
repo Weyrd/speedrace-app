@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { User, LobbySetup } from "../types";
+import type { User, LobbySetup, AutosplitState } from "../types";
 
 import type { Phase } from "../store/types";
 
 interface ClientState {
   app_state: Phase;
   lobby: LobbySetup | null;
+  autosplit: AutosplitState;
 }
 
 export async function openLogin(): Promise<void> {

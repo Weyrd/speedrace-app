@@ -55,6 +55,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
               type: ActionType.LobbySetup,
               lobby: clientState.lobby,
             });
+            dispatch({
+              type: ActionType.AutosplitStatus,
+              status: clientState.autosplit,
+            });
           }
         }
       } catch {
