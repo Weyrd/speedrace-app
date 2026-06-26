@@ -91,6 +91,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         wsStatus: state.wsStatus,
         lobby: state.lobby,
         stream: action.stream,
+        autosplit: state.autosplit,
       };
     }
 
@@ -101,6 +102,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           user: state.user,
           wsStatus: state.wsStatus,
           lobby: state.lobby,
+          autosplit: state.autosplit,
         };
       }
       if (state.phase === Phase.RaceInProgress) {
