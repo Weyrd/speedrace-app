@@ -44,6 +44,14 @@ export const LobbyClosedReason = {
 export type LobbyClosedReason =
   (typeof LobbyClosedReason)[keyof typeof LobbyClosedReason];
 
+// Autosplitter probe status
+export const AutosplitStatus = {
+  Wasm: "wasm",
+  LiveSplit: "livesplit",
+  None: "none",
+} as const
+export type AutosplitStatus = (typeof AutosplitStatus)[keyof typeof AutosplitStatus]
+
 // Tauri event payloads
 export interface LobbySetup {
   lobby_id: string;
@@ -57,11 +65,20 @@ export interface LobbySetup {
   max_duration_minutes: number;
   race_start_at: number | null;
   expires_at: number;
+  game_id: string;
+  category_id: string;
+  split_resource_updated_at: string | null;
+  autosplitter_updated_at: string | null;
 }
 export interface PlayerResult {
   player_status: PlayerStatus;
   finishing_time_ms: number | null;
   finish_position: number | null;
+}
+export interface SplitFiredPayload {
+  index: number;
+  segment_ms: number;
+  new_start_ms: number;
 }
 export interface LobbyClosedPayload {
   lobby_id: string;

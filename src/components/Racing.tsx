@@ -4,10 +4,12 @@ import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
 import { LobbyHeader } from "./ui/BadgeHelper";
+import { SplitList } from "./ui/SplitList";
 import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useClockOffset } from "../hooks/useClockOffset";
 import { playSound, Sound } from "../lib/sound";
+import { Button } from "./ui/button";
 
 const COUNTDOWN_BEEPS = [
   { at: -3000, sound: Sound.Countdown3 },
@@ -41,10 +43,16 @@ export default function Racing() {
   const actions = useActions();
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
+
   const now = useSyncExternalStore(subscribeToRaf, getNow);
   const { offsetMs } = useClockOffset();
   const startAt =
     state.phase === Phase.RaceInProgress ? state.raceStartAt : null;
+
+  const hasAutosplitter =
+    state.phase === Phase.RaceInProgress
+      ? state.lobby.autosplitter_updated_at != null
+      : false;
 
   const videoRef = useCallback(
     (node: HTMLVideoElement | null) => {
@@ -56,6 +64,7 @@ export default function Racing() {
   );
 
   useEffect(() => {
+    if (hasAutosplitter) return;
     registerFinishHotkey().catch((e) =>
       console.error("[race] registerFinishHotkey error", e),
     );
@@ -64,8 +73,7 @@ export default function Racing() {
         console.error("[race] unregisterFinishHotkey error", e),
       );
     };
-  }, []);
-
+  }, [hasAutosplitter]);
 
   useEffect(() => {
     if (startAt == null) return;
@@ -78,7 +86,7 @@ export default function Racing() {
   }, [startAt, offsetMs]);
 
   if (state.phase !== Phase.RaceInProgress) return null;
-  const { lobby, raceStartAt } = state;
+  const { lobby, raceStartAt, splitIndex, completedSegmentTimes, currentSegmentStartMs } = state;
 
   const elapsed = now + offsetMs - raceStartAt;
   const negative = elapsed < 0;
@@ -92,7 +100,7 @@ export default function Racing() {
         code={lobby.code}
         live
       />
-      <div className="bg-black border border-border rounded aspect-video w-full overflow-hidden relative">
+      <div className="bg-black border border-border rounded aspect-[1920/1080] w-full overflow-hidden relative">
         <video
           ref={videoRef}
           autoPlay
@@ -116,20 +124,28 @@ export default function Racing() {
           {negative ? t("race.starting_soon") : t("race.in_race")}
         </span>
       </div>
+      {lobby.split_resource_updated_at && (
+        <SplitList
+          currentIndex={splitIndex}
+          completedTimes={completedSegmentTimes}
+          raceElapsedMs={Math.max(0, elapsed)}
+          currentSegmentStartMs={currentSegmentStartMs}
+        />
+      )}
       <div className="flex gap-2 mt-auto">
-        <button
-          onClick={() => actions.finish(lobby.lobby_id, elapsed)}
-          disabled={negative}
-          className="flex-1 py-3.5 text-xs font-mono tracking-wide border border-green text-green rounded cursor-pointer bg-transparent hover:bg-green-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {t("race.finish")}
-        </button>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex-1 py-3.5 text-xs font-mono tracking-wide border border-red text-red rounded cursor-pointer bg-transparent hover:bg-red-dim transition-colors"
-        >
+        {!hasAutosplitter && (
+          <Button
+            variant="finish"
+            onClick={() => actions.finish(lobby.lobby_id, elapsed)}
+            disabled={negative}
+            className="flex-1 py-3.5"
+          >
+            {t("race.finish")}
+          </Button>
+        )}
+        <Button variant="forfeit" onClick={() => setShowModal(true)} className="flex-1 py-3.5">
           {t("race.forfeit")}
-        </button>
+        </Button>
       </div>
       {showModal && (
         <StopModal

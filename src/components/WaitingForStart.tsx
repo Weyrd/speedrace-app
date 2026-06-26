@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
 import { LobbyHeader } from "./ui/BadgeHelper";
+import { SplitList } from "./ui/SplitList";
+import { Button } from "./ui/button";
 
 export default function WaitingForStart() {
   const state = useAppState();
@@ -28,10 +30,11 @@ export default function WaitingForStart() {
         categories={lobby.category_name}
         code={lobby.code}
         live
+        autosplitStatus={state.autosplitStatus}
       />
 
       {/* Stream preview - view only */}
-      <div className="bg-black border border-border rounded aspect-video w-full overflow-hidden relative">
+      <div className="bg-black border border-border rounded aspect-1920/1080 w-full overflow-hidden relative">
         <video
           ref={videoRef}
           autoPlay
@@ -47,17 +50,20 @@ export default function WaitingForStart() {
         </div>
       </div>
 
+      {lobby.split_resource_updated_at && <SplitList />}
+
       {/* Waiting message */}
       <p className="text-2xs text-dim font-mono tracking-wide text-center leading-relaxed whitespace-pre-line">
         {t("waiting.waiting_host")}
       </p>
 
-      <button
+      <Button
+        variant="outline"
         onClick={() => setShowModal(true)}
-        className="w-full py-3.5 text-xs font-mono tracking-wide border border-dim text-muted rounded cursor-pointer bg-transparent hover:border-muted transition-colors mt-auto"
+        className="w-full py-3.5 mt-auto border-dim"
       >
         {t("stream.stop_stream")}
-      </button>
+      </Button>
 
       {showModal && (
         <StopModal

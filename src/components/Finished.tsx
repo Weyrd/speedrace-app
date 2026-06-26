@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import { formatTime } from "../lib/formatTime";
 import { PlayerStatus } from "../types";
+import { Button } from "./ui/button";
 
 export default function Finished() {
   const state = useAppState();
@@ -75,12 +76,9 @@ export default function Finished() {
         </span>
       </div>
 
-      <button
-        onClick={() => actions.newRace()}
-        className="w-full py-3.5 text-xs font-mono tracking-wide border border-border text-muted rounded cursor-pointer bg-transparent hover:border-muted hover:text-text transition-colors mt-auto"
-      >
+      <Button variant="outline" onClick={() => actions.newRace()} className="w-full py-3.5 mt-auto">
         {t("race.new_race")}
-      </button>
+      </Button>
     </div>
   );
 }

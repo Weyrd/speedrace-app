@@ -7,7 +7,7 @@ use crate::state::SharedState;
 use tauri::AppHandle;
 use tauri::Emitter;
 
-/// Spawn refresh + WS loops if not already running.
+// Spawn refresh + WS loops if not already running
 pub fn start_background_loops(app: &AppHandle, state: &SharedState) {
     let should_spawn_refresh = {
         let mut guard = state.lock().unwrap();
@@ -44,7 +44,7 @@ pub fn start_background_loops(app: &AppHandle, state: &SharedState) {
     }
 }
 
-/// Try to restore a previous session on startup.
+// Try to restore a previous session on startup
 pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
     let store = TokenStore::new(app.clone());
 
@@ -100,6 +100,7 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
         },
     );
     if let Some(ref lobby) = lobby_response {
+        crate::ws::handler::init_lobby_resources(&app, &shared_state, lobby);
         let _ = app.emit(WS_LOBBY_SETUP, lobby);
     }
 

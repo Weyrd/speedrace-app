@@ -33,6 +33,7 @@ import type {
   LobbySetup,
   LobbyClosedReason,
   PlayerResult,
+  AutosplitStatus,
 } from "../types";
 
 // Phase = the React app's current screen/state
@@ -57,6 +58,7 @@ export type AppState =
       user: User;
       wsStatus: WsStatus;
       lobby: LobbySetup;
+      autosplitStatus?: AutosplitStatus;
     }
   | {
       phase: typeof Phase.WaitingForStart;
@@ -64,6 +66,7 @@ export type AppState =
       wsStatus: WsStatus;
       lobby: LobbySetup;
       stream: MediaStream;
+      autosplitStatus?: AutosplitStatus;
     }
   | {
       phase: typeof Phase.RaceInProgress;
@@ -72,6 +75,9 @@ export type AppState =
       lobby: LobbySetup;
       raceStartAt: number;
       stream: MediaStream;
+      splitIndex: number;
+      completedSegmentTimes: number[];
+      currentSegmentStartMs: number;
     }
   | {
       phase: typeof Phase.Finished;
@@ -93,6 +99,8 @@ export const ActionType = {
   StreamReady: "STREAM_READY",
   StreamStopped: "STREAM_STOPPED",
   NewRace: "NEW_RACE",
+  AutosplitStatus: "AUTOSPLIT_STATUS",
+  SplitFired: "SPLIT_FIRED",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 
@@ -108,4 +116,6 @@ export type AppAction =
   | { type: typeof ActionType.PlayerResult; result: PlayerResult }
   | { type: typeof ActionType.StreamReady; stream: MediaStream }
   | { type: typeof ActionType.StreamStopped }
-  | { type: typeof ActionType.NewRace };
+  | { type: typeof ActionType.NewRace }
+  | { type: typeof ActionType.AutosplitStatus; status: AutosplitStatus }
+  | { type: typeof ActionType.SplitFired; index: number; segmentMs: number; newStartMs: number };

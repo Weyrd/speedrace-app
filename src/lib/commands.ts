@@ -75,3 +75,11 @@ export async function syncClock(force: boolean): Promise<ClockOffset> {
 export async function hideToTray(): Promise<void> {
   return invoke("hide_to_tray");
 }
+
+export async function getSplitSegments(): Promise<string[]> {
+  return invoke<string[]>("get_split_segments");
+}
+
+export async function getCurrentSplitIndex(): Promise<number> {
+  return invoke<number>("get_current_split_index");
+}
