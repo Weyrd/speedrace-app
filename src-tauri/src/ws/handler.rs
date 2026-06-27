@@ -7,6 +7,7 @@ use crate::events::{
 struct AutosplitProbePayload {
     wasm: bool,
     livesplit: bool,
+    splits_match: Option<bool>,
 }
 use crate::models::AppState;
 use crate::state::{AutosplitSource, SharedState};
@@ -53,6 +54,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.autosplit_source = None;
                 guard.wasm_attached = false;
                 guard.livesplit_connected = false;
+                guard.livesplit_splits_match = None;
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
             init_lobby_resources(app, state, &payload);
@@ -96,6 +98,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.autosplit_source = None;
                 guard.wasm_attached = false;
                 guard.livesplit_connected = false;
+                guard.livesplit_splits_match = None;
                 guard.app_state = AppState::Idle;
                 guard.lobby = None;
                 guard.race_start_at = None;
@@ -289,24 +292,44 @@ async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<At
 }
 
 pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState) {
-    let (wasm, livesplit, connected) = {
+    let (wasm, livesplit, splits_match, connected, splits_valid) = {
         let g = state.lock().unwrap();
         let connected = match g.autosplit_source {
             Some(AutosplitSource::Wasm) => g.wasm_attached,
             Some(AutosplitSource::LiveSplit) => g.livesplit_connected,
             None => g.wasm_attached || g.livesplit_connected,
         };
-        (g.wasm_attached, g.livesplit_connected, connected)
+        let splits_valid = match g.autosplit_source {
+            Some(AutosplitSource::Wasm) => true,
+            _ => g.livesplit_splits_match != Some(false),
+        };
+        (
+            g.wasm_attached,
+            g.livesplit_connected,
+            g.livesplit_splits_match,
+            connected,
+            splits_valid,
+        )
     };
-    let _ = app.emit(AUTOSPLIT_PROBE, AutosplitProbePayload { wasm, livesplit });
-    report_autosplit(app, state, connected).await;
+    let _ = app.emit(
+        AUTOSPLIT_PROBE,
+        AutosplitProbePayload {
+            wasm,
+            livesplit,
+            splits_match,
+        },
+    );
+    report_autosplit(app, state, connected, splits_valid).await;
 }
 
-async fn report_autosplit(app: &AppHandle, state: &SharedState, connected: bool) {
+async fn report_autosplit(app: &AppHandle, state: &SharedState, connected: bool, splits_valid: bool) {
     let (lobby_id, should_send) = {
         let guard = state.lock().unwrap();
         let lobby_id = guard.lobby.as_ref().map(|l| l.lobby_id.clone());
-        (lobby_id, guard.last_autosplit_reported != Some(connected))
+        (
+            lobby_id,
+            guard.last_autosplit_reported != Some((connected, splits_valid)),
+        )
     };
     if !should_send {
         return;
@@ -314,9 +337,9 @@ async fn report_autosplit(app: &AppHandle, state: &SharedState, connected: bool)
     let Some(lobby_id) = lobby_id else {
         return;
     };
-    match crate::api::lobby::post_autosplit_status(app, &lobby_id, connected).await {
+    match crate::api::lobby::post_autosplit_status(app, &lobby_id, connected, splits_valid).await {
         Ok(()) => {
-            state.lock().unwrap().last_autosplit_reported = Some(connected);
+            state.lock().unwrap().last_autosplit_reported = Some((connected, splits_valid));
         }
         Err(e) => eprintln!("[autosplit] report failed: {e}"),
     }

@@ -43,13 +43,18 @@ double-fires or desyncs the index. Firing is gated:
 
 `report_autosplit_state` does two things:
 
-- Emits the `autosplit:probe` Tauri event `{ wasm: bool, livesplit: bool }` -> two independent UI
-  badges (`BadgeHelper.tsx`: lucide `MonitorCheck` for WASM, `assets/livesplit.svg` for LiveSplit).
-- POSTs a single `connected` bool to the back (deduped). Pre-commit `connected` = either source
-  ready (so a ranked player can ready up); post-commit `connected` = the committed source's health.
+- Emits the `autosplit:probe` Tauri event `{ wasm: bool, livesplit: bool, splits_match: bool? }` ->
+  UI badges (`BadgeHelper.tsx`: lucide `MonitorCheck` for WASM, `assets/livesplit.svg` for LiveSplit,
+  red `TriangleAlert` when `splits_match == false`).
+- POSTs `{ connected, splits_valid }` to the back (deduped on the pair). Pre-commit `connected` =
+  either source ready (so a ranked player can ready up); post-commit `connected` = the committed
+  source's health. `splits_valid` is false only on a confirmed LiveSplit split-set mismatch.
 
 The back is source-agnostic. It uses `connected` for the ranked-ready gate and, in a ranked race,
 auto-forfeits the player if `connected` stays false past a grace window (`AUTOSPLIT_FORFEIT_GRACE_SECS`).
+A `splits_valid == false` (LiveSplit source loaded the wrong split set) forfeits a ranked in-progress
+player **immediately**. See **`LIVESPLIT_SPLIT_VERIFICATION.md`** for the split-check, the `starttimer`
+workaround, and how to migrate to pre-start verification once a LiveSplit release adds the commands.
 
 `report_autosplit_state` fires only on a connection *change*, so on **startup restore** (app launches
 already in a lobby) the probe event can fire before the UI subscribes. To cover that, `get_lobby_state`

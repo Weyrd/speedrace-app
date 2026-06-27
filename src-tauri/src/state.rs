@@ -26,10 +26,11 @@ pub struct GlobalState {
     pub autosplitter_cancel: Arc<AtomicBool>,
     pub probe_running: bool,
     pub livesplit_running: bool,
-    pub last_autosplit_reported: Option<bool>,
+    pub last_autosplit_reported: Option<(bool, bool)>,
     pub autosplit_source: Option<AutosplitSource>,
     pub wasm_attached: bool,
     pub livesplit_connected: bool,
+    pub livesplit_splits_match: Option<bool>, // check if right split loaded
 }
 
 impl GlobalState {
@@ -55,6 +56,7 @@ impl GlobalState {
             autosplit_source: None,
             wasm_attached: false,
             livesplit_connected: false,
+            livesplit_splits_match: None,
         }
     }
 }

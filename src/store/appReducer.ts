@@ -157,7 +157,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         state.phase !== Phase.RaceInProgress
       )
         return state;
-      return { ...state, autosplit: action.status };
+      const cur = state.autosplit;
+      const next = action.status;
+      if (
+        cur &&
+        cur.wasm === next.wasm &&
+        cur.livesplit === next.livesplit &&
+        cur.splits_match === next.splits_match
+      )
+        return state;
+      return { ...state, autosplit: next };
     }
 
     case ActionType.SplitFired: {
