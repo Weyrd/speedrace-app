@@ -44,6 +44,7 @@ export type LobbyClosedReason =
 export interface AutosplitState {
   wasm: boolean;
   livesplit: boolean;
+  splits_match?: boolean | null;
 }
 
 export interface LobbySetup {

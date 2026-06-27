@@ -1,9 +1,9 @@
-use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter, Manager};
+use crate::api;
 use crate::events::{SPLIT_FIRED, WS_PLAYER_RESULT};
 use crate::models::AppState;
-use crate::state::SharedState;
-use crate::api;
+use crate::state::{AutosplitSource, SharedState};
+use std::sync::atomic::Ordering;
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(serde::Serialize, Clone)]
 struct SplitFiredPayload {
@@ -28,10 +28,20 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
             return;
         }
 
-        let Some(race_start_at) = guard.race_start_at else { return };
+        if guard.autosplit_source == Some(AutosplitSource::LiveSplit)
+            && guard.livesplit_splits_match == Some(false)
+        {
+            return;
+        }
+
+        let Some(race_start_at) = guard.race_start_at else {
+            return;
+        };
         let end_ms = ((now_ms + guard.clock_offset_ms) - race_start_at).max(0) as u64;
 
-        let Some(run) = guard.split_run.as_ref() else { return };
+        let Some(run) = guard.split_run.as_ref() else {
+            return;
+        };
         let seg_count = run.len() as u32;
         let index = guard.current_split_index;
         if index >= seg_count {
@@ -39,7 +49,9 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
         }
 
         let segment_name = run.segment(index as usize).name().to_string();
-        let Some(lobby) = guard.lobby.as_ref() else { return };
+        let Some(lobby) = guard.lobby.as_ref() else {
+            return;
+        };
         let lobby_id = lobby.lobby_id.clone();
         let start_ms = guard.segment_start_ms;
 
@@ -52,17 +64,25 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
 
     let (lobby_id, split_index, segment_name, start_ms, end_ms, is_final) = result;
 
-    let _ = app.emit(SPLIT_FIRED, SplitFiredPayload {
-        index: split_index,
-        segment_ms: end_ms.saturating_sub(start_ms),
-        new_start_ms: end_ms,
-    });
+    let _ = app.emit(
+        SPLIT_FIRED,
+        SplitFiredPayload {
+            index: split_index,
+            segment_ms: end_ms.saturating_sub(start_ms),
+            new_start_ms: end_ms,
+        },
+    );
 
     let app = app.clone();
     let state = state.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(e) = api::lobby::post_player_split(
-            &app, &lobby_id, split_index, segment_name, start_ms, end_ms,
+            &app,
+            &lobby_id,
+            split_index,
+            segment_name,
+            start_ms,
+            end_ms,
         )
         .await
         {
