@@ -28,12 +28,17 @@ function hasSplits(state: ReturnType<typeof useAppState>): boolean {
 
 export default function App() {
   const state = useAppState();
+  const tall = hasSplits(state);
 
   useEffect(() => {
-    getCurrentWindow()
-      .setSize(hasSplits(state) ? WIN_TALL : WIN_NORMAL)
-      .catch((e) => console.error("[window] setSize failed:", e));
-  }, [state]);
+    void (async () => {
+      const win = getCurrentWindow();
+      if (await win.isFullscreen()) return;
+      win
+        .setSize(tall ? WIN_TALL : WIN_NORMAL)
+        .catch((e) => console.error("[window] setSize failed:", e));
+    })();
+  }, [tall]);
 
   function renderScreen() {
     switch (state.phase) {

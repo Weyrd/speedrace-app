@@ -1,4 +1,4 @@
-import { MonitorCheck } from "lucide-react";
+import { MonitorCheck, TriangleAlert } from "lucide-react";
 import { Tooltip } from "./Tooltip";
 import { AutosplitState } from "../../types";
 import livesplitIcon from "../../assets/livesplit.svg";
@@ -48,6 +48,14 @@ export function LobbyHeader({
           {autosplit?.livesplit && (
             <Tooltip content="LiveSplit connected" side="top">
               <img src={livesplitIcon} alt="LiveSplit" className="w-3.5 h-3.5" />
+            </Tooltip>
+          )}
+          {autosplit?.splits_match === false && (
+            <Tooltip
+              content="LiveSplit splits differ from the race's — splits won't be recorded"
+              side="top"
+            >
+              <TriangleAlert className="w-3.5 h-3.5 text-red" />
             </Tooltip>
           )}
           <span className="bg-bg2 border border-border rounded-sm px-2 py-0.5 text-2xs font-mono tracking-wider">

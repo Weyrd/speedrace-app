@@ -11,29 +11,53 @@ const LIVESPLIT_ADDR: &str = "127.0.0.1:16834";
 const POLL_MS: u64 = 100;
 const READ_TIMEOUT_MS: u64 = 3000;
 const CONNECT_TIMEOUT_MS: u64 = 500;
+const PROBE_TIMEOUT_MS: u64 = 1000;
 
 pub const RECONNECT_DELAY_MS: u64 = 1000;
 
 pub async fn connect() -> Option<tokio::net::TcpStream> {
-    match timeout(
+    let mut stream = match timeout(
         Duration::from_millis(CONNECT_TIMEOUT_MS),
         tokio::net::TcpStream::connect(LIVESPLIT_ADDR),
     )
     .await
     {
-        Ok(Ok(s)) => {
-            let _ = s.set_nodelay(true);
-            eprintln!("[livesplit-tcp] connected");
-            Some(s)
-        }
+        Ok(Ok(s)) => s,
         Ok(Err(e)) => {
             eprintln!("[livesplit-tcp] not available: {e}");
-            None
+            return None;
         }
         Err(_) => {
             eprintln!("[livesplit-tcp] connect timeout");
-            None
+            return None;
         }
+    };
+    let _ = stream.set_nodelay(true);
+    // A TCP handshake alone proves nothing: a WebSocket server (or anything else)
+    // can squat on 16834. Require a valid getsplitindex reply before trusting it.
+    if !probe_protocol(&mut stream).await {
+        eprintln!("[livesplit-tcp] 16834 open but not LiveSplit Server protocol — ignoring");
+        return None;
+    }
+    eprintln!("[livesplit-tcp] connected");
+    Some(stream)
+}
+
+async fn probe_protocol(stream: &mut tokio::net::TcpStream) -> bool {
+    let (read_half, mut write_half) = stream.split();
+    if write_half.write_all(b"getsplitindex\r\n").await.is_err() {
+        return false;
+    }
+    let mut reader = BufReader::new(read_half);
+    let mut line = String::new();
+    match timeout(
+        Duration::from_millis(PROBE_TIMEOUT_MS),
+        reader.read_line(&mut line),
+    )
+    .await
+    {
+        Ok(Ok(n)) if n > 0 => line.trim().parse::<i32>().is_ok(),
+        _ => false,
     }
 }
 
@@ -47,6 +71,8 @@ pub async fn poll_loop(
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
     let mut last_index: i32 = -1;
+    let mut name_checked_index: i32 = -1;
+    let mut forced_start = false;
     let mut tick: u32 = 0;
 
     loop {
@@ -109,6 +135,19 @@ pub async fn poll_loop(
         }
         tick = tick.wrapping_add(1);
 
+        // If LiveSplit is our source but the runner's timer never started (e.g. their
+        // auto-start is bound to a different game/level than the one being raced), force
+        // it once so getcurrentsplitname becomes readable and we can verify the splits.
+        // starttimer is a no-op if already running and sends no reply, so don't read one.
+        if fire && index < 0 && !forced_start {
+            eprintln!("[livesplit-tcp] timer NotRunning at race time — sending starttimer");
+            if let Err(e) = writer.write_all(b"starttimer\r\n").await {
+                eprintln!("[livesplit-tcp] starttimer write error: {e}");
+                break;
+            }
+            forced_start = true;
+        }
+
         if !fire {
             last_index = index;
         } else if last_index < 0 && index >= 0 {
@@ -131,6 +170,54 @@ pub async fn poll_loop(
             // Runner reset their timer
             eprintln!("[livesplit-tcp] index reset {last_index} → {index}, re-arming");
             last_index = index;
+        }
+
+        // Once per split, compare the runner's current split name to our expected
+        // segment so we can flag (and refuse to record) a different split set.
+        if index >= 0 && index != name_checked_index {
+            let expected = {
+                let g = state.lock().unwrap();
+                g.split_run.as_ref().and_then(|r| {
+                    let i = index as usize;
+                    (i < r.len()).then(|| r.segment(i).name().to_string())
+                })
+            };
+            match expected {
+                Some(expected) => {
+                    if writer.write_all(b"getcurrentsplitname\r\n").await.is_err() {
+                        break;
+                    }
+                    line.clear();
+                    let name_res = timeout(
+                        Duration::from_millis(READ_TIMEOUT_MS),
+                        reader.read_line(&mut line),
+                    )
+                    .await;
+                    if let Ok(Ok(n)) = name_res {
+                        let actual = line.trim();
+                        // "-" means LiveSplit has no current split yet; recheck later.
+                        if n > 0 && actual != "-" {
+                            let matches = actual.eq_ignore_ascii_case(expected.trim());
+                            if !matches {
+                                eprintln!(
+                                    "[livesplit-tcp] split name mismatch at {index}: livesplit='{actual}' expected='{expected}'"
+                                );
+                            }
+                            let changed = {
+                                let mut g = state.lock().unwrap();
+                                let prev = g.livesplit_splits_match;
+                                g.livesplit_splits_match = Some(matches);
+                                prev != Some(matches)
+                            };
+                            if changed {
+                                crate::ws::handler::report_autosplit_state(&app, &state).await;
+                            }
+                            name_checked_index = index;
+                        }
+                    }
+                }
+                None => name_checked_index = index,
+            }
         }
 
         sleep(Duration::from_millis(POLL_MS)).await;

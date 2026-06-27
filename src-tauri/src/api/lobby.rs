@@ -88,17 +88,22 @@ pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), 
 #[derive(Serialize)]
 struct AutosplitStatusBody {
     connected: bool,
+    splits_valid: bool,
 }
 
 pub async fn post_autosplit_status(
     app: &AppHandle,
     lobby_id: &str,
     connected: bool,
+    splits_valid: bool,
 ) -> Result<(), String> {
     authed_post_body_void(
         app,
         &config::lobby_autosplit_status_path(lobby_id),
-        &AutosplitStatusBody { connected },
+        &AutosplitStatusBody {
+            connected,
+            splits_valid,
+        },
         "autosplit_status",
     )
     .await

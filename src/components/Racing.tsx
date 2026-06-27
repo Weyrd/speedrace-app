@@ -49,10 +49,11 @@ export default function Racing() {
   const startAt =
     state.phase === Phase.RaceInProgress ? state.raceStartAt : null;
 
-  const hasAutosplitter =
-    state.phase === Phase.RaceInProgress
-      ? state.lobby.autosplitter_updated_at != null
-      : false;
+  const autosplitDrivesFinish =
+    state.phase === Phase.RaceInProgress &&
+    (state.lobby.autosplitter_updated_at != null ||
+      (state.autosplit?.livesplit === true &&
+        state.autosplit.splits_match !== false));
 
   const videoRef = useCallback(
     (node: HTMLVideoElement | null) => {
@@ -64,7 +65,7 @@ export default function Racing() {
   );
 
   useEffect(() => {
-    if (hasAutosplitter) return;
+    if (autosplitDrivesFinish) return;
     registerFinishHotkey().catch((e) =>
       console.error("[race] registerFinishHotkey error", e),
     );
@@ -73,7 +74,7 @@ export default function Racing() {
         console.error("[race] unregisterFinishHotkey error", e),
       );
     };
-  }, [hasAutosplitter]);
+  }, [autosplitDrivesFinish]);
 
   useEffect(() => {
     if (startAt == null) return;
@@ -140,7 +141,7 @@ export default function Racing() {
         />
       )}
       <div className="flex gap-2 mt-auto">
-        {!hasAutosplitter && (
+        {!autosplitDrivesFinish && (
           <Button
             variant="finish"
             onClick={() => actions.finish(lobby.lobby_id, elapsed)}
