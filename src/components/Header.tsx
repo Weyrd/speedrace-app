@@ -101,6 +101,7 @@ export default function Header() {
             variant="ghost"
             size="icon"
             onClick={() => setSettingsOpen(true)}
+            disabled={!isAuthenticated}
             aria-label={tSettings("tooltip")}
           >
             <Settings size={15} />
