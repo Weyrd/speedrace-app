@@ -103,9 +103,9 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
                     }
                     let _ = app.emit(WS_PLAYER_RESULT, player_result);
                     if let Some(w) = app.get_webview_window("main") {
-                        let _ = w.unminimize();
-                        let _ = w.show();
-                        let _ = w.set_focus();
+                        let _ = w.request_user_attention(Some(
+                            tauri::UserAttentionType::Informational,
+                        ));
                     }
                 }
                 Err(e) => eprintln!("[autosplit] post_player_finished: {e}"),

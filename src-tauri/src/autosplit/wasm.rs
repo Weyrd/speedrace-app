@@ -170,7 +170,11 @@ async fn supervise(
         }
     }
 
-    state.lock().unwrap().wasm_attached = false;
+    {
+        let mut guard = state.lock().unwrap();
+        guard.wasm_attached = false;
+        guard.autosplitter_runtime = None;
+    }
     crate::ws::handler::report_autosplit_state(&app, &state).await;
     eprintln!("[wasm] supervisor stopped");
 }

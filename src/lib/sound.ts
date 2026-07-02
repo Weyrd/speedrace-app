@@ -1,4 +1,3 @@
-
 export const Sound = {
   LobbyEnter: "lobby-enter",
   LobbyClosed: "lobby-closed",
@@ -53,4 +52,57 @@ export function playSound(name: Sound): void {
   el.currentTime = 0;
   el.volume = volume;
   el.play().catch(() => {});
+}
+
+let audioCtx: AudioContext | null = null;
+const bufferCache = new Map<Sound, AudioBuffer>();
+
+function ctx(): AudioContext {
+  if (!audioCtx) audioCtx = new AudioContext();
+  return audioCtx;
+}
+
+async function decode(name: Sound): Promise<AudioBuffer> {
+  const cached = bufferCache.get(name);
+  if (cached) return cached;
+  const res = await fetch(`/sounds/${name}.mp3`);
+  const buf = await ctx().decodeAudioData(await res.arrayBuffer());
+  bufferCache.set(name, buf);
+  return buf;
+}
+
+export async function primeCountdown(sounds: readonly Sound[]): Promise<void> {
+  await ctx()
+    .resume()
+    .catch(() => {});
+  await Promise.all(sounds.map((s) => decode(s).catch(() => {})));
+}
+
+export function scheduleCountdown(
+  beeps: readonly { sound: Sound; atMs: number }[],
+): () => void {
+  const c = ctx();
+  void c.resume();
+  const anchorMs = Date.now();
+  const anchorCtx = c.currentTime;
+  const sources: AudioBufferSourceNode[] = [];
+  for (const b of beeps) {
+    const buf = bufferCache.get(b.sound);
+    if (!buf) continue;
+    const when = anchorCtx + Math.max(0, (b.atMs - anchorMs) / 1000);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const gain = c.createGain();
+    gain.gain.value = volume;
+    src.connect(gain).connect(c.destination);
+    src.start(when);
+    sources.push(src);
+  }
+  return () => {
+    for (const s of sources) {
+      try {
+        s.stop();
+      } catch {}
+    }
+  };
 }
