@@ -1,6 +1,6 @@
 use crate::autosplit::timer::MomentumTimer;
 use crate::state::SharedState;
-use livesplit_auto_splitting::{AutoSplitter, CompiledAutoSplitter, Config, Runtime};
+use livesplit_auto_splitting::{settings, AutoSplitter, CompiledAutoSplitter, Config, Runtime};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -61,6 +61,20 @@ pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) 
     true
 }
 
+fn build_settings_map(state: &SharedState) -> Option<settings::Map> {
+    let guard = state.lock().unwrap();
+    let xml = guard.split_run.as_ref()?.auto_splitter_settings();
+    if xml.is_empty() {
+        return None;
+    }
+    let mut map = settings::Map::new();
+    map.insert(
+        "autosplitter_settings".into(),
+        settings::Value::String(xml.into()),
+    );
+    Some(map)
+}
+
 fn instantiate(
     compiled: &CompiledAutoSplitter,
     app: &AppHandle,
@@ -70,7 +84,7 @@ fn instantiate(
         app: app.clone(),
         state: state.clone(),
     };
-    match compiled.instantiate(timer, None, None) {
+    match compiled.instantiate(timer, build_settings_map(state), None) {
         Ok(s) => {
             let s = Arc::new(s);
             state.lock().unwrap().autosplitter_runtime = Some(Arc::clone(&s));
@@ -97,8 +111,17 @@ async fn supervise(
     cancel: Arc<AtomicBool>,
 ) {
     let mut last_attached: Option<bool> = None;
+    let mut settings_pushed = false;
 
     loop {
+        if !settings_pushed {
+            if let Some(map) = build_settings_map(&state) {
+                splitter.set_settings_map(map);
+                settings_pushed = true;
+                eprintln!("[wasm] autosplitter settings pushed");
+            }
+        }
+
         let lost = state.lock().unwrap().autosplit_source
             == Some(crate::state::AutosplitSource::LiveSplit);
         if cancel.load(Ordering::SeqCst) || !crate::ws::handler::in_lobby(&state) || lost {
