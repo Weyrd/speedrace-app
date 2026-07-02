@@ -8,7 +8,7 @@ import { SplitList } from "./ui/SplitList";
 import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useClockOffset } from "../hooks/useClockOffset";
-import { playSound, Sound } from "../lib/sound";
+import { primeCountdown, scheduleCountdown, Sound } from "../lib/sound";
 import { Button } from "./ui/button";
 
 const COUNTDOWN_BEEPS = [
@@ -78,12 +78,21 @@ export default function Racing() {
 
   useEffect(() => {
     if (startAt == null) return;
-    const timers = COUNTDOWN_BEEPS.map((b) => {
-      const delay = startAt + b.at - offsetMs - Date.now();
-      if (delay < 0) return undefined;
-      return window.setTimeout(() => playSound(b.sound), delay);
+    let cancelled = false;
+    let cancel: (() => void) | undefined;
+    primeCountdown(COUNTDOWN_BEEPS.map((b) => b.sound)).then(() => {
+      if (cancelled) return;
+      cancel = scheduleCountdown(
+        COUNTDOWN_BEEPS.map((b) => ({
+          sound: b.sound,
+          atMs: startAt + b.at - offsetMs,
+        })),
+      );
     });
-    return () => timers.forEach((t) => t !== undefined && clearTimeout(t));
+    return () => {
+      cancelled = true;
+      cancel?.();
+    };
   }, [startAt, offsetMs]);
 
   if (state.phase !== Phase.RaceInProgress) return null;
