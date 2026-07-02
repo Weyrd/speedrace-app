@@ -177,8 +177,13 @@ async fn supervise(
         }
     }
 
-    // Leaving (lobby ended or LiveSplit won): mark detached and report.
-    state.lock().unwrap().wasm_attached = false;
+    // Leaving (lobby ended or LiveSplit won): mark detached, unregister so the
+    // next lobby's start() doesn't see a stale "already running" handle.
+    {
+        let mut guard = state.lock().unwrap();
+        guard.wasm_attached = false;
+        guard.autosplitter_runtime = None;
+    }
     crate::ws::handler::report_autosplit_state(&app, &state).await;
     eprintln!("[wasm] supervisor stopped");
 }

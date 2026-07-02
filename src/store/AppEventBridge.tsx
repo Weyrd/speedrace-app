@@ -4,7 +4,14 @@ import { useAppDispatch, useWhipRef } from "./AppContext";
 import { ActionType } from "./types";
 import { AuthState, PlayerStatus, type WsStatus } from "../types";
 import { ensureClockFresh } from "../hooks/useClockOffset";
-import { playSound, Sound } from "../lib/sound";
+import { playSound, primeCountdown, Sound } from "../lib/sound";
+
+const COUNTDOWN_SOUNDS = [
+  Sound.Countdown3,
+  Sound.Countdown2,
+  Sound.Countdown1,
+  Sound.CountdownGo,
+] as const;
 import {
   onAuthState,
   onWsStatus,
@@ -44,6 +51,7 @@ export function AppEventBridge(): null {
         if (lobby.lobby_id !== lobbyIdRef.current) {
           lobbyIdRef.current = lobby.lobby_id;
           playSound(Sound.LobbyEnter);
+          void primeCountdown(COUNTDOWN_SOUNDS);
         }
         dispatch({ type: ActionType.LobbySetup, lobby });
       }),

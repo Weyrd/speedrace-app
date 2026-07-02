@@ -32,6 +32,15 @@ double-fires or desyncs the index. Firing is gated:
 - `timer.rs split()` fires only if `autosplit_source == Wasm`.
 - `tcp.rs poll_loop` fires only if `autosplit_source == LiveSplit`.
 
+## WASM settings (per-category splits in one per-game .wasm)
+
+The `.wasm` is universal per game; the split sequence comes from the `.lss`. `wasm.rs` forwards
+the raw inner XML of `split_run.auto_splitter_settings()` under the settings-map key
+`autosplitter_settings` at instantiate, and — because the `.lss` loads in parallel — `supervise`
+also pushes it via `set_settings_map` once `split_run` lands. The wasm interprets the XML itself;
+the app never parses game-specific split grammar. See `WASM_AUTOSPLITTER_PORTING.md` (workspace
+root) for the full porting guide.
+
 ## Recovery
 
 - **WASM**: compiled once; on a `update()` trap (permanent for an instance, usually because the

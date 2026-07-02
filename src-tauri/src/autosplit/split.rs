@@ -102,10 +102,11 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
                         guard.autosplitter_cancel.store(true, Ordering::SeqCst);
                     }
                     let _ = app.emit(WS_PLAYER_RESULT, player_result);
+                    // Don't steal focus from the game on auto-finish; flash the taskbar instead.
                     if let Some(w) = app.get_webview_window("main") {
-                        let _ = w.unminimize();
-                        let _ = w.show();
-                        let _ = w.set_focus();
+                        let _ = w.request_user_attention(Some(
+                            tauri::UserAttentionType::Informational,
+                        ));
                     }
                 }
                 Err(e) => eprintln!("[autosplit] post_player_finished: {e}"),
