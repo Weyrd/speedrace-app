@@ -29,6 +29,7 @@ Rust: `cargo check` / `cargo clippy` from `src-tauri/`. There is no test suite a
 - **Surface conflicts, don't average them.** If two existing patterns contradict, pick one (more recent / more used), say why, and flag the other for cleanup.
 - **Fail loud.** Never report "done" if anything was skipped or unverified. Surface uncertainty instead of hiding it.
 - **Never commit or push** unless explicitly asked.
+- **Border radius: `rounded-sm` only.** Never `rounded-md` or `rounded-lg` (nor their per-corner variants). Keep corners consistently small.
 - **Comments: short, meaningful, rare.** Use `//` only — never `///` or `—` or `;` doc-comments in
   Rust unless documenting a public API on purpose. One line when it explains _why_,
   not _what_. No multi-line comment blocks, no banners, no commenting the obvious.
