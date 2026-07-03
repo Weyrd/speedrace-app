@@ -7,20 +7,24 @@ use super::cache::{cache_paths, CacheKind};
 use super::client::authed_get_json;
 
 #[derive(Deserialize)]
-struct CategorySplitLssResponse {
+struct SplitResourceResponse {
+    #[allow(dead_code)]
+    category_split_id: String,
+    #[allow(dead_code)]
+    name: String,
     lss_content: String,
     updated_at: String,
 }
 
 #[allow(dead_code)]
-pub async fn fetch_category_split_lss(
+pub async fn fetch_split_resource_lss(
     app: &AppHandle,
-    category_id: &str,
+    category_split_id: &str,
     payload_updated_at: Option<&str>,
 ) -> Option<String> {
     let payload_updated_at = payload_updated_at?;
 
-    let paths = cache_paths(app, CacheKind::Split, category_id)?;
+    let paths = cache_paths(app, CacheKind::Split, category_split_id)?;
     let cache_path = paths.content;
     let stamp_path = paths.stamp;
 
@@ -34,8 +38,8 @@ pub async fn fetch_category_split_lss(
         }
     }
 
-    let path = config::category_split_resource_path(category_id);
-    let body: CategorySplitLssResponse = authed_get_json(app, &path, "split").await?;
+    let path = config::split_resource_path(category_split_id);
+    let body: SplitResourceResponse = authed_get_json(app, &path, "split").await?;
 
     let content = body.lss_content;
     let stamp = body.updated_at;

@@ -24,6 +24,7 @@ export const MOCK_LOBBY: LobbySetup = {
   expires_at: Date.now() + 30 * 60 * 1000,
   game_id: "MOCK-game-id",
   category_id: "MOCK-category-id",
+  category_split_id: null,
   split_resource_updated_at: null,
   autosplitter_updated_at: null,
 };
