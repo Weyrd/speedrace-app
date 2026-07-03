@@ -45,7 +45,9 @@ pub struct LobbyCurrentResponse {
 }
 
 pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
-    let l: LobbyCurrentResponse = authed_get_json(app, config::LOBBY_CURRENT_PATH, "api").await?;
+    let l: LobbyCurrentResponse =
+        authed_get_json::<Option<LobbyCurrentResponse>>(app, config::LOBBY_CURRENT_PATH, "api")
+            .await??;
     Some(LobbySetup {
         lobby_id: l.lobby_id,
         code: l.code,
