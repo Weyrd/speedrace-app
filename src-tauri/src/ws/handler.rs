@@ -33,10 +33,11 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
     match msg {
         ServerMessage::LobbySetup(payload) => {
             eprintln!(
-                "[ws] LobbySetup: lobby={} game_id={} cat_id={} split_updated_at={:?} autosplitter_updated_at={:?}",
+                "[ws] LobbySetup: lobby={} game_id={} cat_id={} split_id={:?} split_updated_at={:?} autosplitter_updated_at={:?}",
                 payload.lobby_id,
                 payload.game_id,
                 payload.category_id,
+                payload.category_split_id,
                 payload.split_resource_updated_at,
                 payload.autosplitter_updated_at,
             );
@@ -128,6 +129,9 @@ pub fn init_lobby_resources(
     state: &SharedState,
     lobby: &crate::models::LobbySetup,
 ) {
+    let Some(category_split_id) = lobby.category_split_id.clone() else {
+        return;
+    };
     if lobby.split_resource_updated_at.is_none() {
         return;
     }
@@ -135,10 +139,9 @@ pub fn init_lobby_resources(
     {
         let app = app.clone();
         let state = state.clone();
-        let category_id = lobby.category_id.clone();
         let updated_at = lobby.split_resource_updated_at.clone();
         tauri::async_runtime::spawn(async move {
-            load_split_resource(&app, &state, &category_id, updated_at.as_deref()).await;
+            load_split_resource(&app, &state, &category_split_id, updated_at.as_deref()).await;
         });
     }
     // Guard against duplicate startup
@@ -361,12 +364,13 @@ async fn report_autosplit(app: &AppHandle, state: &SharedState, connected: bool,
 async fn load_split_resource(
     app: &AppHandle,
     state: &SharedState,
-    category_id: &str,
+    category_split_id: &str,
     updated_at: Option<&str>,
 ) {
-    eprintln!("[split] load called: category_id={category_id} updated_at={updated_at:?}");
+    eprintln!("[split] load called: category_split_id={category_split_id} updated_at={updated_at:?}");
     let Some(lss) =
-        crate::api::category_split::fetch_category_split_lss(app, category_id, updated_at).await
+        crate::api::category_split::fetch_split_resource_lss(app, category_split_id, updated_at)
+            .await
     else {
         eprintln!("[split] skipped: no lss available (updated_at={updated_at:?})");
         return;

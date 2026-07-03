@@ -38,8 +38,8 @@ pub fn lobby_forfeit_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/forfeit")
 }
 
-pub fn category_split_resource_path(category_id: &str) -> String {
-    format!("/api/v1/categories/{category_id}/split-resource")
+pub fn split_resource_path(category_split_id: &str) -> String {
+    format!("/api/v1/split-resources/{category_split_id}")
 }
 
 pub fn game_autosplitter_download_path(game_id: &str) -> String {

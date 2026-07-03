@@ -65,6 +65,7 @@ export interface LobbySetup {
   expires_at: number;
   game_id: string;
   category_id: string;
+  category_split_id: string | null;
   split_resource_updated_at: string | null;
   autosplitter_updated_at: string | null;
 }

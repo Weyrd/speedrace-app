@@ -46,6 +46,8 @@ pub struct LobbySetup {
     #[serde(default)]
     pub category_id: String,
     #[serde(default)]
+    pub category_split_id: Option<String>,
+    #[serde(default)]
     pub split_resource_updated_at: Option<String>,
     #[serde(default)]
     pub autosplitter_updated_at: Option<String>,
