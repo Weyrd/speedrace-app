@@ -22,7 +22,7 @@ impl LobbyStatus {
     pub fn to_app_state(&self) -> AppState {
         match self {
             Self::InProgress => AppState::RaceInProgress,
-            Self::Waiting => AppState::StreamSetup, //ou WaitingForStart
+            Self::Waiting => AppState::StreamSetup,
         }
     }
 }
@@ -50,6 +50,8 @@ pub struct LobbySetup {
     pub split_resource_updated_at: Option<String>,
     #[serde(default)]
     pub autosplitter_updated_at: Option<String>,
+    #[serde(default)]
+    pub counter_config_updated_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Default)]
