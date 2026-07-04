@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
+use crate::counter::CounterSample;
 use crate::models::lobby::PlayerStatus;
 use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
@@ -42,6 +43,8 @@ pub struct LobbyCurrentResponse {
     pub split_resource_updated_at: Option<String>,
     #[serde(default)]
     pub autosplitter_updated_at: Option<String>,
+    #[serde(default)]
+    pub counter_config_updated_at: Option<String>,
 }
 
 pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
@@ -65,10 +68,9 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         category_split_id: l.category_split_id,
         split_resource_updated_at: l.split_resource_updated_at,
         autosplitter_updated_at: l.autosplitter_updated_at,
+        counter_config_updated_at: l.counter_config_updated_at,
     })
 }
-
-// Tauri -> Backend HTTP actions
 
 pub async fn post_stream_ready(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
     authed_post_void(
@@ -177,32 +179,24 @@ pub async fn post_player_split(
     .ok_or_else(|| "[api] post_player_split failed".to_string())
 }
 
-#[allow(dead_code)]
 #[derive(Serialize)]
 struct SubmitCounterBody {
     counter_name: String,
-    value: i64,
-    split_index: Option<u32>,
-    timestamp_ms: u64,
+    samples: Vec<CounterSample>,
 }
 
-#[allow(dead_code)]
 pub async fn post_player_counter(
     app: &AppHandle,
     lobby_id: &str,
     counter_name: String,
-    value: i64,
-    split_index: Option<u32>,
-    timestamp_ms: u64,
+    samples: Vec<CounterSample>,
 ) -> Result<(), String> {
     authed_post_body_void(
         app,
         &config::lobby_counter_path(lobby_id),
         &SubmitCounterBody {
             counter_name,
-            value,
-            split_index,
-            timestamp_ms,
+            samples,
         },
         "counter",
     )

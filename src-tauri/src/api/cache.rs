@@ -6,6 +6,7 @@ use tauri::{AppHandle, Manager};
 pub enum CacheKind {
     Split,
     Autosplitter,
+    CounterConfig,
 }
 
 impl CacheKind {
@@ -13,6 +14,7 @@ impl CacheKind {
         match self {
             CacheKind::Split => "splits",
             CacheKind::Autosplitter => "autosplitters",
+            CacheKind::CounterConfig => "counters",
         }
     }
 
@@ -20,6 +22,7 @@ impl CacheKind {
         match self {
             CacheKind::Split => "lss",
             CacheKind::Autosplitter => "wasm",
+            CacheKind::CounterConfig => "json",
         }
     }
 }

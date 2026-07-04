@@ -46,6 +46,10 @@ pub fn game_autosplitter_download_path(game_id: &str) -> String {
     format!("/api/v1/games/{game_id}/autosplitter/download")
 }
 
+pub fn game_counters_path(game_id: &str) -> String {
+    format!("/api/v1/games/{game_id}/counters")
+}
+
 pub fn lobby_split_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/split")
 }

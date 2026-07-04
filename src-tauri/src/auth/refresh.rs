@@ -8,7 +8,6 @@ use crate::config;
 use crate::models::AuthStatePayload;
 use crate::state::SharedState;
 
-
 pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
     let store = TokenStore::new(app.clone());
 
@@ -23,8 +22,8 @@ pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
 
         let expires_in = seconds_until_expiry(&auth.tokens.expires_at);
 
-        let sleep = expires_in
-            .saturating_sub(Duration::from_secs(config::TOKEN_REFRESH_MARGIN_SECS));
+        let sleep =
+            expires_in.saturating_sub(Duration::from_secs(config::TOKEN_REFRESH_MARGIN_SECS));
         tokio::time::sleep(sleep).await;
 
         match refresh_access_token(&auth.tokens.refresh_token).await {
@@ -47,11 +46,9 @@ pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
     }
 }
 
-
 pub async fn do_refresh(refresh_token: &str) -> Result<Tokens, String> {
     refresh_access_token(refresh_token).await
 }
-
 
 fn logout_and_notify(app: &AppHandle, store: &TokenStore) {
     let _ = store.clear();

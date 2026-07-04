@@ -50,37 +50,52 @@ impl Timer for MomentumTimer {
             .map(|d| d.as_millis() as i64)
             .unwrap_or(0);
 
-        let (lobby_id, split_index, timestamp_ms) = {
-            let guard = match self.state.lock() {
+        let counter_name = key.to_string();
+
+        let post = {
+            let mut guard = match self.state.lock() {
                 Ok(g) => g,
                 Err(_) => return,
             };
             let Some(race_start_at) = guard.race_start_at else {
                 return;
             };
-            let timestamp_ms = ((now_ms + guard.clock_offset_ms) - race_start_at).max(0) as u64;
+            let at_ms = ((now_ms + guard.clock_offset_ms) - race_start_at).max(0) as u64;
             let Some(lobby) = guard.lobby.as_ref() else {
                 return;
             };
-            (
-                lobby.lobby_id.clone(),
-                guard.current_split_index,
-                timestamp_ms,
-            )
+            let lobby_id = lobby.lobby_id.clone();
+            let sample = crate::counter::CounterSample {
+                value: parsed,
+                split_index: Some(guard.current_split_index),
+                at_ms,
+            };
+            let cfg = guard
+                .counter_config
+                .as_ref()
+                .and_then(|c| c.iter().find(|x| x.counter_name == counter_name).cloned());
+            match crate::counter::resolve_action(cfg.as_ref()) {
+                crate::counter::CounterAction::Drop => None,
+                crate::counter::CounterAction::Buffer(mode) => {
+                    guard
+                        .counter_buffers
+                        .entry(counter_name.clone())
+                        .or_insert_with(|| crate::counter::CounterBuffer::for_mode(mode))
+                        .record(sample);
+                    None
+                }
+                crate::counter::CounterAction::Post => Some((lobby_id, sample)),
+            }
         };
 
+        let Some((lobby_id, sample)) = post else {
+            return;
+        };
         let app = self.app.clone();
-        let counter_name = key.to_string();
         tauri::async_runtime::spawn(async move {
-            if let Err(e) = crate::api::lobby::post_player_counter(
-                &app,
-                &lobby_id,
-                counter_name,
-                parsed,
-                Some(split_index),
-                timestamp_ms,
-            )
-            .await
+            if let Err(e) =
+                crate::api::lobby::post_player_counter(&app, &lobby_id, counter_name, vec![sample])
+                    .await
             {
                 eprintln!("[autosplit] post_player_counter: {e}");
             }

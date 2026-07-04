@@ -13,9 +13,7 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
-
 static PENDING_PKCE_VERIFIER: Mutex<Option<String>> = Mutex::new(None);
-
 
 pub fn emit_auth_state(app: &AppHandle, payload: AuthStatePayload) {
     eprintln!("[auth] emitting auth:state → {:?}", payload);
@@ -25,24 +23,26 @@ pub fn emit_auth_state(app: &AppHandle, payload: AuthStatePayload) {
 
 pub fn open_browser_login(app: &AppHandle) -> Result<(), LoginError> {
     {
-        let pending = PENDING_PKCE_VERIFIER.lock().map_err(|e| LoginError::System(e.to_string()))?;
+        let pending = PENDING_PKCE_VERIFIER
+            .lock()
+            .map_err(|e| LoginError::System(e.to_string()))?;
         if pending.is_some() {
             eprintln!("[auth] login already in progress, cancelling and starting new login");
             drop(pending);
             clear_pending_verifier();
-
         }
     }
 
     let pkce = generate_pkce();
 
     {
-        let mut pending = PENDING_PKCE_VERIFIER.lock().map_err(|e| LoginError::System(e.to_string()))?;
+        let mut pending = PENDING_PKCE_VERIFIER
+            .lock()
+            .map_err(|e| LoginError::System(e.to_string()))?;
         *pending = Some(pkce.code_verifier);
     }
 
-    let url = build_auth_url(&pkce.code_challenge)
-        .map_err(LoginError::System)?;
+    let url = build_auth_url(&pkce.code_challenge).map_err(LoginError::System)?;
 
     eprintln!("[auth] opening browser login: {url}");
 
@@ -113,7 +113,10 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
                 guard.app_state = crate::models::AppState::Connecting;
             }
 
-            eprintln!("[auth] emitting authenticated state for user: {}", stored.user.username);
+            eprintln!(
+                "[auth] emitting authenticated state for user: {}",
+                stored.user.username
+            );
 
             emit_auth_state(
                 &app,
@@ -125,7 +128,6 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
             );
 
             crate::lifecycle::start_background_loops(&app, &shared_state);
-
 
             {
                 let mut guard = shared_state.lock().unwrap();
@@ -228,7 +230,6 @@ fn parse_query_params(url: &str) -> std::collections::HashMap<String, String> {
         })
         .unwrap_or_default()
 }
-
 
 struct PkceChallenge {
     code_verifier: String,

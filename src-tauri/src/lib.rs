@@ -3,6 +3,7 @@ mod auth;
 mod autosplit;
 mod commands;
 mod config;
+mod counter;
 mod events;
 mod lifecycle;
 mod models;
@@ -10,8 +11,7 @@ mod settings;
 mod state;
 mod ws;
 
-/// Debug macro for WS tracing.
-/// Requires WS_DEBUG=true env var.
+/// WS tracing macro, gated on the WS_DEBUG=true env var.
 macro_rules! ws_debug {
     ($($arg:tt)*) => {
         if std::env::var("WS_DEBUG").unwrap_or_default() == "true" {
@@ -82,7 +82,6 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as i64)
             .unwrap_or(0);
-        // server offset
         let elapsed = (now + guard.clock_offset_ms) - start;
         if elapsed < 0 {
             return; // still counting down
@@ -112,16 +111,13 @@ pub fn run() {
     let shared_state: SharedState = Arc::new(Mutex::new(GlobalState::new()));
 
     tauri::Builder::default()
-        .plugin(
-            // force only one instance of app
-            tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.unminimize();
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
-            }),
-        )
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -139,7 +135,6 @@ pub fn run() {
         )
         .manage(shared_state.clone())
         .on_window_event(|window, event| match event {
-            // Close (X) quits the app
             tauri::WindowEvent::CloseRequested { .. } => {
                 window.app_handle().exit(0);
             }

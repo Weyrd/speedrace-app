@@ -31,7 +31,8 @@ pub struct CurrentUser {
 
 #[tauri::command]
 pub async fn logout(app: AppHandle, state: State<'_, SharedState>) -> Result<(), String> {
-    let refresh_token = TokenStore::new(app.clone()).load()
+    let refresh_token = TokenStore::new(app.clone())
+        .load()
         .map(|a| a.tokens.refresh_token);
     TokenStore::new(app.clone()).clear()?;
 
@@ -47,7 +48,9 @@ pub async fn logout(app: AppHandle, state: State<'_, SharedState>) -> Result<(),
 
     if let Some(rt) = refresh_token {
         #[derive(serde::Serialize)]
-        struct LogoutRequest { refresh_token: String }
+        struct LogoutRequest {
+            refresh_token: String,
+        }
 
         let _ = reqwest::Client::new()
             .delete(config::api_url(config::AUTH_LOGOUT_PATH))

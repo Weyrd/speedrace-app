@@ -56,6 +56,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.wasm_attached = false;
                 guard.livesplit_connected = false;
                 guard.livesplit_splits_match = None;
+                guard.counter_buffers.clear();
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
             init_lobby_resources(app, state, &payload);
@@ -106,6 +107,8 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.split_run = None;
                 guard.current_split_index = 0;
                 guard.segment_start_ms = 0;
+                guard.counter_config = None;
+                guard.counter_buffers.clear();
             }
             let _ = app.emit(WS_LOBBY_CLOSED, payload);
         }
@@ -135,7 +138,7 @@ pub fn init_lobby_resources(
     if lobby.split_resource_updated_at.is_none() {
         return;
     }
-    // Split resource load is idempotent — always respawn
+    // Split resource load is idempotent, always respawn
     {
         let app = app.clone();
         let state = state.clone();
@@ -159,8 +162,18 @@ pub fn init_lobby_resources(
         let state = state.clone();
         let game_id = lobby.game_id.clone();
         let updated_at = lobby.autosplitter_updated_at.clone();
+        let counter_updated_at = lobby.counter_config_updated_at.clone();
         tauri::async_runtime::spawn(async move {
             crate::autosplit::wasm::fetch(&app, &state, &game_id, updated_at.as_deref()).await;
+            if let Some(cfg) = crate::api::counter_config::fetch_counter_config(
+                &app,
+                &game_id,
+                counter_updated_at.as_deref(),
+            )
+            .await
+            {
+                state.lock().unwrap().counter_config = Some(cfg);
+            }
             let (has_wasm, cancel) = {
                 let g = state.lock().unwrap();
                 (
@@ -303,8 +316,7 @@ async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<At
     }
 }
 
-// Emits per-source badges to the UI and the single "connected" signal the back gates on
-// connected = either source pre-commit, else only the committed source's health
+// Emits per-source badges plus the "connected" signal the back gates on (either source pre-commit, else the committed source's health).
 pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState) {
     let (wasm, livesplit, splits_match, connected, splits_valid) = {
         let g = state.lock().unwrap();
@@ -338,7 +350,12 @@ pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState)
 }
 
 // POST to the back only when the autosplit connection or splits-valid state changes
-async fn report_autosplit(app: &AppHandle, state: &SharedState, connected: bool, splits_valid: bool) {
+async fn report_autosplit(
+    app: &AppHandle,
+    state: &SharedState,
+    connected: bool,
+    splits_valid: bool,
+) {
     let (lobby_id, should_send) = {
         let guard = state.lock().unwrap();
         let lobby_id = guard.lobby.as_ref().map(|l| l.lobby_id.clone());
@@ -367,7 +384,9 @@ async fn load_split_resource(
     category_split_id: &str,
     updated_at: Option<&str>,
 ) {
-    eprintln!("[split] load called: category_split_id={category_split_id} updated_at={updated_at:?}");
+    eprintln!(
+        "[split] load called: category_split_id={category_split_id} updated_at={updated_at:?}"
+    );
     let Some(lss) =
         crate::api::category_split::fetch_split_resource_lss(app, category_split_id, updated_at)
             .await
