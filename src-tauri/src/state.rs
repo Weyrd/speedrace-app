@@ -1,5 +1,7 @@
 use crate::auth::token_store::UserData;
+use crate::counter::CounterBuffer;
 use crate::models::{AppState, LobbySetup, WsStatus};
+use std::collections::HashMap;
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +33,8 @@ pub struct GlobalState {
     pub wasm_attached: bool,
     pub livesplit_connected: bool,
     pub livesplit_splits_match: Option<bool>, // check if right split loaded
+    pub counter_config: Option<Vec<crate::api::counter_config::CounterConfig>>,
+    pub counter_buffers: HashMap<String, CounterBuffer>,
 }
 
 impl GlobalState {
@@ -57,6 +61,8 @@ impl GlobalState {
             wasm_attached: false,
             livesplit_connected: false,
             livesplit_splits_match: None,
+            counter_config: None,
+            counter_buffers: HashMap::new(),
         }
     }
 }

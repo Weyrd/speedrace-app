@@ -89,7 +89,16 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
             eprintln!("[autosplit] post_player_split: {e}");
         }
 
+        crate::counter::flush_counter_buffers(
+            &app,
+            &state,
+            &lobby_id,
+            Some(crate::api::counter_config::CounterCadence::PerSplit),
+        )
+        .await;
+
         if is_final {
+            crate::counter::flush_all_counter_buffers(&app, &state, &lobby_id).await;
             match api::lobby::post_player_finished(&app, &lobby_id, end_ms).await {
                 Ok(player_result) => {
                     {
@@ -103,9 +112,8 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
                     }
                     let _ = app.emit(WS_PLAYER_RESULT, player_result);
                     if let Some(w) = app.get_webview_window("main") {
-                        let _ = w.request_user_attention(Some(
-                            tauri::UserAttentionType::Informational,
-                        ));
+                        let _ =
+                            w.request_user_attention(Some(tauri::UserAttentionType::Informational));
                     }
                 }
                 Err(e) => eprintln!("[autosplit] post_player_finished: {e}"),

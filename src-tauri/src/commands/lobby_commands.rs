@@ -43,6 +43,7 @@ pub async fn finish_race(
     lobby_id: String,
     finishing_time_ms: u64,
 ) -> Result<(), String> {
+    crate::counter::flush_all_counter_buffers(app, state, &lobby_id).await;
     let result = api::lobby::post_player_finished(app, &lobby_id, finishing_time_ms).await?;
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
@@ -69,6 +70,7 @@ pub async fn send_player_forfeited(
     state: State<'_, SharedState>,
     lobby_id: String,
 ) -> Result<(), String> {
+    crate::counter::flush_all_counter_buffers(&app, state.inner(), &lobby_id).await;
     let result = api::lobby::post_player_forfeited(&app, &lobby_id).await?;
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
