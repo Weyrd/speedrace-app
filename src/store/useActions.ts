@@ -4,6 +4,7 @@ import { ActionType } from "./types";
 import {
   openLogin,
   logout,
+  retryConnection,
   sendStreamReady,
   sendStreamStopped,
   sendPlayerFinished,
@@ -25,6 +26,7 @@ export interface Actions {
   finish(lobbyId: string, finishingTimeMs: number): Promise<void>;
   forfeit(lobbyId: string): Promise<void>;
   newRace(): Promise<void>;
+  retryConnection(): Promise<void>;
 }
 
 export function useActions(): Actions {
@@ -88,6 +90,11 @@ export function useActions(): Actions {
         const { error } = await tryCatch(acknowledgeResults());
         if (error) console.error("[race] acknowledge_results error", error);
         dispatch({ type: ActionType.NewRace });
+      },
+
+      async retryConnection() {
+        const { error } = await tryCatch(retryConnection());
+        if (error) console.error("[ws] retry_connection error", error);
       },
     }),
     [dispatch, whipRef],

@@ -12,6 +12,13 @@ pub fn get_app_state(state: State<SharedState>) -> Result<AppState, String> {
 }
 
 #[tauri::command]
+pub async fn retry_connection(app: AppHandle, state: State<'_, SharedState>) -> Result<(), String> {
+    let state = state.inner().clone();
+    crate::ws::client::retry_once(app, state).await;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn open_login(app: AppHandle) -> Result<(), LoginError> {
     open_browser_login(&app)
 }

@@ -53,6 +53,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.autosplitter_cancel.store(false, Ordering::SeqCst);
                 guard.app_state = AppState::StreamSetup;
                 guard.lobby = Some(payload.clone());
+                guard.pending_finish = None;
                 guard.last_autosplit_reported = None;
                 guard.autosplit_source = None;
                 guard.wasm_attached = false;
@@ -108,6 +109,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.app_state = AppState::Idle;
                 guard.lobby = None;
                 guard.race_start_at = None;
+                guard.pending_finish = None;
                 guard.split_run = None;
                 guard.current_split_index = 0;
                 guard.segment_start_ms = 0;
@@ -122,6 +124,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 let mut guard = state.lock().unwrap();
                 guard.app_state = AppState::Finished;
                 guard.race_start_at = None;
+                guard.pending_finish = None;
             }
             let _ = app.emit(WS_PLAYER_RESULT, payload);
         }

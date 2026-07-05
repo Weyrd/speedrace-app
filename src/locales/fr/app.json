@@ -60,6 +60,16 @@
     "clock_syncing": "Synchronisation de l'horloge...",
     "clock_unknown": "Horloge serveur non synchronisée\nCliquer pour synchroniser"
   },
+  "server_unavailable": {
+    "title": "Serveur indisponible",
+    "description": "Momentum ne parvient pas à joindre le serveur.\nIl est peut-être en maintenance ou en cours de mise à jour.\nRéessaie dans quelques minutes.",
+    "retry": "Réessayer"
+  },
+  "banned": {
+    "title": "Compte banni",
+    "description": "Ton compte a été banni.\nContacte un administrateur si tu penses qu'il s'agit d'une erreur.",
+    "logout": "Se déconnecter"
+  },
   "tray_hint": {
     "title": "Toujours actif",
     "message": "Momentum continue de tourner dans la barre.\nClique sur l'icône pour le rouvrir,\nou utilise le bouton fermer pour quitter."
