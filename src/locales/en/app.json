@@ -58,7 +58,8 @@
     "open_lobby": "Open lobby in browser",
     "clock_synced": "Server clock offset: {{offset}}\nClick to resync",
     "clock_syncing": "Syncing clock...",
-    "clock_unknown": "Server clock not synced\nClick to sync"
+    "clock_unknown": "Server clock not synced\nClick to sync",
+    "clock_cooldown": "Server clock offset: {{offset}}\nResync available in {{seconds}}s"
   },
   "server_unavailable": {
     "title": "Server unavailable",

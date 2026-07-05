@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useWhipRef } from "./AppContext";
 import { ActionType, Phase } from "./types";
 import { AuthState, PlayerStatus, type WsStatus } from "../types";
-import { ensureClockFresh } from "../hooks/useClockOffset";
+import { ensureClockFresh, resyncClock } from "../hooks/useClockOffset";
 import { playSound, primeCountdown, Sound } from "../lib/sound";
 
 const COUNTDOWN_SOUNDS = [
@@ -78,6 +78,7 @@ export function AppEventBridge(): null {
       }),
 
       onLobbyStart((payload) => {
+        void resyncClock(qc);
         dispatch({
           type: ActionType.LobbyStart,
           raceStartAt: payload.race_start_at,
