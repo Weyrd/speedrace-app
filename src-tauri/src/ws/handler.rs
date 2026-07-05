@@ -194,6 +194,23 @@ pub fn init_lobby_resources(
     }
 }
 
+pub(crate) fn resume_lobby_resources(
+    app: &AppHandle,
+    state: &SharedState,
+    lobby: &crate::models::LobbySetup,
+) {
+    let has_resources = state.lock().unwrap().split_run.is_some();
+    if has_resources {
+        let app = app.clone();
+        let state = state.clone();
+        tauri::async_runtime::spawn(async move {
+            start_autosplitter(app, state).await;
+        });
+    } else {
+        init_lobby_resources(app, state, lobby);
+    }
+}
+
 async fn start_autosplitter(app: AppHandle, state: SharedState) {
     let (has_wasm, cancel) = {
         let g = state.lock().unwrap();
