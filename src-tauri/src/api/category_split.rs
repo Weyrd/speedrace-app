@@ -2,6 +2,7 @@ use serde::Deserialize;
 use tauri::AppHandle;
 
 use crate::config;
+use crate::logging::{mlog, LogCat};
 
 use super::cache::{cache_paths, CacheKind};
 use super::client::authed_get_json;
@@ -32,7 +33,7 @@ pub async fn fetch_split_resource_lss(
         if let Ok(cached_stamp) = std::fs::read_to_string(&stamp_path) {
             if cached_stamp.trim() == payload_updated_at {
                 return std::fs::read_to_string(&cache_path)
-                    .map_err(|e| eprintln!("[split] cache read error: {e}"))
+                    .map_err(|e| mlog!(LogCat::Autosplit, "[split] cache read error: {e}"))
                     .ok();
             }
         }
@@ -48,7 +49,7 @@ pub async fn fetch_split_resource_lss(
         let _ = std::fs::create_dir_all(parent);
     }
     if let Err(e) = std::fs::write(&cache_path, &content) {
-        eprintln!("[split] cache write error: {e}");
+        mlog!(LogCat::Autosplit, "[split] cache write error: {e}");
     }
     let _ = std::fs::write(&stamp_path, &stamp);
 

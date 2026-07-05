@@ -1,4 +1,5 @@
 use crate::api;
+use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::SharedState;
 use tauri::Emitter;
@@ -28,11 +29,20 @@ pub async fn send_stream_stopped(
     state: State<'_, SharedState>,
     app: AppHandle,
 ) -> Result<(), String> {
-    println!("[cmd] send_stream_stopped: POST stream-stopped for lobby {lobby_id}");
+    mlog!(
+        LogCat::Stream,
+        "[cmd] send_stream_stopped: POST stream-stopped for lobby {lobby_id}"
+    );
 
     match api::lobby::post_stream_stopped(&app, &lobby_id).await {
-        Ok(()) => println!("[cmd] send_stream_stopped: back acknowledged (lobby {lobby_id})"),
-        Err(e) => eprintln!("[cmd] send_stream_stopped: POST failed (lobby {lobby_id}): {e}"),
+        Ok(()) => mlog!(
+            LogCat::Stream,
+            "[cmd] send_stream_stopped: back acknowledged (lobby {lobby_id})"
+        ),
+        Err(e) => mlog!(
+            LogCat::Stream,
+            "[cmd] send_stream_stopped: POST failed (lobby {lobby_id}): {e}"
+        ),
     }
 
     {

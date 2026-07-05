@@ -2,6 +2,7 @@ use crate::api::client::ApiResponse;
 use crate::auth::token_store::{StoredAuth, TokenStore, Tokens, UserData};
 use crate::config;
 use crate::events::AUTH_STATE;
+use crate::logging::{mlog, LogCat};
 use crate::models::{AuthStatePayload, AuthUser, LoginError};
 use crate::state::SharedState;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
@@ -16,9 +17,9 @@ use url::Url;
 static PENDING_PKCE_VERIFIER: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn emit_auth_state(app: &AppHandle, payload: AuthStatePayload) {
-    eprintln!("[auth] emitting auth:state → {:?}", payload);
+    mlog!(LogCat::Auth, "[auth] emitting auth:state → {:?}", payload);
     let result = app.emit(AUTH_STATE, payload);
-    eprintln!("[auth] emit result: {:?}", result);
+    mlog!(LogCat::Auth, "[auth] emit result: {:?}", result);
 }
 
 pub fn open_browser_login(app: &AppHandle) -> Result<(), LoginError> {
@@ -27,7 +28,10 @@ pub fn open_browser_login(app: &AppHandle) -> Result<(), LoginError> {
             .lock()
             .map_err(|e| LoginError::System(e.to_string()))?;
         if pending.is_some() {
-            eprintln!("[auth] login already in progress, cancelling and starting new login");
+            mlog!(
+                LogCat::Auth,
+                "[auth] login already in progress, cancelling and starting new login"
+            );
             drop(pending);
             clear_pending_verifier();
         }
@@ -44,7 +48,7 @@ pub fn open_browser_login(app: &AppHandle) -> Result<(), LoginError> {
 
     let url = build_auth_url(&pkce.code_challenge).map_err(LoginError::System)?;
 
-    eprintln!("[auth] opening browser login: {url}");
+    mlog!(LogCat::Auth, "[auth] opening browser login: {url}");
 
     app.opener()
         .open_url(&url, None::<String>)
@@ -52,12 +56,15 @@ pub fn open_browser_login(app: &AppHandle) -> Result<(), LoginError> {
 }
 
 pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedState) {
-    eprintln!("[auth] handle_callback called with url: {url}");
+    mlog!(
+        LogCat::Auth,
+        "[auth] handle_callback called with url: {url}"
+    );
 
     let params = parse_query_params(&url);
 
     if let Some(error) = params.get("error") {
-        eprintln!("[auth] OAuth error in callback: {error}");
+        mlog!(LogCat::Auth, "[auth] OAuth error in callback: {error}");
         clear_pending_verifier();
         emit_auth_state(&app, AuthStatePayload::Unauthenticated);
         return;
@@ -66,46 +73,59 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
     let auth_code = match params.get("code") {
         Some(c) => c.clone(),
         None => {
-            eprintln!("[auth] deep link received but no code: {url}");
+            mlog!(LogCat::Auth, "[auth] deep link received but no code: {url}");
             clear_pending_verifier();
             emit_auth_state(&app, AuthStatePayload::Unauthenticated);
             return;
         }
     };
 
-    eprintln!("[auth] got auth code, consuming PKCE verifier...");
+    mlog!(
+        LogCat::Auth,
+        "[auth] got auth code, consuming PKCE verifier..."
+    );
 
     let code_verifier = {
         let mut pending = match PENDING_PKCE_VERIFIER.lock() {
             Ok(g) => g,
             Err(e) => {
-                eprintln!("[auth] PKCE lock poisoned: {e}");
+                mlog!(LogCat::Auth, "[auth] PKCE lock poisoned: {e}");
                 return;
             }
         };
         match pending.take() {
             Some(v) => v,
             None => {
-                eprintln!("[auth] no pending PKCE verifier - possible replay attack, ignoring");
+                mlog!(
+                    LogCat::Auth,
+                    "[auth] no pending PKCE verifier - possible replay attack, ignoring"
+                );
                 return;
             }
         }
     };
 
-    eprintln!("[auth] exchanging code for tokens...");
+    mlog!(LogCat::Auth, "[auth] exchanging code for tokens...");
 
     match exchange_code(auth_code, code_verifier).await {
         Ok(stored) => {
-            eprintln!("[auth] token exchange OK, user: {}", stored.user.username);
+            mlog!(
+                LogCat::Auth,
+                "[auth] token exchange OK, user: {}",
+                stored.user.username
+            );
 
             let store = TokenStore::new(app.clone());
             if let Err(e) = store.save(&stored) {
-                eprintln!("[auth] token store save error: {e}");
+                mlog!(LogCat::Auth, "[auth] token store save error: {e}");
                 emit_auth_state(&app, AuthStatePayload::Unauthenticated);
                 return;
             }
 
-            eprintln!("[auth] tokens saved, updating shared state...");
+            mlog!(
+                LogCat::Auth,
+                "[auth] tokens saved, updating shared state..."
+            );
 
             {
                 let mut guard = shared_state.lock().unwrap();
@@ -113,7 +133,8 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
                 guard.app_state = crate::models::AppState::Connecting;
             }
 
-            eprintln!(
+            mlog!(
+                LogCat::Auth,
                 "[auth] emitting authenticated state for user: {}",
                 stored.user.username
             );
@@ -142,7 +163,7 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
         }
 
         Err(e) => {
-            eprintln!("[auth] token exchange failed: {e}");
+            mlog!(LogCat::Auth, "[auth] token exchange failed: {e}");
             emit_auth_state(&app, AuthStatePayload::Unauthenticated);
         }
     }
