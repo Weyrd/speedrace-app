@@ -21,6 +21,10 @@ export async function logout(): Promise<void> {
   return invoke("logout");
 }
 
+export async function retryConnection(): Promise<void> {
+  return invoke("retry_connection");
+}
+
 export async function sendStreamReady(lobbyId: string): Promise<void> {
   return invoke("send_stream_ready", { lobbyId });
 }

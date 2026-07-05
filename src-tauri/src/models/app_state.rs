@@ -10,6 +10,8 @@ pub enum AppState {
     WaitingForStart,
     RaceInProgress,
     Finished,
+    ServerUnavailable,
+    Banned,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

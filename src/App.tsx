@@ -9,6 +9,8 @@ import StreamSetup from "./components/StreamSetup";
 import WaitingForStart from "./components/WaitingForStart";
 import Racing from "./components/Racing";
 import Finished from "./components/Finished";
+import ServerUnavailable from "./components/ServerUnavailable";
+import Banned from "./components/Banned";
 import { DevToolbar } from "./store/dev/DevToolbar";
 import Footer from "./components/Footer";
 import { UpdateChecker } from "./components/UpdateChecker";
@@ -55,6 +57,10 @@ export default function App() {
         return <Racing />;
       case Phase.Finished:
         return <Finished />;
+      case Phase.ServerUnavailable:
+        return <ServerUnavailable />;
+      case Phase.Banned:
+        return <Banned />;
       default:
         return null;
     }

@@ -38,6 +38,8 @@ export const Phase = {
   WaitingForStart: "WaitingForStart",
   RaceInProgress: "RaceInProgress",
   Finished: "Finished",
+  ServerUnavailable: "ServerUnavailable",
+  Banned: "Banned",
 } as const;
 export type Phase = (typeof Phase)[keyof typeof Phase];
 
@@ -77,7 +79,9 @@ export type AppState =
       user: User;
       wsStatus: WsStatus;
       result: PlayerResult;
-    };
+    }
+  | { phase: typeof Phase.ServerUnavailable }
+  | { phase: typeof Phase.Banned };
 
 export const ActionType = {
   LoginStart: "LOGIN_START",
@@ -94,6 +98,8 @@ export const ActionType = {
   NewRace: "NEW_RACE",
   AutosplitStatus: "AUTOSPLIT_STATUS",
   SplitFired: "SPLIT_FIRED",
+  ServerUnavailable: "SERVER_UNAVAILABLE",
+  Banned: "BANNED",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 
@@ -111,4 +117,6 @@ export type AppAction =
   | { type: typeof ActionType.StreamStopped }
   | { type: typeof ActionType.NewRace }
   | { type: typeof ActionType.AutosplitStatus; status: AutosplitState }
-  | { type: typeof ActionType.SplitFired; index: number; segmentMs: number; newStartMs: number };
+  | { type: typeof ActionType.SplitFired; index: number; segmentMs: number; newStartMs: number }
+  | { type: typeof ActionType.ServerUnavailable }
+  | { type: typeof ActionType.Banned };
