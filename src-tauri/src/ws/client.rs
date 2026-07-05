@@ -11,7 +11,7 @@ use crate::auth::token_store::TokenStore;
 use crate::config;
 use crate::events::{APP_STATE, WS_LOBBY_SETUP, WS_STATUS};
 use crate::logging::{mlog, LogCat};
-use crate::models::{AppState, AuthStatePayload, AuthUser, LobbyStatus, WsStatus};
+use crate::models::{AppState, AuthStatePayload, AuthUser, LobbyStatus, PlayerStatus, WsStatus};
 use crate::state::SharedState;
 
 const CLOSE_AUTH_INVALID: u16 = 4001;
@@ -176,15 +176,27 @@ async fn announce_connection(app: &AppHandle, state: &SharedState) {
 
     let current = fetch_current_lobby(app).await;
     if let Some(lobby_resp) = current {
+        let player_done = matches!(
+            lobby_resp.player_status,
+            PlayerStatus::Finished | PlayerStatus::Forfeited
+        );
         let new_app_state;
         {
             let mut guard = state.lock().unwrap();
-            guard.app_state = LobbyStatus::to_app_state(&lobby_resp.lobby_status);
+            guard.app_state = if player_done {
+                AppState::Finished
+            } else {
+                LobbyStatus::to_app_state(&lobby_resp.lobby_status)
+            };
+            guard.race_start_at = lobby_resp.race_start_at;
             guard.lobby = Some(lobby_resp.clone());
             new_app_state = guard.app_state.clone();
         }
         let _ = app.emit(APP_STATE, &new_app_state);
         let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp);
+        if !player_done {
+            crate::ws::handler::resume_lobby_resources(app, state, &lobby_resp);
+        }
     } else {
         let mut guard = state.lock().unwrap();
         if guard.app_state != AppState::Unauthenticated {
