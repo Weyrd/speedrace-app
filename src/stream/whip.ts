@@ -11,6 +11,8 @@
  * ffpeg can  whip stream? AND save in the same time?
  */
 
+import { tryCatch } from "../lib/tryCatch";
+
 export class WhipClient {
   private pc: RTCPeerConnection | null = null;
   private resourceUrl: string | null = null;
@@ -79,11 +81,8 @@ export class WhipClient {
     // server origin so the DELETE goes to MediaMTX, not the page origin.
     const location = res.headers.get("Location");
     if (location) {
-      try {
-        this.resourceUrl = new URL(location, whipUrl).toString();
-      } catch {
-        this.resourceUrl = location;
-      }
+      const { data } = tryCatch(() => new URL(location, whipUrl).toString());
+      this.resourceUrl = data ?? location;
     }
 
     const answerSdp = await res.text();

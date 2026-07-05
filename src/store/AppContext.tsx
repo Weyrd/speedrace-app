@@ -12,6 +12,7 @@ import { appReducer, initialState } from "./appReducer";
 import { ActionType, type AppState, type AppAction } from "./types";
 import { AppEventBridge } from "./AppEventBridge";
 import { getCurrentUser, getLobbyState } from "../lib/commands";
+import { tryCatch } from "../lib/tryCatch";
 import type { WhipClient } from "../stream/whip";
 
 const AppStateContext = createContext<AppState>(initialState);
@@ -40,29 +41,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function hydrate() {
-      try {
-        const [user, clientState] = await Promise.all([
-          getCurrentUser(),
-          getLobbyState(),
-        ]);
+      const { data, error } = await tryCatch(
+        Promise.all([getCurrentUser(), getLobbyState()]),
+      );
+      if (error) return; // App starts unauthenticated
+      if (cancelled) return;
 
-        if (cancelled) return;
-
-        if (user) {
-          dispatch({ type: ActionType.AuthOk, user });
-          if (clientState.lobby) {
-            dispatch({
-              type: ActionType.LobbySetup,
-              lobby: clientState.lobby,
-            });
-            dispatch({
-              type: ActionType.AutosplitStatus,
-              status: clientState.autosplit,
-            });
-          }
+      const [user, clientState] = data;
+      if (user) {
+        dispatch({ type: ActionType.AuthOk, user });
+        if (clientState.lobby) {
+          dispatch({
+            type: ActionType.LobbySetup,
+            lobby: clientState.lobby,
+          });
+          dispatch({
+            type: ActionType.AutosplitStatus,
+            status: clientState.autosplit,
+          });
         }
-      } catch {
-        // App starts unauthenticated
       }
     }
 

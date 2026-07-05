@@ -11,6 +11,7 @@ import {
   acknowledgeResults,
 } from "../lib/commands";
 import type { WhipClient } from "../stream/whip";
+import { tryCatch } from "../lib/tryCatch";
 
 export interface Actions {
   login(): Promise<void>;
@@ -34,10 +35,9 @@ export function useActions(): Actions {
     (): Actions => ({
       async login() {
         dispatch({ type: ActionType.LoginStart });
-        try {
-          await openLogin();
-        } catch (e) {
-          const err = e as { type?: string; message?: string };
+        const { error } = await tryCatch(openLogin());
+        if (error) {
+          const err = error as { type?: string; message?: string };
           console.error("[auth] open_login error", err.message || err);
           dispatch({ type: ActionType.AuthFail });
         }
@@ -47,11 +47,8 @@ export function useActions(): Actions {
         whipRef.current?.stop();
         whipRef.current = null;
         dispatch({ type: ActionType.Logout });
-        try {
-          await logout();
-        } catch (e) {
-          console.error("[auth] logout error", e);
-        }
+        const { error } = await tryCatch(logout());
+        if (error) console.error("[auth] logout error", error);
       },
 
       async streamReady(
@@ -60,49 +57,36 @@ export function useActions(): Actions {
         lobbyId: string,
       ) {
         whipRef.current = client;
-        try {
-          await sendStreamReady(lobbyId);
-        } catch (e) {
-          console.error("[stream] send_stream_ready error", e);
-        }
+        const { error } = await tryCatch(sendStreamReady(lobbyId));
+        if (error) console.error("[stream] send_stream_ready error", error);
         dispatch({ type: ActionType.StreamReady, stream });
       },
 
       async stopStream(lobbyId: string) {
         whipRef.current?.stop();
         whipRef.current = null;
-        try {
-          await sendStreamStopped(lobbyId);
-        } catch (e) {
-          console.error("[stream] send_stream_stopped error", e);
-        }
+        const { error } = await tryCatch(sendStreamStopped(lobbyId));
+        if (error) console.error("[stream] send_stream_stopped error", error);
         dispatch({ type: ActionType.StreamStopped });
       },
 
       async finish(lobbyId: string, finishingTimeMs: number) {
-        try {
-          await sendPlayerFinished(lobbyId, finishingTimeMs);
-        } catch (e) {
-          console.error("[race] send_player_finished error", e);
-        }
+        const { error } = await tryCatch(
+          sendPlayerFinished(lobbyId, finishingTimeMs),
+        );
+        if (error) console.error("[race] send_player_finished error", error);
       },
 
       async forfeit(lobbyId: string) {
         whipRef.current?.stop();
         whipRef.current = null;
-        try {
-          await sendPlayerForfeited(lobbyId);
-        } catch (e) {
-          console.error("[race] send_player_forfeited error", e);
-        }
+        const { error } = await tryCatch(sendPlayerForfeited(lobbyId));
+        if (error) console.error("[race] send_player_forfeited error", error);
       },
 
       async newRace() {
-        try {
-          await acknowledgeResults();
-        } catch (e) {
-          console.error("[race] acknowledge_results error", e);
-        }
+        const { error } = await tryCatch(acknowledgeResults());
+        if (error) console.error("[race] acknowledge_results error", error);
         dispatch({ type: ActionType.NewRace });
       },
     }),

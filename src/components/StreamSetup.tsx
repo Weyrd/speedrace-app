@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import { WhipClient } from "../stream/whip";
+import { tryCatch } from "../lib/tryCatch";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
 import { Button } from "./ui/button";
@@ -28,25 +29,28 @@ export default function StreamSetup() {
   const startPreview = useCallback(async () => {
     stopPreview();
     setError(null);
-    try {
-      const media = await navigator.mediaDevices.getDisplayMedia({
+    const { data: media, error } = await tryCatch(
+      navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 50 }, // TODO: v2 make configurable
         audio: true,
-      });
-      streamRef.current = media;
-      if (videoRef.current) videoRef.current.srcObject = media;
-      media.getVideoTracks()[0].addEventListener("ended", () => {
-        setIsPreviewing(false);
-        streamRef.current = null;
-      });
-      setIsPreviewing(true);
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "NotAllowedError") return;
+      }),
+    );
+    if (error) {
+      if (error instanceof DOMException && error.name === "NotAllowedError")
+        return;
       setError(
         t("stream.error_source") +
-          (e instanceof Error ? ` (${e.message})` : ""),
+          (error instanceof Error ? ` (${error.message})` : ""),
       );
+      return;
     }
+    streamRef.current = media;
+    if (videoRef.current) videoRef.current.srcObject = media;
+    media.getVideoTracks()[0].addEventListener("ended", () => {
+      setIsPreviewing(false);
+      streamRef.current = null;
+    });
+    setIsPreviewing(true);
   }, [stopPreview, t]);
 
   const handlePublish = useCallback(async () => {
@@ -54,14 +58,19 @@ export default function StreamSetup() {
     setIsPublishing(true);
     setError(null);
     const client = new WhipClient();
-    try {
-      await client.start(lobby.whip_url, streamRef.current);
-      await actions.streamReady(client, streamRef.current, lobby.lobby_id); // pass stream
-      streamRef.current = null;
-    } catch (e) {
-      console.error("[stream] WHIP publish error", e);
+    const { error } = await tryCatch(
+      (async () => {
+        await client.start(lobby.whip_url, streamRef.current!);
+        await actions.streamReady(client, streamRef.current!, lobby.lobby_id); // pass stream
+        streamRef.current = null;
+      })(),
+    );
+    if (error) {
+      console.error("[stream] WHIP publish error", error);
       client.stop();
-      setError(e instanceof Error ? e.message : t("stream.error_connection"));
+      setError(
+        error instanceof Error ? error.message : t("stream.error_connection"),
+      );
       setIsPublishing(false);
     }
   }, [actions, state, t]);
