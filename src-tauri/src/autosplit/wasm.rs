@@ -1,4 +1,5 @@
 use crate::autosplit::timer::MomentumTimer;
+use crate::logging::{mlog, LogCat};
 use crate::state::SharedState;
 use livesplit_auto_splitting::{settings, AutoSplitter, CompiledAutoSplitter, Config, Runtime};
 use std::sync::{
@@ -14,8 +15,12 @@ pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_
     let bytes = crate::api::autosplitter::fetch_game_autosplitter(app, game_id, updated_at).await;
     let mut guard = state.lock().unwrap();
     match &bytes {
-        Some(b) => eprintln!("[wasm] cached {} bytes for game {game_id}", b.len()),
-        None => eprintln!("[wasm] no autosplitter for game {game_id}"),
+        Some(b) => mlog!(
+            LogCat::Wasm,
+            "[wasm] cached {} bytes for game {game_id}",
+            b.len()
+        ),
+        None => mlog!(LogCat::Wasm, "[wasm] no autosplitter for game {game_id}"),
     }
     guard.autosplitter_wasm = bytes;
 }
@@ -38,14 +43,14 @@ pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) 
     let runtime = match Runtime::new(cfg) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("[wasm] Runtime::new error: {e}");
+            mlog!(LogCat::Wasm, "[wasm] Runtime::new error: {e}");
             return false;
         }
     };
     let compiled = match runtime.compile(&wasm) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("[wasm] compile error: {e}");
+            mlog!(LogCat::Wasm, "[wasm] compile error: {e}");
             return false;
         }
     };
@@ -54,7 +59,7 @@ pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) 
         return false;
     };
 
-    eprintln!("[wasm] started");
+    mlog!(LogCat::Wasm, "[wasm] started");
     tauri::async_runtime::spawn(async move {
         supervise(compiled, splitter, app, state, cancel).await;
     });
@@ -91,7 +96,7 @@ fn instantiate(
             Some(s)
         }
         Err(e) => {
-            eprintln!("[wasm] instantiate error: {e}");
+            mlog!(LogCat::Wasm, "[wasm] instantiate error: {e}");
             None
         }
     }
@@ -118,7 +123,7 @@ async fn supervise(
             if let Some(map) = build_settings_map(&state) {
                 splitter.set_settings_map(map);
                 settings_pushed = true;
-                eprintln!("[wasm] autosplitter settings pushed");
+                mlog!(LogCat::Wasm, "[wasm] autosplitter settings pushed");
             }
         }
 
@@ -155,7 +160,7 @@ async fn supervise(
                 sleep(tick_rate).await;
             }
             Tick::Trapped => {
-                eprintln!("[wasm] update trapped, re-instantiating");
+                mlog!(LogCat::Wasm, "[wasm] update trapped, re-instantiating");
                 if last_attached != Some(false) {
                     last_attached = Some(false);
                     state.lock().unwrap().wasm_attached = false;
@@ -176,5 +181,5 @@ async fn supervise(
         guard.autosplitter_runtime = None;
     }
     crate::ws::handler::report_autosplit_state(&app, &state).await;
-    eprintln!("[wasm] supervisor stopped");
+    mlog!(LogCat::Wasm, "[wasm] supervisor stopped");
 }
