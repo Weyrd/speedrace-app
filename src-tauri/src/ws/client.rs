@@ -11,7 +11,7 @@ use crate::auth::token_store::TokenStore;
 use crate::config;
 use crate::events::{APP_STATE, WS_LOBBY_SETUP, WS_STATUS};
 use crate::logging::{mlog, LogCat};
-use crate::models::{AppState, AuthStatePayload, AuthUser, LobbyStatus, WsStatus};
+use crate::models::{AppState, AuthStatePayload, AuthUser, LobbyStatus, PlayerStatus, WsStatus};
 use crate::state::SharedState;
 
 // Server close codes that distinguish an auth rejection from a transient drop.
@@ -179,15 +179,31 @@ async fn announce_connection(app: &AppHandle, state: &SharedState) {
 
     let current = fetch_current_lobby(app).await;
     if let Some(lobby_resp) = current {
+        // A done player stays on results (an app crash forfeits instantly) — don't resurrect
+        // them to Racing or restart their autosplitter.
+        let player_done = matches!(
+            lobby_resp.player_status,
+            PlayerStatus::Finished | PlayerStatus::Forfeited
+        );
         let new_app_state;
         {
             let mut guard = state.lock().unwrap();
-            guard.app_state = LobbyStatus::to_app_state(&lobby_resp.lobby_status);
+            guard.app_state = if player_done {
+                AppState::Finished
+            } else {
+                LobbyStatus::to_app_state(&lobby_resp.lobby_status)
+            };
+            guard.race_start_at = lobby_resp.race_start_at;
             guard.lobby = Some(lobby_resp.clone());
             new_app_state = guard.app_state.clone();
         }
         let _ = app.emit(APP_STATE, &new_app_state);
         let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp);
+        // The app survived the drop, so split position + committed source are intact in
+        // memory; restart only the dead supervisors without rewinding them.
+        if !player_done {
+            crate::ws::handler::resume_lobby_resources(app, state, &lobby_resp);
+        }
     } else {
         // No active lobby (deleted or expired while disconnected) - reset to Idle
         let mut guard = state.lock().unwrap();
