@@ -1,10 +1,9 @@
 use crate::api;
-use crate::events::{SPLIT_FIRED, WS_PLAYER_RESULT};
+use crate::events::SPLIT_FIRED;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::{AutosplitSource, SharedState};
-use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 #[derive(serde::Serialize, Clone)]
 struct SplitFiredPayload {
@@ -100,28 +99,8 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
         .await;
 
         if is_final {
-            // Flush everything (incl. EndOnly + the final split) before the archiving finish POST.
-            crate::counter::flush_all_counter_buffers(&app, &state, &lobby_id).await;
-            match api::lobby::post_player_finished(&app, &lobby_id, end_ms).await {
-                Ok(player_result) => {
-                    {
-                        let mut guard = match state.lock() {
-                            Ok(g) => g,
-                            Err(_) => return,
-                        };
-                        guard.app_state = AppState::Finished;
-                        guard.race_start_at = None;
-                        guard.autosplitter_cancel.store(true, Ordering::SeqCst);
-                    }
-                    let _ = app.emit(WS_PLAYER_RESULT, player_result);
-                    // Don't steal focus from the game on auto-finish; flash the taskbar instead.
-                    if let Some(w) = app.get_webview_window("main") {
-                        let _ =
-                            w.request_user_attention(Some(tauri::UserAttentionType::Informational));
-                    }
-                }
-                Err(e) => mlog!(LogCat::Autosplit, "[autosplit] post_player_finished: {e}"),
-            }
+            // Durable: retried until the back acks, so a mid-race outage can't lose the result.
+            crate::commands::lobby_commands::start_durable_finish(&app, &state, lobby_id, end_ms);
         }
     });
 }

@@ -29,7 +29,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case ActionType.AuthOk: {
       if (
         state.phase !== Phase.Unauthenticated &&
-        state.phase !== Phase.Connecting
+        state.phase !== Phase.Connecting &&
+        state.phase !== Phase.ServerUnavailable
       )
         return state;
       return {
@@ -132,11 +133,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case ActionType.PlayerResult: {
-      if (state.phase !== Phase.RaceInProgress) return state;
+      // Idle is allowed so a durable finish that lands after a maintenance-screen
+      // recovery (ServerUnavailable -> AuthOk -> Idle) still shows the result.
+      if (state.phase !== Phase.RaceInProgress && state.phase !== Phase.Idle)
+        return state;
+      const s = state as Extract<AppState, { user: User; wsStatus: WsStatus }>;
       return {
         phase: Phase.Finished,
-        user: state.user,
-        wsStatus: state.wsStatus,
+        user: s.user,
+        wsStatus: s.wsStatus,
         result: action.result,
       };
     }
@@ -179,6 +184,17 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         completedSegmentTimes: times,
         currentSegmentStartMs: action.newStartMs,
       };
+    }
+
+    // Connection-level terminal states from the WS backend, valid from any phase.
+    case ActionType.ServerUnavailable: {
+      if (state.phase === Phase.ServerUnavailable) return state;
+      return { phase: Phase.ServerUnavailable };
+    }
+
+    case ActionType.Banned: {
+      if (state.phase === Phase.Banned) return state;
+      return { phase: Phase.Banned };
     }
 
     default:

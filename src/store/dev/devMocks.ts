@@ -72,4 +72,8 @@ export const MOCK_PHASE_ACTIONS: Record<Phase, () => AppAction[]> = {
       },
     },
   ],
+
+  [Phase.ServerUnavailable]: () => [{ type: ActionType.ServerUnavailable }],
+
+  [Phase.Banned]: () => [{ type: ActionType.Banned }],
 };

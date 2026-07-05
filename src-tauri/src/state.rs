@@ -10,6 +10,14 @@ pub enum AutosplitSource {
     LiveSplit,
 }
 
+// A finish awaiting confirmation from the back; retried until acked so a mid-race
+// backend outage can't lose a result.
+#[derive(Debug, Clone)]
+pub struct PendingFinish {
+    pub lobby_id: String,
+    pub finishing_time_ms: u64,
+}
+
 pub struct GlobalState {
     pub app_state: AppState,
     pub user: Option<UserData>,
@@ -35,6 +43,8 @@ pub struct GlobalState {
     pub livesplit_splits_match: Option<bool>, // check if right split loaded
     pub counter_config: Option<Vec<crate::api::counter_config::CounterConfig>>,
     pub counter_buffers: HashMap<String, CounterBuffer>,
+    pub pending_finish: Option<PendingFinish>,
+    pub finish_retry_running: bool,
 }
 
 impl GlobalState {
@@ -63,6 +73,8 @@ impl GlobalState {
             livesplit_splits_match: None,
             counter_config: None,
             counter_buffers: HashMap::new(),
+            pending_finish: None,
+            finish_retry_running: false,
         }
     }
 }

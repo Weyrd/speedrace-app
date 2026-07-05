@@ -160,36 +160,45 @@ pub async fn authed_post_body_void<B: Serialize>(
     Some(())
 }
 
-/// POST with JSON body, parses JSON response envelope.
-pub async fn authed_post_body_json<B: Serialize, R: DeserializeOwned>(
+pub enum PostOutcome<R> {
+    Ok(R),
+    Rejected,  // 4xx: won't change on retry (already done / gone / bad request)
+    Transient, // network error, 5xx, or no token yet: worth retrying
+}
+
+pub async fn authed_post_body_json_outcome<B: Serialize, R: DeserializeOwned>(
     app: &AppHandle,
     path: &str,
     body: &B,
     log_tag: &str,
-) -> Option<R> {
+) -> PostOutcome<R> {
     let client = ApiClient::new(app);
-    let authed = client.authenticated()?;
-    let resp = authed
-        .post(path)
-        .json(body)
-        .send()
-        .await
-        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] post error: {e}"))
-        .ok()?;
-    if !resp.status().is_success() {
-        mlog!(
-            LogCat::Api,
-            "[{log_tag}] unexpected status: {}",
-            resp.status()
-        );
-        return None;
+    let Some(authed) = client.authenticated() else {
+        return PostOutcome::Transient; // no token yet; a refresh may restore it
+    };
+    let resp = match authed.post(path).json(body).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            mlog!(LogCat::Api, "[{log_tag}] post error: {e}");
+            return PostOutcome::Transient;
+        }
+    };
+    let status = resp.status();
+    if status.is_success() {
+        match resp.json::<ApiResponse<R>>().await {
+            Ok(b) => PostOutcome::Ok(b.data),
+            Err(e) => {
+                mlog!(LogCat::Api, "[{log_tag}] parse error: {e}");
+                PostOutcome::Transient
+            }
+        }
+    } else if status.is_server_error() {
+        mlog!(LogCat::Api, "[{log_tag}] server error: {status}");
+        PostOutcome::Transient
+    } else {
+        mlog!(LogCat::Api, "[{log_tag}] rejected: {status}");
+        PostOutcome::Rejected
     }
-    let body: ApiResponse<R> = resp
-        .json()
-        .await
-        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] parse error: {e}"))
-        .ok()?;
-    Some(body.data)
 }
 
 pub struct ApiClient {

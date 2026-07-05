@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch, useWhipRef } from "./AppContext";
-import { ActionType } from "./types";
+import { ActionType, Phase } from "./types";
 import { AuthState, PlayerStatus, type WsStatus } from "../types";
 import { ensureClockFresh } from "../hooks/useClockOffset";
 import { playSound, primeCountdown, Sound } from "../lib/sound";
@@ -14,6 +14,7 @@ const COUNTDOWN_SOUNDS = [
 ] as const;
 import {
   onAuthState,
+  onAppState,
   onWsStatus,
   onLobbySetup,
   onLobbyClosed,
@@ -44,6 +45,19 @@ export function AppEventBridge(): null {
 
       onWsStatus((ws_status: WsStatus) => {
         dispatch({ type: ActionType.WsStatus, ws_status: ws_status });
+      }),
+
+      // Only the connection-level terminal phases; other app:state emits are driven by dedicated events.
+      onAppState((phase) => {
+        if (phase === Phase.ServerUnavailable) {
+          whipRef.current?.stop();
+          whipRef.current = null;
+          dispatch({ type: ActionType.ServerUnavailable });
+        } else if (phase === Phase.Banned) {
+          whipRef.current?.stop();
+          whipRef.current = null;
+          dispatch({ type: ActionType.Banned });
+        }
       }),
 
       onLobbySetup((lobby) => {

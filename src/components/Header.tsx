@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Settings, ExternalLink, Clock, Loader2 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppState, Phase } from "../store";
+import { WsStatus } from "../types";
 import { Tooltip } from "./ui/Tooltip";
 import SettingsPanel from "./SettingsPanel";
 import { useClockOffset } from "../hooks/useClockOffset";
@@ -24,10 +25,16 @@ export default function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { offsetMs, isSynced, isSyncing, resync } = useClockOffset();
 
-  const isAuthenticated =
-    state.phase !== Phase.Unauthenticated && state.phase !== Phase.Connecting;
-  const username =
-    isAuthenticated && "user" in state ? state.user.username : null;
+  const username = "user" in state ? state.user.username : null;
+  const isAuthenticated = username != null;
+
+  const wsStatus = "wsStatus" in state ? state.wsStatus : undefined;
+  const dotColor =
+    wsStatus === WsStatus.Connected
+      ? "bg-green"
+      : wsStatus === WsStatus.Connecting
+        ? "bg-orange animate-pulse"
+        : "bg-red";
 
   const hasLobby = LOBBY_PHASES.has(state.phase);
   const lobbyCode = hasLobby && "lobby" in state ? state.lobby.code : null;
@@ -42,11 +49,9 @@ export default function Header() {
     <div className="px-4 py-3 flex items-center justify-between border-b border-border">
       {/* Left: connection status */}
       <span className="flex items-center gap-1.5">
-        <span
-          className={`w-2 h-2 rounded-full ${isAuthenticated ? "bg-green" : "bg-red"}`}
-        />
+        <span className={`w-2 h-2 rounded-full ${dotColor}`} />
         <span className="text-xs font-mono tracking-wide text-muted">
-          {isAuthenticated ? username : tCommon("not_logged")}
+          {username ?? tCommon("not_logged")}
         </span>
       </span>
 

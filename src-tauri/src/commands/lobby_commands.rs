@@ -1,9 +1,14 @@
 use crate::api;
+use crate::api::client::PostOutcome;
+use crate::api::lobby::PlayerResult;
 use crate::events::WS_PLAYER_RESULT;
+use crate::logging::{mlog, LogCat};
+use crate::models::lobby::PlayerStatus;
 use crate::models::{AppState, AutosplitState, ClientState};
-use crate::state::SharedState;
+use crate::state::{PendingFinish, SharedState};
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter, State};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[tauri::command]
 pub fn get_split_segments(state: State<SharedState>) -> Vec<String> {
@@ -37,20 +42,114 @@ pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String>
     })
 }
 
+// retry/queue if backend not availiable
+pub fn start_durable_finish(
+    app: &AppHandle,
+    state: &SharedState,
+    lobby_id: String,
+    finishing_time_ms: u64,
+) {
+    {
+        let mut guard = match state.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        guard.pending_finish = Some(PendingFinish {
+            lobby_id,
+            finishing_time_ms,
+        });
+        if guard.finish_retry_running {
+            return; // an existing task will pick up the pending finish
+        }
+        guard.finish_retry_running = true;
+    }
+    let app = app.clone();
+    let state = state.clone();
+    tauri::async_runtime::spawn(async move {
+        durable_finish_loop(app, state).await;
+    });
+}
+
+async fn durable_finish_loop(app: AppHandle, state: SharedState) {
+    let mut backoff = Duration::from_secs(crate::config::WS_RECONNECT_BASE_SECS);
+    while let Some(pending) = {
+        let g = state.lock().unwrap();
+        g.pending_finish.clone()
+    } {
+        // Ship buffered counters first so the acked attempt also archives them
+        crate::counter::flush_all_counter_buffers(&app, &state, &pending.lobby_id).await;
+
+        match api::lobby::submit_finish(&app, &pending.lobby_id, pending.finishing_time_ms).await {
+            PostOutcome::Ok(result) => {
+                finalize_finish(&app, &state, &pending.lobby_id, result);
+                break;
+            }
+            PostOutcome::Rejected => {
+                // Already recorded on the back
+                let result = PlayerResult {
+                    player_status: PlayerStatus::Finished,
+                    finishing_time_ms: Some(pending.finishing_time_ms),
+                    finish_position: None,
+                };
+                finalize_finish(&app, &state, &pending.lobby_id, result);
+                break;
+            }
+            PostOutcome::Transient => {
+                mlog!(
+                    LogCat::Api,
+                    "[finish] back unreachable, retrying in {backoff:?}"
+                );
+                tokio::time::sleep(backoff).await;
+                backoff =
+                    (backoff * 2).min(Duration::from_secs(crate::config::WS_RECONNECT_MAX_SECS));
+            }
+        }
+    }
+    if let Ok(mut g) = state.lock() {
+        g.finish_retry_running = false;
+    }
+}
+
+fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result: PlayerResult) {
+    let username;
+    {
+        let mut guard = match state.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        // Bail if a newer finish or a race-ending event superseded this one.
+        match &guard.pending_finish {
+            Some(p) if p.lobby_id == lobby_id => {}
+            _ => return,
+        }
+        guard.pending_finish = None;
+        guard.app_state = AppState::Finished;
+        guard.race_start_at = None;
+        guard.autosplitter_cancel.store(true, Ordering::SeqCst);
+        username = guard.user.as_ref().map(|u| u.username.clone());
+    }
+    // If a long outage bounced us to the maintenance screen got o idle before sending to keep reesult
+    if let Some(username) = username {
+        crate::auth::oauth::emit_auth_state(
+            app,
+            crate::models::AuthStatePayload::Authenticated {
+                user: crate::models::AuthUser { username },
+            },
+        );
+    }
+    let _ = app.emit(WS_PLAYER_RESULT, result);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.request_user_attention(Some(tauri::UserAttentionType::Informational));
+    }
+}
+
 pub async fn finish_race(
     app: &AppHandle,
     state: &SharedState,
     lobby_id: String,
     finishing_time_ms: u64,
 ) -> Result<(), String> {
-    crate::counter::flush_all_counter_buffers(app, state, &lobby_id).await;
-    let result = api::lobby::post_player_finished(app, &lobby_id, finishing_time_ms).await?;
-    {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
-        guard.app_state = AppState::Finished;
-        guard.race_start_at = None;
-    }
-    let _ = app.emit(WS_PLAYER_RESULT, result);
+    start_durable_finish(app, state, lobby_id, finishing_time_ms);
     Ok(())
 }
 

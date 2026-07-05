@@ -60,6 +60,16 @@
     "clock_syncing": "Syncing clock...",
     "clock_unknown": "Server clock not synced\nClick to sync"
   },
+  "server_unavailable": {
+    "title": "Server unavailable",
+    "description": "Momentum can't reach the server right now.\nIt may be down for maintenance or updating.\nTry again in a few minutes.",
+    "retry": "Retry"
+  },
+  "banned": {
+    "title": "Account banned",
+    "description": "Your account has been banned.\nContact an administrator if you think this is a mistake.",
+    "logout": "Log out"
+  },
   "tray_hint": {
     "title": "Still running",
     "message": "Momentum keeps running in the tray.\nClick the tray icon to bring it back,\nor use the close button to quit."

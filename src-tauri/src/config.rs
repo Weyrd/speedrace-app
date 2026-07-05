@@ -61,6 +61,8 @@ pub fn lobby_counter_path(lobby_id: &str) -> String {
 // WS reconnect - exponential back-off bounds
 pub const WS_RECONNECT_BASE_SECS: u64 = 1;
 pub const WS_RECONNECT_MAX_SECS: u64 = 30;
+// Consecutive transient failures before giving up and showing the maintenance screen
+pub const WS_MAX_RETRIES: u32 = 3;
 
 // OAuth grant type strings
 pub const GRANT_TYPE_AUTH_CODE: &str = "authorization_code";

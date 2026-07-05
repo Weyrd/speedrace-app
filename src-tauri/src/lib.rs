@@ -143,6 +143,7 @@ pub fn run() {
             commands::open_login,
             commands::get_current_user,
             commands::logout,
+            commands::retry_connection,
             commands::send_stream_ready,
             commands::send_stream_stopped,
             commands::get_lobby_state,

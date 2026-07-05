@@ -7,8 +7,8 @@ use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
 use super::client::{
-    authed_get_json, authed_post_body_json, authed_post_body_void, authed_post_returning,
-    authed_post_void,
+    authed_get_json, authed_post_body_json_outcome, authed_post_body_void, authed_post_returning,
+    authed_post_void, PostOutcome,
 };
 
 // finish/forfeit
@@ -122,19 +122,18 @@ struct FinishPlayerBody {
     finishing_time_ms: u64,
 }
 
-pub async fn post_player_finished(
+pub async fn submit_finish(
     app: &AppHandle,
     lobby_id: &str,
     finishing_time_ms: u64,
-) -> Result<PlayerResult, String> {
-    authed_post_body_json(
+) -> PostOutcome<PlayerResult> {
+    authed_post_body_json_outcome(
         app,
         &config::lobby_finish_path(lobby_id),
         &FinishPlayerBody { finishing_time_ms },
         "finished",
     )
     .await
-    .ok_or_else(|| "[api] post_player_finished failed".to_string())
 }
 
 pub async fn post_player_forfeited(
