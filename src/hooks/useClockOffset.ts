@@ -16,6 +16,15 @@ export function ensureClockFresh(qc: QueryClient) {
   });
 }
 
+// Force a fresh measurement (bypasses the Rust cache); updates every observer.
+export function resyncClock(qc: QueryClient) {
+  return qc.fetchQuery({
+    queryKey: CLOCK_KEY,
+    queryFn: () => syncClock(true),
+    staleTime: 0,
+  });
+}
+
 // Offset (ms) to add to local time; Rust owns caching, resync forces a refresh.
 export function useClockOffset() {
   const qc = useQueryClient();
@@ -27,15 +36,7 @@ export function useClockOffset() {
     gcTime: Infinity,
   });
 
-  const resync = useCallback(
-    () =>
-      qc.fetchQuery({
-        queryKey: CLOCK_KEY,
-        queryFn: () => syncClock(true),
-        staleTime: 0,
-      }),
-    [qc],
-  );
+  const resync = useCallback(() => resyncClock(qc), [qc]);
 
   return {
     offsetMs: query.data?.offset_ms ?? 0,

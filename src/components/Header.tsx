@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Settings, ExternalLink, Clock, Loader2 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -17,13 +17,30 @@ const LOBBY_PHASES: ReadonlySet<string> = new Set([
   Phase.RaceInProgress,
 ]);
 
+// Manual resync is rate-limited to once a minute (matches momentum-web).
+const CLOCK_RESYNC_COOLDOWN_MS = 60_000;
+
 export default function Header() {
   const state = useAppState();
   const { t: tCommon } = useTranslation("common");
   const { t: tApp } = useTranslation("app");
   const { t: tSettings } = useTranslation("settings");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const { offsetMs, isSynced, isSyncing, resync } = useClockOffset();
+  const { offsetMs, syncedAt, isSynced, isSyncing, resync } = useClockOffset();
+
+  const [now, setNow] = useState(() => Date.now());
+  const remainingMs = syncedAt
+    ? Math.max(0, syncedAt + CLOCK_RESYNC_COOLDOWN_MS - now)
+    : 0;
+  const onCooldown = remainingMs > 0;
+  const clockDisabled = isSyncing || onCooldown;
+
+  // Tick once a second only while the resync button is cooling down.
+  useEffect(() => {
+    if (!onCooldown) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [onCooldown]);
 
   const username = "user" in state ? state.user.username : null;
   const isAuthenticated = username != null;
@@ -61,11 +78,16 @@ export default function Header() {
           content={
             isSyncing
               ? tApp("header.clock_syncing")
-              : isSynced
-                ? tApp("header.clock_synced", {
+              : onCooldown
+                ? tApp("header.clock_cooldown", {
                     offset: formatOffset(offsetMs),
+                    seconds: Math.ceil(remainingMs / 1000),
                   })
-                : tApp("header.clock_unknown")
+                : isSynced
+                  ? tApp("header.clock_synced", {
+                      offset: formatOffset(offsetMs),
+                    })
+                  : tApp("header.clock_unknown")
           }
           side="bottom"
         >
@@ -73,7 +95,7 @@ export default function Header() {
             variant="ghost"
             size="icon"
             onClick={() => resync()}
-            disabled={isSyncing}
+            disabled={clockDisabled}
             className="gap-1"
             aria-label={tApp("header.clock_syncing")}
           >
