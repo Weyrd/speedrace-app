@@ -58,7 +58,8 @@
     "open_lobby": "Ouvrir le lobby dans le navigateur",
     "clock_synced": "Décalage avec l'horloge du serveur : {{offset}}\nCliquer pour resynchroniser",
     "clock_syncing": "Synchronisation de l'horloge...",
-    "clock_unknown": "Horloge serveur non synchronisée\nCliquer pour synchroniser"
+    "clock_unknown": "Horloge serveur non synchronisée\nCliquer pour synchroniser",
+    "clock_cooldown": "Décalage avec l'horloge du serveur : {{offset}}\nResynchronisation possible dans {{seconds}}s"
   },
   "server_unavailable": {
     "title": "Serveur indisponible",
