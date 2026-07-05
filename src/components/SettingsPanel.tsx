@@ -16,6 +16,7 @@ import {
 } from "../lib/hotkey";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
+import { tryCatch } from "../lib/tryCatch";
 
 const DEFAULT_FINISH_HOTKEY = "CmdOrCtrl+Shift+F";
 
@@ -34,13 +35,13 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [volume, setVolume] = useState(getSoundVolume);
 
   const startCapture = async () => {
-    try {
-      await releaseHotkey();
-      setLiveCombo("");
-      setCapturing(true);
-    } catch (e) {
-      console.error("[settings] unregisterFinishHotkey error", e);
+    const { error } = await tryCatch(releaseHotkey());
+    if (error) {
+      console.error("[settings] unregisterFinishHotkey error", error);
+      return;
     }
+    setLiveCombo("");
+    setCapturing(true);
   };
 
   useEffect(() => {

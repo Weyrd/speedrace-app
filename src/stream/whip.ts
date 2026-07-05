@@ -1,4 +1,6 @@
 
+import { tryCatch } from "../lib/tryCatch";
+
 export class WhipClient {
   private pc: RTCPeerConnection | null = null;
   private resourceUrl: string | null = null;
@@ -36,11 +38,8 @@ export class WhipClient {
 
     const location = res.headers.get("Location");
     if (location) {
-      try {
-        this.resourceUrl = new URL(location, whipUrl).toString();
-      } catch {
-        this.resourceUrl = location;
-      }
+      const { data } = tryCatch(() => new URL(location, whipUrl).toString());
+      this.resourceUrl = data ?? location;
     }
 
     const answerSdp = await res.text();
