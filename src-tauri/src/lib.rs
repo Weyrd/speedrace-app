@@ -6,21 +6,13 @@ mod config;
 mod counter;
 mod events;
 mod lifecycle;
+mod logging;
 mod models;
 mod settings;
 mod state;
 mod ws;
 
-/// WS tracing macro, gated on the WS_DEBUG=true env var.
-macro_rules! ws_debug {
-    ($($arg:tt)*) => {
-        if std::env::var("WS_DEBUG").unwrap_or_default() == "true" {
-            eprintln!("[ws_debug] {}", format!($($arg)*));
-        }
-    };
-}
-pub(crate) use ws_debug;
-
+use logging::{mlog, LogCat};
 use models::AppState;
 use state::{GlobalState, SharedState};
 use std::sync::{Arc, Mutex};
@@ -101,7 +93,7 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
         if let Err(e) =
             commands::lobby_commands::finish_race(&app, &state, lobby_id, finishing_time_ms).await
         {
-            eprintln!("[hotkey] finish_race error: {e}");
+            mlog!(LogCat::Lifecycle, "[hotkey] finish_race error: {e}");
         }
     });
 }

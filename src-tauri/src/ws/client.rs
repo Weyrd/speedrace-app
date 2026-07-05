@@ -7,9 +7,9 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use crate::api::lobby::fetch_current_lobby;
 use crate::auth::token_store::TokenStore;
 use crate::config;
+use crate::logging::{mlog, LogCat};
 use crate::models::{AppState, LobbyStatus, WsStatus};
 use crate::state::SharedState;
-use crate::ws_debug;
 
 pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
     let mut backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
@@ -19,14 +19,14 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
         let token = match TokenStore::new(app.clone()).get_access_token() {
             Some(t) => t,
             None => {
-                eprintln!("[ws] no access token, aborting connect loop");
+                mlog!(LogCat::Ws, "[ws] no access token, aborting connect loop");
                 return;
             }
         };
 
         let url = config::ws_url();
         emit_ws_status(&app, &state, WsStatus::Connecting);
-        ws_debug!("connecting to {}", url);
+        mlog!(LogCat::Ws, "[ws] connecting to {}", url);
 
         match connect_async(&url).await {
             Ok((mut ws_stream, _)) => {
@@ -37,7 +37,7 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                     .await
                     .is_err()
                 {
-                    eprintln!("[ws] failed to send auth message");
+                    mlog!(LogCat::Ws, "[ws] failed to send auth message");
                     emit_ws_status(&app, &state, WsStatus::Disconnected);
                     tokio::time::sleep(backoff).await;
                     backoff = (backoff * 2).min(Duration::from_secs(config::WS_RECONNECT_MAX_SECS));
@@ -46,7 +46,7 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
 
                 backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS); // reset on success
                 emit_ws_status(&app, &state, WsStatus::Connected);
-                ws_debug!("connected successfully");
+                mlog!(LogCat::Ws, "[ws] connected successfully");
 
                 // Fetch current lobby on (re)connect to recover missed messages
                 let current = fetch_current_lobby(&app).await;
@@ -76,15 +76,15 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                 loop {
                     match ws_stream.next().await {
                         Some(Ok(Message::Text(text))) => {
-                            ws_debug!("received message: {}", text);
+                            mlog!(LogCat::Ws, "[ws] received message: {}", text);
                             crate::ws::handler::handle_message(&text, &app, &state);
                         }
                         Some(Ok(Message::Close(_))) | None => {
-                            eprintln!("[ws] connection closed by server");
+                            mlog!(LogCat::Ws, "[ws] connection closed by server");
                             break;
                         }
                         Some(Err(e)) => {
-                            eprintln!("[ws] receive error: {e}");
+                            mlog!(LogCat::Ws, "[ws] receive error: {e}");
                             break;
                         }
                         _ => {}
@@ -93,7 +93,7 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
             }
 
             Err(e) => {
-                eprintln!("[ws] connect failed: {e}");
+                mlog!(LogCat::Ws, "[ws] connect failed: {e}");
             }
         }
 

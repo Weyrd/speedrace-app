@@ -5,6 +5,7 @@ use crate::api::client::ApiResponse;
 use crate::auth::oauth::emit_auth_state;
 use crate::auth::token_store::{seconds_until_expiry, TokenStore, Tokens};
 use crate::config;
+use crate::logging::{mlog, LogCat};
 use crate::models::AuthStatePayload;
 use crate::state::SharedState;
 
@@ -15,7 +16,10 @@ pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
         let auth = match store.load() {
             Some(a) => a,
             None => {
-                eprintln!("[refresh] no stored auth, stopping refresh loop");
+                mlog!(
+                    LogCat::Auth,
+                    "[refresh] no stored auth, stopping refresh loop"
+                );
                 break;
             }
         };
@@ -29,11 +33,11 @@ pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
         match refresh_access_token(&auth.tokens.refresh_token).await {
             Ok(new_tokens) => {
                 if let Err(e) = store.update_tokens(new_tokens) {
-                    eprintln!("[refresh] failed to persist new tokens: {e}");
+                    mlog!(LogCat::Auth, "[refresh] failed to persist new tokens: {e}");
                 }
             }
             Err(e) => {
-                eprintln!("[refresh] token expired or revoked: {e}");
+                mlog!(LogCat::Auth, "[refresh] token expired or revoked: {e}");
                 logout_and_notify(&app, &store);
                 break;
             }

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::config;
+use crate::logging::{mlog, LogCat};
 
 use super::cache::{cache_paths, CacheKind};
 use super::client::authed_get_json;
@@ -66,7 +67,7 @@ pub async fn fetch_counter_config(
             let _ = std::fs::create_dir_all(parent);
         }
         if let Err(e) = std::fs::write(&cache_path, &bytes) {
-            eprintln!("[counters] cache write error: {e}");
+            mlog!(LogCat::Counter, "[counters] cache write error: {e}");
         }
         let _ = std::fs::write(&stamp_path, payload_updated_at);
     }

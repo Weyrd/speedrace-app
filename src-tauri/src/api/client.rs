@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::token_store::TokenStore;
 use crate::config;
+use crate::logging::{mlog, LogCat};
 use tauri::AppHandle;
 
 #[derive(Debug, Deserialize)]
@@ -24,21 +25,25 @@ pub async fn authed_get_json<T: DeserializeOwned>(
         .get(path)
         .send()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] fetch error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] fetch error: {e}"))
         .ok()?;
 
     if resp.status() == StatusCode::NOT_FOUND {
         return None;
     }
     if !resp.status().is_success() {
-        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        mlog!(
+            LogCat::Api,
+            "[{log_tag}] unexpected status: {}",
+            resp.status()
+        );
         return None;
     }
 
     let body: ApiResponse<T> = resp
         .json()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] parse error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] parse error: {e}"))
         .ok()?;
     Some(body.data)
 }
@@ -53,21 +58,25 @@ pub async fn authed_get_bytes(app: &AppHandle, path: &str, log_tag: &str) -> Opt
         .get(path)
         .send()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] fetch error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] fetch error: {e}"))
         .ok()?;
 
     if resp.status() == StatusCode::NOT_FOUND {
         return None;
     }
     if !resp.status().is_success() {
-        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        mlog!(
+            LogCat::Api,
+            "[{log_tag}] unexpected status: {}",
+            resp.status()
+        );
         return None;
     }
 
     let bytes = resp
         .bytes()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] read body error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] read body error: {e}"))
         .ok()?
         .to_vec();
     Some(bytes)
@@ -81,10 +90,14 @@ pub async fn authed_post_void(app: &AppHandle, path: &str, log_tag: &str) -> Opt
         .post(path)
         .send()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] post error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] post error: {e}"))
         .ok()?;
     if !resp.status().is_success() {
-        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        mlog!(
+            LogCat::Api,
+            "[{log_tag}] unexpected status: {}",
+            resp.status()
+        );
         return None;
     }
     Some(())
@@ -102,16 +115,20 @@ pub async fn authed_post_returning<R: DeserializeOwned>(
         .post(path)
         .send()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] post error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] post error: {e}"))
         .ok()?;
     if !resp.status().is_success() {
-        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        mlog!(
+            LogCat::Api,
+            "[{log_tag}] unexpected status: {}",
+            resp.status()
+        );
         return None;
     }
     let body: ApiResponse<R> = resp
         .json()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] parse error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] parse error: {e}"))
         .ok()?;
     Some(body.data)
 }
@@ -130,10 +147,14 @@ pub async fn authed_post_body_void<B: Serialize>(
         .json(body)
         .send()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] post error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] post error: {e}"))
         .ok()?;
     if !resp.status().is_success() {
-        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        mlog!(
+            LogCat::Api,
+            "[{log_tag}] unexpected status: {}",
+            resp.status()
+        );
         return None;
     }
     Some(())
@@ -153,16 +174,20 @@ pub async fn authed_post_body_json<B: Serialize, R: DeserializeOwned>(
         .json(body)
         .send()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] post error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] post error: {e}"))
         .ok()?;
     if !resp.status().is_success() {
-        eprintln!("[{log_tag}] unexpected status: {}", resp.status());
+        mlog!(
+            LogCat::Api,
+            "[{log_tag}] unexpected status: {}",
+            resp.status()
+        );
         return None;
     }
     let body: ApiResponse<R> = resp
         .json()
         .await
-        .map_err(|e| eprintln!("[{log_tag}] parse error: {e}"))
+        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] parse error: {e}"))
         .ok()?;
     Some(body.data)
 }

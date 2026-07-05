@@ -1,5 +1,6 @@
 use crate::api;
 use crate::events::{SPLIT_FIRED, WS_PLAYER_RESULT};
+use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::{AutosplitSource, SharedState};
 use std::sync::atomic::Ordering;
@@ -86,7 +87,7 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
         )
         .await
         {
-            eprintln!("[autosplit] post_player_split: {e}");
+            mlog!(LogCat::Autosplit, "[autosplit] post_player_split: {e}");
         }
 
         // The split just advanced; ship PerSplit-cadence buffers for the segment that ended.
@@ -119,7 +120,7 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
                             w.request_user_attention(Some(tauri::UserAttentionType::Informational));
                     }
                 }
-                Err(e) => eprintln!("[autosplit] post_player_finished: {e}"),
+                Err(e) => mlog!(LogCat::Autosplit, "[autosplit] post_player_finished: {e}"),
             }
         }
     });

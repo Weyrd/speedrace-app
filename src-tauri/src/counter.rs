@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::api::counter_config::{CounterCadence, CounterConfig, CounterMode};
+use crate::logging::{mlog, LogCat};
 use crate::state::SharedState;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,7 +127,7 @@ pub async fn flush_counter_buffers(
 
     for (name, samples) in batches {
         if let Err(e) = crate::api::lobby::post_player_counter(app, lobby_id, name, samples).await {
-            eprintln!("[counter] flush post: {e}");
+            mlog!(LogCat::Counter, "[counter] flush post: {e}");
         }
     }
 }

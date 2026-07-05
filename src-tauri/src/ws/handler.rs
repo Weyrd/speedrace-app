@@ -9,10 +9,10 @@ struct AutosplitProbePayload {
     livesplit: bool,
     splits_match: Option<bool>,
 }
+use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::{AutosplitSource, SharedState};
 use crate::ws::messages::ServerMessage;
-use crate::ws_debug;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -23,16 +23,17 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
     let msg: ServerMessage = match serde_json::from_str(raw) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("[ws] parse error: {e} - raw: {raw}");
+            mlog!(LogCat::Ws, "[ws] parse error: {e} - raw: {raw}");
             return;
         }
     };
 
-    ws_debug!("parsed message: {:?}", msg);
+    mlog!(LogCat::Ws, "[ws] parsed message: {:?}", msg);
 
     match msg {
         ServerMessage::LobbySetup(payload) => {
-            eprintln!(
+            mlog!(
+                LogCat::Ws,
                 "[ws] LobbySetup: lobby={} game_id={} cat_id={} split_id={:?} split_updated_at={:?} autosplitter_updated_at={:?}",
                 payload.lobby_id,
                 payload.game_id,
@@ -41,8 +42,9 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 payload.split_resource_updated_at,
                 payload.autosplitter_updated_at,
             );
-            ws_debug!(
-                "LobbySetup received: lobby_id={}, game={}",
+            mlog!(
+                LogCat::Ws,
+                "[ws] LobbySetup received: lobby_id={}, game={}",
                 payload.lobby_id,
                 payload.game_name
             );
@@ -67,7 +69,8 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 let mut guard = state.lock().unwrap();
                 guard.app_state = AppState::RaceInProgress;
                 guard.race_start_at = Some(payload.race_start_at.clone());
-                eprintln!(
+                mlog!(
+                    LogCat::Ws,
                     "[ws] LobbyStart: race_start_at={} wasm_cached={}",
                     payload.race_start_at,
                     guard.autosplitter_wasm.is_some()
@@ -84,8 +87,9 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
         }
 
         ServerMessage::LobbyClosed(payload) => {
-            ws_debug!(
-                "LobbyClosed received: lobby_id={}, reason={}",
+            mlog!(
+                LogCat::Ws,
+                "[ws] LobbyClosed received: lobby_id={}, reason={}",
                 payload.lobby_id,
                 payload.reason
             );
@@ -288,7 +292,10 @@ async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<At
 
         // Give up if LiveSplit never connected once the race has started.
         if !ever_connected && race_clock_started(&state) {
-            eprintln!("[livesplit-tcp] not connected by race start, manual finish only");
+            mlog!(
+                LogCat::LiveSplit,
+                "[livesplit-tcp] not connected by race start, manual finish only"
+            );
             break;
         }
 
@@ -374,7 +381,7 @@ async fn report_autosplit(
         Ok(()) => {
             state.lock().unwrap().last_autosplit_reported = Some((connected, splits_valid));
         }
-        Err(e) => eprintln!("[autosplit] report failed: {e}"),
+        Err(e) => mlog!(LogCat::Autosplit, "[autosplit] report failed: {e}"),
     }
 }
 
@@ -384,14 +391,18 @@ async fn load_split_resource(
     category_split_id: &str,
     updated_at: Option<&str>,
 ) {
-    eprintln!(
+    mlog!(
+        LogCat::Autosplit,
         "[split] load called: category_split_id={category_split_id} updated_at={updated_at:?}"
     );
     let Some(lss) =
         crate::api::category_split::fetch_split_resource_lss(app, category_split_id, updated_at)
             .await
     else {
-        eprintln!("[split] skipped: no lss available (updated_at={updated_at:?})");
+        mlog!(
+            LogCat::Autosplit,
+            "[split] skipped: no lss available (updated_at={updated_at:?})"
+        );
         return;
     };
     match livesplit_core::run::parser::composite::parse(lss.as_bytes(), None) {
@@ -403,9 +414,9 @@ async fn load_split_resource(
                 guard.current_split_index = 0;
                 guard.segment_start_ms = 0;
             }
-            eprintln!("[split] loaded: {seg_count} segments");
+            mlog!(LogCat::Autosplit, "[split] loaded: {seg_count} segments");
             let _ = app.emit(SPLIT_LOADED, ());
         }
-        Err(e) => eprintln!("[split] parse error: {e}"),
+        Err(e) => mlog!(LogCat::Autosplit, "[split] parse error: {e}"),
     }
 }

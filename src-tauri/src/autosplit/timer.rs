@@ -1,3 +1,4 @@
+use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::SharedState;
 use livesplit_auto_splitting::{LogLevel, Timer, TimerState};
@@ -97,7 +98,7 @@ impl Timer for MomentumTimer {
                 crate::api::lobby::post_player_counter(&app, &lobby_id, counter_name, vec![sample])
                     .await
             {
-                eprintln!("[autosplit] post_player_counter: {e}");
+                mlog!(LogCat::Autosplit, "[autosplit] post_player_counter: {e}");
             }
         });
     }
@@ -111,9 +112,9 @@ impl Timer for MomentumTimer {
     fn pause_game_time(&mut self) {}
     fn resume_game_time(&mut self) {}
     fn log_auto_splitter(&mut self, msg: fmt::Arguments) {
-        eprintln!("[wasm] {msg}");
+        mlog!(LogCat::Wasm, "[wasm] {msg}");
     }
     fn log_runtime(&mut self, msg: fmt::Arguments, _: LogLevel) {
-        eprintln!("[wasm-rt] {msg}");
+        mlog!(LogCat::Wasm, "[wasm-rt] {msg}");
     }
 }

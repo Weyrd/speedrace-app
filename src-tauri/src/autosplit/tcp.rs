@@ -1,3 +1,4 @@
+use crate::logging::{mlog, LogCat};
 use crate::state::SharedState;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -24,11 +25,11 @@ pub async fn connect() -> Option<tokio::net::TcpStream> {
     {
         Ok(Ok(s)) => s,
         Ok(Err(e)) => {
-            eprintln!("[livesplit-tcp] not available: {e}");
+            mlog!(LogCat::LiveSplit, "[livesplit-tcp] not available: {e}");
             return None;
         }
         Err(_) => {
-            eprintln!("[livesplit-tcp] connect timeout");
+            mlog!(LogCat::LiveSplit, "[livesplit-tcp] connect timeout");
             return None;
         }
     };
@@ -36,10 +37,13 @@ pub async fn connect() -> Option<tokio::net::TcpStream> {
     // A TCP handshake alone proves nothing: a WebSocket server (or anything else)
     // can squat on 16834. Require a valid getsplitindex reply before trusting it.
     if !probe_protocol(&mut stream).await {
-        eprintln!("[livesplit-tcp] 16834 open but not LiveSplit Server protocol — ignoring");
+        mlog!(
+            LogCat::LiveSplit,
+            "[livesplit-tcp] 16834 open but not LiveSplit Server protocol — ignoring"
+        );
         return None;
     }
-    eprintln!("[livesplit-tcp] connected");
+    mlog!(LogCat::LiveSplit, "[livesplit-tcp] connected");
     Some(stream)
 }
 
@@ -93,7 +97,10 @@ pub async fn poll_loop(
         crate::ws::handler::maybe_commit_source(&state);
         let source = state.lock().unwrap().autosplit_source;
         if source == Some(crate::state::AutosplitSource::Wasm) {
-            eprintln!("[livesplit-tcp] WASM locked in as source — yielding");
+            mlog!(
+                LogCat::LiveSplit,
+                "[livesplit-tcp] WASM locked in as source — yielding"
+            );
             break;
         }
         // Fire splits only when LiveSplit is the committed source; otherwise just track position.
@@ -101,7 +108,7 @@ pub async fn poll_loop(
             && source == Some(crate::state::AutosplitSource::LiveSplit);
 
         if let Err(e) = writer.write_all(b"getsplitindex\r\n").await {
-            eprintln!("[livesplit-tcp] write error: {e}");
+            mlog!(LogCat::LiveSplit, "[livesplit-tcp] write error: {e}");
             break;
         }
 
@@ -114,15 +121,21 @@ pub async fn poll_loop(
 
         match read_result {
             Err(_) => {
-                eprintln!("[livesplit-tcp] read timeout — reconnecting");
+                mlog!(
+                    LogCat::LiveSplit,
+                    "[livesplit-tcp] read timeout — reconnecting"
+                );
                 break;
             }
             Ok(Ok(0)) => {
-                eprintln!("[livesplit-tcp] server closed connection");
+                mlog!(
+                    LogCat::LiveSplit,
+                    "[livesplit-tcp] server closed connection"
+                );
                 break;
             }
             Ok(Err(e)) => {
-                eprintln!("[livesplit-tcp] read error: {e}");
+                mlog!(LogCat::LiveSplit, "[livesplit-tcp] read error: {e}");
                 break;
             }
             Ok(Ok(_)) => {}
@@ -131,7 +144,10 @@ pub async fn poll_loop(
         let index = line.trim().parse::<i32>().unwrap_or(-1);
 
         if tick % 100 == 0 {
-            eprintln!("[livesplit-tcp] poll #{tick} index={index} last={last_index} fire={fire}");
+            mlog!(
+                LogCat::LiveSplit,
+                "[livesplit-tcp] poll #{tick} index={index} last={last_index} fire={fire}"
+            );
         }
         tick = tick.wrapping_add(1);
 
@@ -140,9 +156,15 @@ pub async fn poll_loop(
         // it once so getcurrentsplitname becomes readable and we can verify the splits.
         // starttimer is a no-op if already running and sends no reply, so don't read one.
         if fire && index < 0 && !forced_start {
-            eprintln!("[livesplit-tcp] timer NotRunning at race time — sending starttimer");
+            mlog!(
+                LogCat::LiveSplit,
+                "[livesplit-tcp] timer NotRunning at race time — sending starttimer"
+            );
             if let Err(e) = writer.write_all(b"starttimer\r\n").await {
-                eprintln!("[livesplit-tcp] starttimer write error: {e}");
+                mlog!(
+                    LogCat::LiveSplit,
+                    "[livesplit-tcp] starttimer write error: {e}"
+                );
                 break;
             }
             forced_start = true;
@@ -153,7 +175,10 @@ pub async fn poll_loop(
         } else if last_index < 0 && index >= 0 {
             // Timer just started catch up already-completed splits
             if index > 0 {
-                eprintln!("[livesplit-tcp] catching up {index} split(s) (index jumped to {index})");
+                mlog!(
+                    LogCat::LiveSplit,
+                    "[livesplit-tcp] catching up {index} split(s) (index jumped to {index})"
+                );
             }
             for _ in 0..index {
                 crate::autosplit::split::fire_split(&app, &state);
@@ -161,14 +186,20 @@ pub async fn poll_loop(
             last_index = index;
         } else if index > last_index {
             let steps = (index - last_index) as usize;
-            eprintln!("[livesplit-tcp] split {last_index} → {index} ({steps} split(s))");
+            mlog!(
+                LogCat::LiveSplit,
+                "[livesplit-tcp] split {last_index} → {index} ({steps} split(s))"
+            );
             for _ in 0..steps {
                 crate::autosplit::split::fire_split(&app, &state);
             }
             last_index = index;
         } else if index < last_index {
             // Runner reset their timer
-            eprintln!("[livesplit-tcp] index reset {last_index} → {index}, re-arming");
+            mlog!(
+                LogCat::LiveSplit,
+                "[livesplit-tcp] index reset {last_index} → {index}, re-arming"
+            );
             last_index = index;
         }
 
@@ -199,7 +230,7 @@ pub async fn poll_loop(
                         if n > 0 && actual != "-" {
                             let matches = actual.eq_ignore_ascii_case(expected.trim());
                             if !matches {
-                                eprintln!(
+                                mlog!(LogCat::LiveSplit,
                                     "[livesplit-tcp] split name mismatch at {index}: livesplit='{actual}' expected='{expected}'"
                                 );
                             }
@@ -223,5 +254,5 @@ pub async fn poll_loop(
         sleep(Duration::from_millis(POLL_MS)).await;
     }
 
-    eprintln!("[livesplit-tcp] poll stopped");
+    mlog!(LogCat::LiveSplit, "[livesplit-tcp] poll stopped");
 }

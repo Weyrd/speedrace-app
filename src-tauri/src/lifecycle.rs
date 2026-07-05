@@ -2,6 +2,7 @@ use crate::api::lobby::fetch_current_lobby;
 use crate::auth::oauth::emit_auth_state;
 use crate::auth::token_store::TokenStore;
 use crate::events::WS_LOBBY_SETUP;
+use crate::logging::{mlog, LogCat};
 use crate::models::{AppState, AuthStatePayload, AuthUser, LobbyStatus};
 use crate::state::SharedState;
 use tauri::AppHandle;
@@ -54,11 +55,17 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
     };
 
     let user = if store.is_expired() {
-        eprintln!("[startup] access token expired, attempting refresh");
+        mlog!(
+            LogCat::Lifecycle,
+            "[startup] access token expired, attempting refresh"
+        );
         match crate::auth::refresh::do_refresh(&stored.tokens.refresh_token).await {
             Ok(new_tokens) => {
                 if let Err(e) = store.update_tokens(new_tokens) {
-                    eprintln!("[startup] failed to persist refreshed tokens: {e}");
+                    mlog!(
+                        LogCat::Lifecycle,
+                        "[startup] failed to persist refreshed tokens: {e}"
+                    );
                     store.clear().ok();
                     emit_auth_state(&app, AuthStatePayload::Unauthenticated);
                     return;
@@ -66,7 +73,10 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
                 stored.user
             }
             Err(e) => {
-                eprintln!("[startup] refresh failed (session expired): {e}");
+                mlog!(
+                    LogCat::Lifecycle,
+                    "[startup] refresh failed (session expired): {e}"
+                );
                 store.clear().ok();
                 emit_auth_state(&app, AuthStatePayload::Unauthenticated);
                 return;
