@@ -14,6 +14,7 @@ pub enum AutosplitSource {
 pub struct PendingFinish {
     pub lobby_id: String,
     pub finishing_time_ms: u64,
+    pub run_started_at_ms: Option<i64>,
 }
 
 pub struct GlobalState {
@@ -23,6 +24,7 @@ pub struct GlobalState {
     pub lobby: Option<LobbySetup>,
     pub race_start_at: Option<i64>,
     pub clock_offset_ms: i64,
+    pub run_started_at_ms: Option<i64>,
     pub refresh_loop_running: bool,
     pub ws_loop_running: bool,
     pub split_run: Option<livesplit_core::Run>,
@@ -34,7 +36,7 @@ pub struct GlobalState {
     pub autosplitter_cancel: Arc<AtomicBool>,
     pub probe_running: bool,
     pub livesplit_running: bool,
-    pub last_autosplit_reported: Option<(bool, bool)>,
+    pub last_autosplit_reported: Option<(bool, bool, bool)>,
     pub autosplit_source: Option<AutosplitSource>,
     pub wasm_attached: bool,
     pub livesplit_connected: bool,
@@ -54,6 +56,7 @@ impl GlobalState {
             lobby: None,
             race_start_at: None,
             clock_offset_ms: 0,
+            run_started_at_ms: None,
             refresh_loop_running: false,
             ws_loop_running: false,
             split_run: None,
