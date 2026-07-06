@@ -96,6 +96,7 @@ pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), 
 struct AutosplitStatusBody {
     connected: bool,
     splits_valid: bool,
+    run_in_progress: bool, // cehck when connecting that game isint in progress
 }
 
 pub async fn post_autosplit_status(
@@ -103,6 +104,7 @@ pub async fn post_autosplit_status(
     lobby_id: &str,
     connected: bool,
     splits_valid: bool,
+    run_in_progress: bool,
 ) -> Result<(), String> {
     authed_post_body_void(
         app,
@@ -110,6 +112,7 @@ pub async fn post_autosplit_status(
         &AutosplitStatusBody {
             connected,
             splits_valid,
+            run_in_progress,
         },
         "autosplit_status",
     )
@@ -120,17 +123,22 @@ pub async fn post_autosplit_status(
 #[derive(Serialize)]
 struct FinishPlayerBody {
     finishing_time_ms: u64,
+    run_started_at_ms: Option<i64>,
 }
 
 pub async fn submit_finish(
     app: &AppHandle,
     lobby_id: &str,
     finishing_time_ms: u64,
+    run_started_at_ms: Option<i64>,
 ) -> PostOutcome<PlayerResult> {
     authed_post_body_json_outcome(
         app,
         &config::lobby_finish_path(lobby_id),
-        &FinishPlayerBody { finishing_time_ms },
+        &FinishPlayerBody {
+            finishing_time_ms,
+            run_started_at_ms,
+        },
         "finished",
     )
     .await

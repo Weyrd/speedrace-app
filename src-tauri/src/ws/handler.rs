@@ -349,7 +349,7 @@ async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<At
 
 // Emits per-source badges plus the "connected" signal the back gates on (either source pre-commit, else the committed source's health).
 pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState) {
-    let (wasm, livesplit, splits_match, connected, splits_valid) = {
+    let (wasm, livesplit, splits_match, connected, splits_valid, run_in_progress) = {
         let g = state.lock().unwrap();
         let connected = match g.autosplit_source {
             Some(AutosplitSource::Wasm) => g.wasm_attached,
@@ -361,12 +361,18 @@ pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState)
             Some(AutosplitSource::Wasm) => true,
             _ => g.livesplit_splits_match != Some(false),
         };
+        // Early-start warning: the runner's run is already ticking before the race clock starts.
+        let run_in_progress = matches!(
+            g.app_state,
+            AppState::StreamSetup | AppState::WaitingForStart
+        ) && g.run_started_at_ms.is_some();
         (
             g.wasm_attached,
             g.livesplit_connected,
             g.livesplit_splits_match,
             connected,
             splits_valid,
+            run_in_progress,
         )
     };
     let _ = app.emit(
@@ -377,23 +383,22 @@ pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState)
             splits_match,
         },
     );
-    report_autosplit(app, state, connected, splits_valid).await;
+    report_autosplit(app, state, connected, splits_valid, run_in_progress).await;
 }
 
-// POST to the back only when the autosplit connection or splits-valid state changes
+// POST to the back only when the autosplit connection, splits-valid, or early-start state changes
 async fn report_autosplit(
     app: &AppHandle,
     state: &SharedState,
     connected: bool,
     splits_valid: bool,
+    run_in_progress: bool,
 ) {
+    let key = (connected, splits_valid, run_in_progress);
     let (lobby_id, should_send) = {
         let guard = state.lock().unwrap();
         let lobby_id = guard.lobby.as_ref().map(|l| l.lobby_id.clone());
-        (
-            lobby_id,
-            guard.last_autosplit_reported != Some((connected, splits_valid)),
-        )
+        (lobby_id, guard.last_autosplit_reported != Some(key))
     };
     if !should_send {
         return;
@@ -401,9 +406,17 @@ async fn report_autosplit(
     let Some(lobby_id) = lobby_id else {
         return;
     };
-    match crate::api::lobby::post_autosplit_status(app, &lobby_id, connected, splits_valid).await {
+    match crate::api::lobby::post_autosplit_status(
+        app,
+        &lobby_id,
+        connected,
+        splits_valid,
+        run_in_progress,
+    )
+    .await
+    {
         Ok(()) => {
-            state.lock().unwrap().last_autosplit_reported = Some((connected, splits_valid));
+            state.lock().unwrap().last_autosplit_reported = Some(key);
         }
         Err(e) => mlog!(LogCat::Autosplit, "[autosplit] report failed: {e}"),
     }

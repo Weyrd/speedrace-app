@@ -77,6 +77,7 @@ pub async fn poll_loop(
     let mut last_index: i32 = -1;
     let mut name_checked_index: i32 = -1;
     let mut forced_start = false;
+    let mut run_start_captured = false;
     let mut tick: u32 = 0;
 
     loop {
@@ -150,6 +151,45 @@ pub async fn poll_loop(
             );
         }
         tick = tick.wrapping_add(1);
+
+        // Back-date the run's start from the running timer so the back can measure any head start.
+        if index < 0 && run_start_captured {
+            if let Ok(mut g) = state.lock() {
+                g.run_started_at_ms = None;
+            }
+            run_start_captured = false;
+        } else if index >= 0 && !run_start_captured {
+            if writer.write_all(b"getcurrenttime\r\n").await.is_err() {
+                break;
+            }
+            line.clear();
+            let time_res = timeout(
+                Duration::from_millis(READ_TIMEOUT_MS),
+                reader.read_line(&mut line),
+            )
+            .await;
+            let elapsed = match time_res {
+                Ok(Ok(n)) if n > 0 => {
+                    crate::autosplit::early_start::parse_livesplit_time_ms(line.trim())
+                }
+                _ => None,
+            };
+            if let Some(elapsed) = elapsed {
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as i64)
+                    .unwrap_or(0);
+                if let Ok(mut g) = state.lock() {
+                    g.run_started_at_ms = Some(
+                        crate::autosplit::early_start::run_start_from_elapsed(
+                            now_ms + g.clock_offset_ms,
+                            elapsed,
+                        ),
+                    );
+                }
+                run_start_captured = true;
+            }
+        }
 
         // If LiveSplit is our source but the runner's timer never started (e.g. their
         // auto-start is bound to a different game/level than the one being raced), force

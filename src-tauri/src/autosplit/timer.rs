@@ -10,6 +10,13 @@ pub struct MomentumTimer {
     pub state: SharedState,
 }
 
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
 impl Timer for MomentumTimer {
     fn state(&self) -> TimerState {
         let guard = self.state.lock().unwrap();
@@ -103,12 +110,35 @@ impl Timer for MomentumTimer {
         });
     }
 
-    // Race clock is authoritative; no-ops for timer control methods
-    fn start(&mut self) {}
+    // Stamp when the game's run begins so the back can measure a head start on the race clock.
+    fn start(&mut self) {
+        let now_ms = now_ms();
+        if let Ok(mut g) = self.state.lock() {
+            g.run_started_at_ms = Some(now_ms + g.clock_offset_ms);
+        }
+    }
     fn skip_split(&mut self) {}
     fn undo_split(&mut self) {}
-    fn reset(&mut self) {}
-    fn set_game_time(&mut self, _: livesplit_auto_splitting::time::Duration) {}
+    fn reset(&mut self) {
+        if let Ok(mut g) = self.state.lock() {
+            g.run_started_at_ms = None;
+        }
+    }
+    fn set_game_time(&mut self, t: livesplit_auto_splitting::time::Duration) {
+        // Fallback: game already running when the wasm attached (no start edge) — back-date from IGT.
+        let igt = t.whole_milliseconds() as i64;
+        if igt <= 0 {
+            return;
+        }
+        let now_ms = now_ms();
+        let mut g = match self.state.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        if g.run_started_at_ms.is_none() {
+            g.run_started_at_ms = Some((now_ms + g.clock_offset_ms) - igt);
+        }
+    }
     fn pause_game_time(&mut self) {}
     fn resume_game_time(&mut self) {}
     fn log_auto_splitter(&mut self, msg: fmt::Arguments) {
