@@ -12,6 +12,8 @@ mod settings;
 mod state;
 mod ws;
 
+pub use autosplit::early_start;
+
 use logging::{mlog, LogCat};
 use models::AppState;
 use state::{GlobalState, SharedState};
