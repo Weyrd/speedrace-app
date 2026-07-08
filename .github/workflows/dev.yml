@@ -1,0 +1,122 @@
+name: Dev Build
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+    steps:
+      - name: Delete existing dev-latest release and tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const rel = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: 'dev-latest',
+              })
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: rel.data.id,
+              })
+            } catch (_) {}
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'tags/dev-latest',
+              })
+            } catch (_) {}
+
+      - name: Create dev pre-release
+        id: create
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: 'dev-latest',
+              target_commitish: context.sha,
+              name: 'Momentum Dev – latest',
+              body: `Dev build from \`${{ github.ref_name }}\` @ ${{ github.sha }}`,
+              draft: false,
+              prerelease: true,
+            })
+            return data.id
+
+  build:
+    needs: prepare-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            name: macOS (Apple Silicon)
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            name: macOS (Intel)
+          - platform: ubuntu-22.04
+            args: ""
+            name: Linux
+          - platform: windows-latest
+            args: ""
+            name: Windows
+    name: Build – ${{ matrix.name }}
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - run: pnpm install
+
+      - name: Build and upload
+        uses: tauri-apps/tauri-action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL_DEV }}
+          DEEP_LINK_SCHEME: "momentum-dev"
+          WEB_BASE_URL: ${{ vars.WEB_BASE_URL_DEV }}
+          WS_DEBUG: "true"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: dev-latest
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.dev.conf.json
