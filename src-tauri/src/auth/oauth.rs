@@ -182,7 +182,7 @@ fn build_auth_url(code_challenge: &str) -> Result<String, String> {
 
     url.query_pairs_mut()
         .append_pair("client_id", config::OAUTH_CLIENT_ID)
-        .append_pair("redirect_uri", config::OAUTH_REDIRECT_URI)
+        .append_pair("redirect_uri", config::oauth_redirect_uri())
         .append_pair("response_type", "code")
         .append_pair("code_challenge", code_challenge)
         .append_pair("code_challenge_method", "S256");
@@ -209,7 +209,7 @@ async fn exchange_code(auth_code: String, code_verifier: String) -> Result<Store
         .json(&TokenExchangeRequest {
             auth_code: &auth_code,
             client_id: config::OAUTH_CLIENT_ID,
-            redirect_uri: config::OAUTH_REDIRECT_URI,
+            redirect_uri: config::oauth_redirect_uri(),
             grant_type: config::GRANT_TYPE_AUTH_CODE,
             code_verifier: &code_verifier,
         })

@@ -1,0 +1,21 @@
+{
+  "productName": "Momentum Dev",
+  "identifier": "com.momentum-app.dev",
+  "app": {
+    "windows": [
+      {
+        "title": "Momentum Dev"
+      }
+    ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["momentum-dev"]
+      }
+    },
+    "updater": {
+      "endpoints": []
+    }
+  }
+}
