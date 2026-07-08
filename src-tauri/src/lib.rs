@@ -225,7 +225,7 @@ pub fn run() {
 
                     tauri::async_runtime::spawn(async move {
                         for url in urls {
-                            if url.starts_with(config::AUTH_CALLBACK_PREFIX) {
+                            if url.starts_with(config::oauth_redirect_uri()) {
                                 auth::oauth::handle_callback(app.clone(), url, state.clone()).await;
                             }
                         }

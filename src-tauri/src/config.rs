@@ -11,10 +11,18 @@ pub const AUTH_TOKEN_PATH: &str = "/api/v1/auth/token";
 pub const AUTH_REFRESH_PATH: &str = "/api/v1/auth/desktop/refresh";
 pub const AUTH_LOGOUT_PATH: &str = "/api/v1/auth/desktop/logout";
 
+const DEEP_LINK_SCHEME: &str = match option_env!("DEEP_LINK_SCHEME") {
+    Some(s) => s,
+    None => "momentum",
+};
+
 // OAuth client constants
-pub const AUTH_CALLBACK_PREFIX: &str = "momentum://auth/callback";
 pub const OAUTH_CLIENT_ID: &str = "tauri_desktop";
-pub const OAUTH_REDIRECT_URI: &str = "momentum://auth/callback";
+
+pub fn oauth_redirect_uri() -> &'static str {
+    static CELL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    CELL.get_or_init(|| format!("{DEEP_LINK_SCHEME}://auth/callback"))
+}
 
 pub const LOBBY_CURRENT_PATH: &str = "/api/v1/lobby/current";
 
