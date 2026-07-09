@@ -33,7 +33,10 @@ export default function ServerUnavailable() {
         disabled={retrying}
         className="mt-2 text-sm"
       >
-        <RefreshCw size={15} className={retrying ? "animate-spin" : undefined} />
+        <RefreshCw
+          size={15}
+          className={retrying ? "animate-spin" : undefined}
+        />
         {t("server_unavailable.retry")}
       </Button>
     </div>

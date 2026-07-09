@@ -41,6 +41,9 @@
     "status_finished": "Finished",
     "status_forfeited": "Forfeited"
   },
+  "autosplit": {
+    "early_start_tooltip": "Your timer looks already running. Reset before the race starts to avoid a penalty."
+  },
   "stop_modal": {
     "title_racing": "Forfeit the race?",
     "title_idle": "Stop stream?",

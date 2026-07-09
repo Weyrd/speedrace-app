@@ -30,7 +30,10 @@ export function SplitList({
   const activeItemRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    activeItemRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    activeItemRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
   }, [currentIndex]);
 
   if (segments.length === 0) return null;
@@ -52,7 +55,9 @@ export function SplitList({
       raceElapsedMs !== undefined &&
       currentSegmentStartMs !== undefined
     ) {
-      timeDisplay = formatTime(Math.max(0, raceElapsedMs - currentSegmentStartMs));
+      timeDisplay = formatTime(
+        Math.max(0, raceElapsedMs - currentSegmentStartMs),
+      );
     }
 
     return (

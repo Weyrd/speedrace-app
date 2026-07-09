@@ -60,9 +60,8 @@ records (those are computed from `race_start_at`, not LiveSplit's clock); it onl
 - **Reporting** (`ws/handler.rs` `report_autosplit_state` / `report_autosplit`): the
   `autosplit:probe` payload gained `splits_match: Option<bool>`; the back POST (`autosplit-status`)
   gained `splits_valid: bool` (`= false` only on a confirmed LiveSplit mismatch; always `true` for the
-  WASM source). Dedup key is now the `(connected, splits_valid, run_in_progress)` tuple
-  (`last_autosplit_reported`); `run_in_progress` is the early-start warning (the runner's run is
-  already ticking during setup/waiting). `api/lobby.rs` `post_autosplit_status` carries all three.
+  WASM source). Dedup key is now the `(connected, splits_valid)` tuple (`last_autosplit_reported`).
+  `api/lobby.rs` `post_autosplit_status` carries `splits_valid`.
 
 ### App — frontend (`momentum-app/src/`)
 
