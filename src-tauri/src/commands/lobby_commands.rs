@@ -30,6 +30,11 @@ pub fn get_current_split_index(state: State<SharedState>) -> u32 {
 }
 
 #[tauri::command]
+pub fn get_autosplit_state(state: State<SharedState>) -> crate::ws::handler::AutosplitProbePayload {
+    crate::ws::handler::current_autosplit_probe(&state)
+}
+
+#[tauri::command]
 pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String> {
     let guard = state.lock().map_err(|e| e.to_string())?;
     Ok(ClientState {
@@ -38,6 +43,8 @@ pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String>
         autosplit: AutosplitState {
             wasm: guard.wasm_attached,
             livesplit: guard.livesplit_connected,
+            splits_match: guard.livesplit_splits_match,
+            run_in_progress: guard.run_active,
         },
     })
 }
@@ -57,6 +64,7 @@ pub fn start_durable_finish(
         guard.pending_finish = Some(PendingFinish {
             lobby_id,
             finishing_time_ms,
+            run_started_at_ms: guard.run_start_instant,
         });
         if guard.finish_retry_running {
             return; // an existing task will pick up the pending finish
@@ -79,7 +87,14 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
         // Ship buffered counters first so the acked attempt also archives them
         crate::counter::flush_all_counter_buffers(&app, &state, &pending.lobby_id).await;
 
-        match api::lobby::submit_finish(&app, &pending.lobby_id, pending.finishing_time_ms).await {
+        match api::lobby::submit_finish(
+            &app,
+            &pending.lobby_id,
+            pending.finishing_time_ms,
+            pending.run_started_at_ms,
+        )
+        .await
+        {
             PostOutcome::Ok(result) => {
                 finalize_finish(&app, &state, &pending.lobby_id, result);
                 break;

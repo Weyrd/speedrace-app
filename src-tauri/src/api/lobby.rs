@@ -124,17 +124,23 @@ pub async fn post_autosplit_status(
 #[derive(Serialize)]
 struct FinishPlayerBody {
     finishing_time_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_started_at_ms: Option<i64>,
 }
 
 pub async fn submit_finish(
     app: &AppHandle,
     lobby_id: &str,
     finishing_time_ms: u64,
+    run_started_at_ms: Option<i64>,
 ) -> PostOutcome<PlayerResult> {
     authed_post_body_json_outcome(
         app,
         &config::lobby_finish_path(lobby_id),
-        &FinishPlayerBody { finishing_time_ms },
+        &FinishPlayerBody {
+            finishing_time_ms,
+            run_started_at_ms,
+        },
         "finished",
     )
     .await
@@ -168,37 +174,27 @@ pub async fn post_player_forfeited(
         .ok_or_else(|| "[api] post_player_forfeited failed".to_string())
 }
 
-#[allow(dead_code)]
 #[derive(Serialize)]
-struct SubmitSplitBody {
+struct SubmitSplitBody<'a> {
     split_index: u32,
-    segment_name: String,
+    segment_name: &'a str,
     start_ms: u64,
     end_ms: u64,
 }
 
-#[allow(dead_code)]
-pub async fn post_player_split(
-    app: &AppHandle,
-    lobby_id: &str,
-    split_index: u32,
-    segment_name: String,
-    start_ms: u64,
-    end_ms: u64,
-) -> Result<(), String> {
-    authed_post_body_void(
+pub async fn submit_split(app: &AppHandle, split: &crate::state::PendingSplit) -> PostOutcome<()> {
+    authed_post_body_void_outcome(
         app,
-        &config::lobby_split_path(lobby_id),
+        &config::lobby_split_path(&split.lobby_id),
         &SubmitSplitBody {
-            split_index,
-            segment_name,
-            start_ms,
-            end_ms,
+            split_index: split.split_index,
+            segment_name: &split.segment_name,
+            start_ms: split.start_ms,
+            end_ms: split.end_ms,
         },
         "split",
     )
     .await
-    .ok_or_else(|| "[api] post_player_split failed".to_string())
 }
 
 #[derive(Serialize)]

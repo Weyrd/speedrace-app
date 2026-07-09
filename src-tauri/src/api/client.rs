@@ -40,7 +40,11 @@ async fn send_check(req: reqwest::RequestBuilder, log_tag: &str) -> Option<Respo
         return None;
     }
     if !resp.status().is_success() {
-        mlog!(LogCat::Api, "[{log_tag}] unexpected status: {}", resp.status());
+        mlog!(
+            LogCat::Api,
+            "[{log_tag}] unexpected status: {}",
+            resp.status()
+        );
         return None;
     }
     Some(resp)

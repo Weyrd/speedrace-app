@@ -4,6 +4,7 @@ import { useAppDispatch, useWhipRef } from "./AppContext";
 import { ActionType, Phase } from "./types";
 import { AuthState, PlayerStatus, type WsStatus } from "../types";
 import { ensureClockFresh, resyncClock } from "../hooks/useClockOffset";
+import { getAutosplitState } from "../lib/commands";
 import { playSound, primeCountdown, Sound } from "../lib/sound";
 
 const COUNTDOWN_SOUNDS = [
@@ -50,8 +51,7 @@ export function AppEventBridge(): null {
       // Only the connection-level terminal phases; other app:state emits are driven by dedicated events.
       onAppState((phase) => {
         if (phase === Phase.ServerUnavailable) {
-          whipRef.current?.stop();
-          whipRef.current = null;
+          // keep stream if ever it reconnect
           dispatch({ type: ActionType.ServerUnavailable });
         } else if (phase === Phase.Banned) {
           whipRef.current?.stop();
@@ -68,6 +68,11 @@ export function AppEventBridge(): null {
           void primeCountdown(COUNTDOWN_SOUNDS);
         }
         dispatch({ type: ActionType.LobbySetup, lobby });
+        void getAutosplitState()
+          .then((status) =>
+            dispatch({ type: ActionType.AutosplitStatus, status }),
+          )
+          .catch(() => {});
       }),
 
       onLobbyClosed((payload) => {

@@ -1,8 +1,10 @@
 use crate::api;
+use crate::api::client::PostOutcome;
 use crate::events::{SPLIT_FIRED, WS_PLAYER_RESULT};
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
-use crate::state::{AutosplitSource, SharedState};
+use crate::state::{AutosplitSource, BufferedEarlySplit, PendingSplit, SharedState};
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
 #[derive(serde::Serialize, Clone)]
@@ -62,7 +64,8 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
         let lobby_id = lobby.lobby_id.clone();
 
         // if no start recorded (wasm no igt) runner have until he passes the first split to restart the run after -> forfeit
-        if guard.run_start_instant.is_none() {
+        // A catch-up skip (force_skip) never forfeits: it only advances the index.
+        if guard.run_start_instant.is_none() && !force_skip {
             if guard.run_forfeited {
                 return;
             }
@@ -156,24 +159,23 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                 );
             }
 
-            let app = app.clone();
-            let state = state.clone();
-            tauri::async_runtime::spawn(async move {
-                if !skip {
-                    if let Err(e) = api::lobby::post_player_split(
-                        &app,
-                        &lobby_id,
+            if !skip {
+                enqueue_split(
+                    app,
+                    state,
+                    PendingSplit {
+                        lobby_id: lobby_id.clone(),
                         split_index,
                         segment_name,
                         start_ms,
                         end_ms,
-                    )
-                    .await
-                    {
-                        mlog!(LogCat::Autosplit, "[autosplit] post_player_split: {e}");
-                    }
-                }
+                    },
+                );
+            }
 
+            let app = app.clone();
+            let state = state.clone();
+            tauri::async_runtime::spawn(async move {
                 crate::counter::flush_counter_buffers(
                     &app,
                     &state,
@@ -188,6 +190,141 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                     );
                 }
             });
+        }
+    }
+}
+
+pub fn buffer_early_split(app: &AppHandle, state: &SharedState) {
+    crate::autosplit::run_started::mark_run_start(app, state, crate::autosplit::now_epoch_ms());
+
+    let mut guard = match state.lock() {
+        Ok(g) => g,
+        Err(_) => return,
+    };
+    let Some(lobby) = guard.lobby.as_ref() else {
+        return;
+    };
+    let lobby_id = lobby.lobby_id.clone();
+    let Some(run) = guard.split_run.as_ref() else {
+        return;
+    };
+    let seg_count = run.len() as u32;
+    let index = guard.current_split_index;
+    if index >= seg_count {
+        return;
+    }
+    let segment_name = run.segment(index as usize).name().to_string();
+    guard.current_split_index = index + 1;
+    let is_final = guard.current_split_index >= seg_count;
+    guard.pending_early_splits.push(BufferedEarlySplit {
+        lobby_id,
+        split_index: index,
+        segment_name,
+        is_final,
+    });
+}
+
+pub fn flush_early_splits(app: &AppHandle, state: &SharedState) {
+    let buffered = {
+        let mut g = match state.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        if g.autosplit_source != Some(AutosplitSource::Wasm)
+            || g.app_state != AppState::RaceInProgress
+            || g.pending_early_splits.is_empty()
+        {
+            return;
+        }
+        std::mem::take(&mut g.pending_early_splits)
+    };
+
+    let mut finish_lobby: Option<String> = None;
+    for bs in buffered {
+        let _ = app.emit(
+            SPLIT_FIRED,
+            SplitFiredPayload {
+                index: bs.split_index,
+                segment_ms: 0,
+                new_start_ms: 0,
+            },
+        );
+        enqueue_split(
+            app,
+            state,
+            PendingSplit {
+                lobby_id: bs.lobby_id.clone(),
+                split_index: bs.split_index,
+                segment_name: bs.segment_name,
+                start_ms: 0,
+                end_ms: 0,
+            },
+        );
+        if bs.is_final {
+            finish_lobby = Some(bs.lobby_id);
+        }
+    }
+
+    if let Some(lobby_id) = finish_lobby {
+        crate::commands::lobby_commands::start_durable_finish(app, state, lobby_id, 0);
+    }
+}
+
+pub fn enqueue_split(app: &AppHandle, state: &SharedState, split: PendingSplit) {
+    {
+        let mut guard = match state.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        guard.pending_splits.push(split);
+        if guard.split_retry_running {
+            return; // an existing loop will drain the queue
+        }
+        guard.split_retry_running = true;
+    }
+    let app = app.clone();
+    let state = state.clone();
+    tauri::async_runtime::spawn(async move {
+        durable_split_loop(app, state).await;
+    });
+}
+
+async fn durable_split_loop(app: AppHandle, state: SharedState) {
+    let mut backoff = Duration::from_secs(crate::config::WS_RECONNECT_BASE_SECS);
+    loop {
+        let split = {
+            let mut g = match state.lock() {
+                Ok(g) => g,
+                Err(_) => return,
+            };
+            match g.pending_splits.first().cloned() {
+                Some(s) => s,
+                None => {
+                    g.split_retry_running = false;
+                    return;
+                }
+            }
+        };
+        match api::lobby::submit_split(&app, &split).await {
+            PostOutcome::Ok(()) | PostOutcome::Rejected => {
+                if let Ok(mut g) = state.lock() {
+                    if g.pending_splits.first().is_some_and(|s| {
+                        s.lobby_id == split.lobby_id && s.split_index == split.split_index
+                    }) {
+                        g.pending_splits.remove(0);
+                    }
+                }
+                backoff = Duration::from_secs(crate::config::WS_RECONNECT_BASE_SECS);
+            }
+            PostOutcome::Transient => {
+                mlog!(
+                    LogCat::Api,
+                    "[split] back unreachable, retrying in {backoff:?}"
+                );
+                tokio::time::sleep(backoff).await;
+                backoff =
+                    (backoff * 2).min(Duration::from_secs(crate::config::WS_RECONNECT_MAX_SECS));
+            }
         }
     }
 }

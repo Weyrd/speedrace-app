@@ -184,15 +184,14 @@ pub async fn poll_loop(
                     }
                     _ => None,
                 };
-                // No getcurrenttime: cant know the start -> next split = forfeit
                 if let Some(elapsed) = elapsed {
                     let at = crate::autosplit::early_start::run_start_from_elapsed(
                         now_epoch_ms(),
                         elapsed,
                     );
                     crate::autosplit::run_started::mark_run_start(&app, &state, at);
+                    run_start_captured = true;
                 }
-                run_start_captured = true;
             }
         }
 
@@ -213,39 +212,39 @@ pub async fn poll_loop(
             forced_start = true;
         }
 
-        if !fire {
-            last_index = index;
-        } else if last_index < 0 && index >= 0 {
-            // Timer just started -> catch up completed split
-            if index > 0 {
+        if fire {
+            if last_index < 0 && index >= 0 {
+                // Firing just began -> catch up completed splits (incl. an early start)
+                if index > 0 {
+                    mlog!(
+                        LogCat::LiveSplit,
+                        "[livesplit-tcp] catching up {index} split(s) (index jumped to {index})"
+                    );
+                    for _ in 0..(index - 1) {
+                        crate::autosplit::split::skip_split(&app, &state);
+                    }
+                    crate::autosplit::split::fire_split(&app, &state);
+                }
+                last_index = index;
+            } else if index > last_index {
+                let steps = (index - last_index) as usize;
                 mlog!(
                     LogCat::LiveSplit,
-                    "[livesplit-tcp] catching up {index} split(s) (index jumped to {index})"
+                    "[livesplit-tcp] split {last_index} → {index} ({steps} split(s))"
                 );
-                for _ in 0..(index - 1) {
+                for _ in 0..(steps - 1) {
                     crate::autosplit::split::skip_split(&app, &state);
                 }
                 crate::autosplit::split::fire_split(&app, &state);
+                last_index = index;
+            } else if index < last_index {
+                // Runner reset their timer
+                mlog!(
+                    LogCat::LiveSplit,
+                    "[livesplit-tcp] index reset {last_index} → {index}, re-arming"
+                );
+                last_index = index;
             }
-            last_index = index;
-        } else if index > last_index {
-            let steps = (index - last_index) as usize;
-            mlog!(
-                LogCat::LiveSplit,
-                "[livesplit-tcp] split {last_index} → {index} ({steps} split(s))"
-            );
-            for _ in 0..(steps - 1) {
-                crate::autosplit::split::skip_split(&app, &state);
-            }
-            crate::autosplit::split::fire_split(&app, &state);
-            last_index = index;
-        } else if index < last_index {
-            // Runner reset their timer
-            mlog!(
-                LogCat::LiveSplit,
-                "[livesplit-tcp] index reset {last_index} → {index}, re-arming"
-            );
-            last_index = index;
         }
 
         // check if split match our name

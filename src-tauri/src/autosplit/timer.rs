@@ -32,14 +32,20 @@ impl Timer for MomentumTimer {
     }
 
     fn split(&mut self) {
-        // Only fire when WASM is the committed source
-        {
+        let source = {
             let Ok(guard) = self.state.lock() else { return };
-            if guard.autosplit_source != Some(crate::state::AutosplitSource::Wasm) {
-                return;
+            guard.autosplit_source
+        };
+        match source {
+            // Committed to WASM (gun passed): fire normally
+            Some(crate::state::AutosplitSource::Wasm) => {
+                crate::autosplit::split::fire_split(&self.app, &self.state)
             }
+            // LiveSplit won the race: WASM ignore
+            Some(crate::state::AutosplitSource::LiveSplit) => {}
+            // Pre-gun crossing (source undecided): treat as an early start
+            None => crate::autosplit::split::buffer_early_split(&self.app, &self.state),
         }
-        crate::autosplit::split::fire_split(&self.app, &self.state);
     }
 
     fn set_variable(&mut self, key: &str, value: &str) {
@@ -122,22 +128,25 @@ impl Timer for MomentumTimer {
     fn set_game_time(&mut self, t: livesplit_auto_splitting::time::Duration) {
         // Mid-run WASM get run_started_at_ms = now − IGT
         let igt = t.whole_milliseconds() as i64;
-        if igt <= 0 {
-            return;
-        }
         let at = {
-            let Ok(g) = self.state.lock() else { return };
+            let Ok(mut g) = self.state.lock() else { return };
+            // A live run's IGT climbs a frozen menu IGT does not.
+            let advancing = g.wasm_last_igt.is_some_and(|prev| igt > prev);
+            g.wasm_last_igt = Some(igt);
             if g.run_start_instant.is_some() {
                 return;
             }
             match g.app_state {
-                // StreamSetup and WaitingForStart detection allowed
-                AppState::StreamSetup | AppState::WaitingForStart => {}
+                AppState::StreamSetup | AppState::WaitingForStart => {
+                    if igt <= 0 || !advancing {
+                        return;
+                    }
+                }
                 AppState::RaceInProgress => {
                     let gun_passed = g
                         .race_start_at
                         .is_some_and(|start| now_epoch_ms() + g.clock_offset_ms >= start);
-                    if !gun_passed {
+                    if !gun_passed || igt <= 0 {
                         return;
                     }
                 }

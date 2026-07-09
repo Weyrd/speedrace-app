@@ -155,6 +155,7 @@ pub fn run() {
             commands::sync_clock,
             commands::get_split_segments,
             commands::get_current_split_index,
+            commands::get_autosplit_state,
             hide_to_tray,
         ])
         .setup(move |app| {

@@ -15,12 +15,31 @@ pub enum AutosplitSource {
 pub struct PendingFinish {
     pub lobby_id: String,
     pub finishing_time_ms: u64,
+    pub run_started_at_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
 pub struct PendingRunStarted {
     pub lobby_id: String,
     pub run_start_instant: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingSplit {
+    pub lobby_id: String,
+    pub split_index: u32,
+    pub segment_name: String,
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+
+// A WASM split crossed pre-source-commit -> early start buffered
+#[derive(Debug, Clone)]
+pub struct BufferedEarlySplit {
+    pub lobby_id: String,
+    pub split_index: u32,
+    pub segment_name: String,
+    pub is_final: bool,
 }
 
 pub struct GlobalState {
@@ -57,6 +76,11 @@ pub struct GlobalState {
     pub counter_buffers: HashMap<String, CounterBuffer>,
     pub pending_finish: Option<PendingFinish>,
     pub finish_retry_running: bool,
+    pub pending_splits: Vec<PendingSplit>,
+    pub split_retry_running: bool,
+    // Last IGT the WASM reported. start is only (re)captured when it advances (rules out stale-menu re-capture)
+    pub wasm_last_igt: Option<i64>,
+    pub pending_early_splits: Vec<BufferedEarlySplit>,
 }
 
 impl GlobalState {
@@ -92,6 +116,10 @@ impl GlobalState {
             counter_buffers: HashMap::new(),
             pending_finish: None,
             finish_retry_running: false,
+            pending_splits: Vec::new(),
+            split_retry_running: false,
+            wasm_last_igt: None,
+            pending_early_splits: Vec::new(),
         }
     }
 }
@@ -108,6 +136,8 @@ pub fn reset_run_start(g: &mut GlobalState) {
     g.run_active = false;
     g.run_forfeited = false;
     g.pending_run_started = None;
+    g.wasm_last_igt = None;
+    g.pending_early_splits.clear();
 }
 
 pub type SharedState = Arc<Mutex<GlobalState>>;
