@@ -128,10 +128,8 @@ pub fn run() {
             tauri::WindowEvent::CloseRequested { .. } => {
                 window.app_handle().exit(0);
             }
-            tauri::WindowEvent::Resized(_) => {
-                if window.is_minimized().unwrap_or(false) {
-                    minimize_to_tray(window);
-                }
+            tauri::WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
+                minimize_to_tray(window);
             }
             _ => {}
         })

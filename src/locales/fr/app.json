@@ -41,6 +41,9 @@
     "status_finished": "Terminé",
     "status_forfeited": "Forfait"
   },
+  "autosplit": {
+    "early_start_tooltip": "Ton timer semble déjà lancé. Réinitialise-le avant le départ pour éviter une pénalité."
+  },
   "stop_modal": {
     "title_racing": "Abandonner la race ?",
     "title_idle": "Arrêter le stream ?",

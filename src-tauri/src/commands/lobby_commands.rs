@@ -121,6 +121,7 @@ fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result:
         guard.pending_finish = None;
         guard.app_state = AppState::Finished;
         guard.race_start_at = None;
+        guard.run_start_instant = None;
         guard.autosplitter_cancel.store(true, Ordering::SeqCst);
         username = guard.user.as_ref().map(|u| u.username.clone());
     }
@@ -170,6 +171,7 @@ pub async fn send_player_forfeited(
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.app_state = AppState::Finished;
         guard.race_start_at = None;
+        guard.run_start_instant = None;
     }
     let _ = app.emit(WS_PLAYER_RESULT, result);
     Ok(())
@@ -185,5 +187,6 @@ pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
     guard.split_run = None;
     guard.current_split_index = 0;
     guard.segment_start_ms = 0;
+    crate::state::reset_run_start(&mut guard);
     Ok(())
 }

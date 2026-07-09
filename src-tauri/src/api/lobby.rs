@@ -7,8 +7,8 @@ use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
 use super::client::{
-    authed_get_json, authed_post_body_json_outcome, authed_post_body_void, authed_post_returning,
-    authed_post_void, PostOutcome,
+    authed_get_json, authed_post_body_json_outcome, authed_post_body_void,
+    authed_post_body_void_outcome, authed_post_returning, authed_post_void, PostOutcome,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -94,6 +94,7 @@ pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), 
 struct AutosplitStatusBody {
     connected: bool,
     splits_valid: bool,
+    run_in_progress: bool,
 }
 
 pub async fn post_autosplit_status(
@@ -101,6 +102,7 @@ pub async fn post_autosplit_status(
     lobby_id: &str,
     connected: bool,
     splits_valid: bool,
+    run_in_progress: bool,
 ) -> Result<(), String> {
     authed_post_body_void(
         app,
@@ -108,6 +110,7 @@ pub async fn post_autosplit_status(
         &AutosplitStatusBody {
             connected,
             splits_valid,
+            run_in_progress,
         },
         "autosplit_status",
     )
@@ -130,6 +133,25 @@ pub async fn submit_finish(
         &config::lobby_finish_path(lobby_id),
         &FinishPlayerBody { finishing_time_ms },
         "finished",
+    )
+    .await
+}
+
+#[derive(Serialize)]
+struct RunStartedBody {
+    elapsed_ms: i64, // since when it is started
+}
+
+pub async fn submit_run_started(
+    app: &AppHandle,
+    lobby_id: &str,
+    elapsed_ms: i64,
+) -> PostOutcome<()> {
+    authed_post_body_void_outcome(
+        app,
+        &config::lobby_run_started_path(lobby_id),
+        &RunStartedBody { elapsed_ms },
+        "run_started",
     )
     .await
 }

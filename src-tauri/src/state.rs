@@ -16,6 +16,12 @@ pub struct PendingFinish {
     pub finishing_time_ms: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct PendingRunStarted {
+    pub lobby_id: String,
+    pub run_start_instant: i64,
+}
+
 pub struct GlobalState {
     pub app_state: AppState,
     pub user: Option<UserData>,
@@ -23,6 +29,12 @@ pub struct GlobalState {
     pub lobby: Option<LobbySetup>,
     pub race_start_at: Option<i64>,
     pub clock_offset_ms: i64,
+    pub run_start_instant: Option<i64>,
+    pub run_active: bool,
+
+    pub run_forfeited: bool,
+    pub pending_run_started: Option<PendingRunStarted>,
+    pub run_started_retry_running: bool,
     pub refresh_loop_running: bool,
     pub ws_loop_running: bool,
     pub split_run: Option<livesplit_core::Run>,
@@ -34,11 +46,11 @@ pub struct GlobalState {
     pub autosplitter_cancel: Arc<AtomicBool>,
     pub probe_running: bool,
     pub livesplit_running: bool,
-    pub last_autosplit_reported: Option<(bool, bool)>,
+    pub last_autosplit_reported: Option<(bool, bool, bool)>,
     pub autosplit_source: Option<AutosplitSource>,
     pub wasm_attached: bool,
     pub livesplit_connected: bool,
-    pub livesplit_splits_match: Option<bool>, // check if right split loaded
+    pub livesplit_splits_match: Option<bool>,
     pub counter_config: Option<Vec<crate::api::counter_config::CounterConfig>>,
     pub counter_buffers: HashMap<String, CounterBuffer>,
     pub pending_finish: Option<PendingFinish>,
@@ -54,6 +66,11 @@ impl GlobalState {
             lobby: None,
             race_start_at: None,
             clock_offset_ms: 0,
+            run_start_instant: None,
+            run_active: false,
+            run_forfeited: false,
+            pending_run_started: None,
+            run_started_retry_running: false,
             refresh_loop_running: false,
             ws_loop_running: false,
             split_run: None,
@@ -81,6 +98,13 @@ impl Default for GlobalState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+pub fn reset_run_start(g: &mut GlobalState) {
+    g.run_start_instant = None;
+    g.run_active = false;
+    g.run_forfeited = false;
+    g.pending_run_started = None;
 }
 
 pub type SharedState = Arc<Mutex<GlobalState>>;

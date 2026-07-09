@@ -20,7 +20,11 @@ export default function Idle() {
       <p className="text-xs text-dim font-mono tracking-wide leading-relaxed whitespace-pre-line">
         {t("idle.description")}
       </p>
-      <Button variant="start" onClick={() => openUrl(webUrls.createLobby)} className="mt-2 text-sm">
+      <Button
+        variant="start"
+        onClick={() => openUrl(webUrls.createLobby)}
+        className="mt-2 text-sm"
+      >
         {t("idle.create_lobby")}
         <ExternalLink size={15} />
       </Button>

@@ -86,6 +86,7 @@ export default function StreamSetup() {
         code={lobby.code}
         label={t("stream.lobby")}
         autosplit={state.autosplit}
+        earlyStartDetected={state.autosplit?.run_in_progress}
       />
 
       <div
