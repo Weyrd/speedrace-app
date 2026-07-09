@@ -1,3 +1,4 @@
+use crate::autosplit::now_epoch_ms;
 use crate::logging::{mlog, LogCat};
 use crate::state::SharedState;
 use std::sync::{
@@ -78,6 +79,7 @@ pub async fn poll_loop(
     let mut name_checked_index: i32 = -1;
     let mut forced_start = false;
     let mut run_start_captured = false;
+    let mut saw_not_running = false;
     let mut tick: u32 = 0;
 
     loop {
@@ -144,7 +146,7 @@ pub async fn poll_loop(
 
         let index = line.trim().parse::<i32>().unwrap_or(-1);
 
-        if tick % 100 == 0 {
+        if tick.is_multiple_of(100) {
             mlog!(
                 LogCat::LiveSplit,
                 "[livesplit-tcp] poll #{tick} index={index} last={last_index} fire={fire}"
@@ -152,40 +154,46 @@ pub async fn poll_loop(
         }
         tick = tick.wrapping_add(1);
 
-        // Back-date the run's start from the running timer so the back can measure any head start.
-        if index < 0 && run_start_captured {
-            if let Ok(mut g) = state.lock() {
-                g.run_started_at_ms = None;
-            }
-            run_start_captured = false;
-        } else if index >= 0 && !run_start_captured {
-            if writer.write_all(b"getcurrenttime\r\n").await.is_err() {
-                break;
-            }
-            line.clear();
-            let time_res = timeout(
-                Duration::from_millis(READ_TIMEOUT_MS),
-                reader.read_line(&mut line),
-            )
-            .await;
-            let elapsed = match time_res {
-                Ok(Ok(n)) if n > 0 => {
-                    crate::autosplit::early_start::parse_livesplit_time_ms(line.trim())
-                }
-                _ => None,
-            };
-            if let Some(elapsed) = elapsed {
-                let now_ms = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_millis() as i64)
-                    .unwrap_or(0);
+        // Capture the run start: a live NotRunning→Running edge is trusted; a first-seen running
+        // timer is reconstructed from elapsed, or None if getcurrenttime fails.
+        if index < 0 {
+            saw_not_running = true;
+            if run_start_captured {
                 if let Ok(mut g) = state.lock() {
-                    g.run_started_at_ms = Some(
-                        crate::autosplit::early_start::run_start_from_elapsed(
-                            now_ms + g.clock_offset_ms,
-                            elapsed,
-                        ),
+                    crate::state::reset_run_start(&mut g);
+                }
+                run_start_captured = false;
+                crate::ws::handler::report_autosplit_state(&app, &state).await;
+            }
+        } else if index >= 0 && !run_start_captured {
+            if saw_not_running {
+                // Raw local instant; no clock_offset (back anchors run start to its own now).
+                crate::autosplit::run_started::mark_run_start(&app, &state, now_epoch_ms());
+                run_start_captured = true;
+            } else {
+                if writer.write_all(b"getcurrenttime\r\n").await.is_err() {
+                    break;
+                }
+                line.clear();
+                let time_res = timeout(
+                    Duration::from_millis(READ_TIMEOUT_MS),
+                    reader.read_line(&mut line),
+                )
+                .await;
+                let elapsed = match time_res {
+                    Ok(Ok(n)) if n > 0 => {
+                        crate::autosplit::early_start::parse_livesplit_time_ms(line.trim())
+                    }
+                    _ => None,
+                };
+                // No getcurrenttime: can't anchor the start. The next split will forfeit.
+                if let Some(elapsed) = elapsed {
+                    // Reconstruct raw local instant; no clock_offset (back anchors to its now).
+                    let at = crate::autosplit::early_start::run_start_from_elapsed(
+                        now_epoch_ms(),
+                        elapsed,
                     );
+                    crate::autosplit::run_started::mark_run_start(&app, &state, at);
                 }
                 run_start_captured = true;
             }
@@ -213,14 +221,16 @@ pub async fn poll_loop(
         if !fire {
             last_index = index;
         } else if last_index < 0 && index >= 0 {
-            // Timer just started catch up already-completed splits
+            // Timer just started: catch up completed splits. The burst can't recover intermediate
+            // checkpoint times, so skip them and record only the final at real now.
             if index > 0 {
                 mlog!(
                     LogCat::LiveSplit,
                     "[livesplit-tcp] catching up {index} split(s) (index jumped to {index})"
                 );
-            }
-            for _ in 0..index {
+                for _ in 0..(index - 1) {
+                    crate::autosplit::split::skip_split(&app, &state);
+                }
                 crate::autosplit::split::fire_split(&app, &state);
             }
             last_index = index;
@@ -230,9 +240,10 @@ pub async fn poll_loop(
                 LogCat::LiveSplit,
                 "[livesplit-tcp] split {last_index} → {index} ({steps} split(s))"
             );
-            for _ in 0..steps {
-                crate::autosplit::split::fire_split(&app, &state);
+            for _ in 0..(steps - 1) {
+                crate::autosplit::split::skip_split(&app, &state);
             }
+            crate::autosplit::split::fire_split(&app, &state);
             last_index = index;
         } else if index < last_index {
             // Runner reset their timer

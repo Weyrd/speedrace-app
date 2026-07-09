@@ -1,3 +1,4 @@
+use crate::autosplit::now_epoch_ms;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::SharedState;
@@ -10,17 +11,13 @@ pub struct MomentumTimer {
     pub state: SharedState,
 }
 
-fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
 impl Timer for MomentumTimer {
     fn state(&self) -> TimerState {
-        let guard = self.state.lock().unwrap();
-        if guard.app_state == AppState::RaceInProgress {
+        // Return Running whenever a run is active so the WASM sees the correct state and
+        // can call timer::reset() when the game returns to the menu. Splits are independently
+        // gated by autosplit_source (not committed until the gun fires), so returning Running
+        // before the race start is safe — splits are no-ops.
+        if self.state.lock().unwrap().run_active {
             TimerState::Running
         } else {
             TimerState::NotRunning
@@ -110,34 +107,54 @@ impl Timer for MomentumTimer {
         });
     }
 
-    // Stamp when the game's run begins so the back can measure a head start on the race clock.
+    // Stamp the run start so the back can measure any head start. Raw local instant: the back
+    // anchors to its own now, so clock_offset cancels and must not be applied here.
     fn start(&mut self) {
-        let now_ms = now_ms();
-        if let Ok(mut g) = self.state.lock() {
-            g.run_started_at_ms = Some(now_ms + g.clock_offset_ms);
-        }
+        crate::autosplit::run_started::mark_run_start(&self.app, &self.state, now_epoch_ms());
     }
     fn skip_split(&mut self) {}
     fn undo_split(&mut self) {}
     fn reset(&mut self) {
         if let Ok(mut g) = self.state.lock() {
-            g.run_started_at_ms = None;
+            crate::state::reset_run_start(&mut g);
         }
+        let app = self.app.clone();
+        let state = self.state.clone();
+        // Pin run_in_progress=false so a racing timer::start() on the next tick can't flip it back
+        // before this task runs and leave the banner stuck.
+        tauri::async_runtime::spawn(async move {
+            crate::ws::handler::report_autosplit_state_not_running(&app, &state).await;
+        });
     }
     fn set_game_time(&mut self, t: livesplit_auto_splitting::time::Duration) {
-        // Fallback: game already running when the wasm attached (no start edge) — back-date from IGT.
+        // Mid-run WASM attach: reconstruct run_started_at_ms = now − IGT when no start edge was
+        // seen. Allowed in WaitingForStart (early-start banner) and RaceInProgress post-gun.
         let igt = t.whole_milliseconds() as i64;
         if igt <= 0 {
             return;
         }
-        let now_ms = now_ms();
-        let mut g = match self.state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
+        let at = {
+            let Ok(g) = self.state.lock() else { return };
+            if g.run_start_instant.is_some() {
+                return;
+            }
+            match g.app_state {
+                // StreamSetup and WaitingForStart are both pre-race lobby phases; allow detection
+                // so a player who was already running when the app started is caught.
+                AppState::StreamSetup | AppState::WaitingForStart => {}
+                AppState::RaceInProgress => {
+                    let gun_passed = g
+                        .race_start_at
+                        .is_some_and(|start| now_epoch_ms() + g.clock_offset_ms >= start);
+                    if !gun_passed {
+                        return;
+                    }
+                }
+                _ => return,
+            }
+            now_epoch_ms() - igt
         };
-        if g.run_started_at_ms.is_none() {
-            g.run_started_at_ms = Some((now_ms + g.clock_offset_ms) - igt);
-        }
+        crate::autosplit::run_started::mark_run_start(&self.app, &self.state, at);
     }
     fn pause_game_time(&mut self) {}
     fn resume_game_time(&mut self) {}

@@ -7,8 +7,8 @@ use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
 use super::client::{
-    authed_get_json, authed_post_body_json_outcome, authed_post_body_void, authed_post_returning,
-    authed_post_void, PostOutcome,
+    authed_get_json, authed_post_body_json_outcome, authed_post_body_void,
+    authed_post_body_void_outcome, authed_post_returning, authed_post_void, PostOutcome,
 };
 
 // finish/forfeit
@@ -96,7 +96,8 @@ pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), 
 struct AutosplitStatusBody {
     connected: bool,
     splits_valid: bool,
-    run_in_progress: bool, // cehck when connecting that game isint in progress
+    // true = the run looks already running while still in the lobby (drives the early-start banner)
+    run_in_progress: bool,
 }
 
 pub async fn post_autosplit_status(
@@ -123,23 +124,38 @@ pub async fn post_autosplit_status(
 #[derive(Serialize)]
 struct FinishPlayerBody {
     finishing_time_ms: u64,
-    run_started_at_ms: Option<i64>,
 }
 
 pub async fn submit_finish(
     app: &AppHandle,
     lobby_id: &str,
     finishing_time_ms: u64,
-    run_started_at_ms: Option<i64>,
 ) -> PostOutcome<PlayerResult> {
     authed_post_body_json_outcome(
         app,
         &config::lobby_finish_path(lobby_id),
-        &FinishPlayerBody {
-            finishing_time_ms,
-            run_started_at_ms,
-        },
+        &FinishPlayerBody { finishing_time_ms },
         "finished",
+    )
+    .await
+}
+
+// Server-anchored: back stamps its own now and computes run_start = now - elapsed.
+#[derive(Serialize)]
+struct RunStartedBody {
+    elapsed_ms: i64,
+}
+
+pub async fn submit_run_started(
+    app: &AppHandle,
+    lobby_id: &str,
+    elapsed_ms: i64,
+) -> PostOutcome<()> {
+    authed_post_body_void_outcome(
+        app,
+        &config::lobby_run_started_path(lobby_id),
+        &RunStartedBody { elapsed_ms },
+        "run_started",
     )
     .await
 }

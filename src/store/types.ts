@@ -125,6 +125,11 @@ export type AppAction =
   | { type: typeof ActionType.StreamStopped }
   | { type: typeof ActionType.NewRace }
   | { type: typeof ActionType.AutosplitStatus; status: AutosplitState }
-  | { type: typeof ActionType.SplitFired; index: number; segmentMs: number; newStartMs: number }
+  | {
+      type: typeof ActionType.SplitFired;
+      index: number;
+      segmentMs: number;
+      newStartMs: number;
+    }
   | { type: typeof ActionType.ServerUnavailable }
   | { type: typeof ActionType.Banned };

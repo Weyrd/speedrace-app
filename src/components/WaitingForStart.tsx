@@ -31,6 +31,7 @@ export default function WaitingForStart() {
         code={lobby.code}
         live
         autosplit={state.autosplit}
+        earlyStartDetected={state.autosplit?.run_in_progress}
       />
 
       {/* Stream preview - view only */}

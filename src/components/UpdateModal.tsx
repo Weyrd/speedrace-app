@@ -27,10 +27,18 @@ export default function UpdateModal({
           </p>
         )}
         <div className="flex gap-2">
-          <Button variant="outline" onClick={onDismiss} className="flex-1 py-2 text-2xs">
+          <Button
+            variant="outline"
+            onClick={onDismiss}
+            className="flex-1 py-2 text-2xs"
+          >
             {t("update_modal.later")}
           </Button>
-          <Button variant="success" onClick={onConfirm} className="flex-1 py-2 text-2xs">
+          <Button
+            variant="success"
+            onClick={onConfirm}
+            className="flex-1 py-2 text-2xs"
+          >
             {t("update_modal.install")}
           </Button>
         </div>

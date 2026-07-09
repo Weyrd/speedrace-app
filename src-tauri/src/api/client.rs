@@ -166,6 +166,35 @@ pub enum PostOutcome<R> {
     Transient, // network error, 5xx, or no token yet: worth retrying
 }
 
+pub async fn authed_post_body_void_outcome<B: Serialize>(
+    app: &AppHandle,
+    path: &str,
+    body: &B,
+    log_tag: &str,
+) -> PostOutcome<()> {
+    let client = ApiClient::new(app);
+    let Some(authed) = client.authenticated() else {
+        return PostOutcome::Transient; // no token yet; a refresh may restore it
+    };
+    let resp = match authed.post(path).json(body).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            mlog!(LogCat::Api, "[{log_tag}] post error: {e}");
+            return PostOutcome::Transient;
+        }
+    };
+    let status = resp.status();
+    if status.is_success() {
+        PostOutcome::Ok(())
+    } else if status.is_server_error() {
+        mlog!(LogCat::Api, "[{log_tag}] server error: {status}");
+        PostOutcome::Transient
+    } else {
+        mlog!(LogCat::Api, "[{log_tag}] rejected: {status}");
+        PostOutcome::Rejected
+    }
+}
+
 pub async fn authed_post_body_json_outcome<B: Serialize, R: DeserializeOwned>(
     app: &AppHandle,
     path: &str,
