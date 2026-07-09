@@ -4,11 +4,11 @@ use crate::events::{
 };
 
 #[derive(serde::Serialize, Clone)]
-struct AutosplitProbePayload {
-    wasm: bool,
-    livesplit: bool,
-    splits_match: Option<bool>,
-    run_in_progress: bool,
+pub struct AutosplitProbePayload {
+    pub wasm: bool,
+    pub livesplit: bool,
+    pub splits_match: Option<bool>,
+    pub run_in_progress: bool,
 }
 use crate::autosplit::now_epoch_ms;
 use crate::logging::{mlog, LogCat};
@@ -63,6 +63,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.livesplit_connected = false;
                 guard.livesplit_splits_match = None;
                 guard.counter_buffers.clear();
+                guard.pending_splits.clear();
                 crate::state::reset_run_start(&mut guard);
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
@@ -119,6 +120,8 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.segment_start_ms = 0;
                 guard.counter_config = None;
                 guard.counter_buffers.clear();
+                guard.pending_splits.clear();
+                guard.pending_early_splits.clear();
             }
             let _ = app.emit(WS_LOBBY_CLOSED, payload);
         }
@@ -338,6 +341,16 @@ async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<At
         }
 
         sleep(Duration::from_millis(RECONNECT_DELAY_MS)).await;
+    }
+}
+
+pub(crate) fn current_autosplit_probe(state: &SharedState) -> AutosplitProbePayload {
+    let g = state.lock().unwrap();
+    AutosplitProbePayload {
+        wasm: g.wasm_attached,
+        livesplit: g.livesplit_connected,
+        splits_match: g.livesplit_splits_match,
+        run_in_progress: g.run_active,
     }
 }
 
