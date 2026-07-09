@@ -53,11 +53,9 @@ pub fn start_durable_finish(
             Ok(g) => g,
             Err(_) => return,
         };
-        let run_started_at_ms = guard.run_started_at_ms;
         guard.pending_finish = Some(PendingFinish {
             lobby_id,
             finishing_time_ms,
-            run_started_at_ms,
         });
         if guard.finish_retry_running {
             return; // an existing task will pick up the pending finish
@@ -79,14 +77,7 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
     } {
         crate::counter::flush_all_counter_buffers(&app, &state, &pending.lobby_id).await;
 
-        match api::lobby::submit_finish(
-            &app,
-            &pending.lobby_id,
-            pending.finishing_time_ms,
-            pending.run_started_at_ms,
-        )
-        .await
-        {
+        match api::lobby::submit_finish(&app, &pending.lobby_id, pending.finishing_time_ms).await {
             PostOutcome::Ok(result) => {
                 finalize_finish(&app, &state, &pending.lobby_id, result);
                 break;
@@ -130,7 +121,7 @@ fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result:
         guard.pending_finish = None;
         guard.app_state = AppState::Finished;
         guard.race_start_at = None;
-        guard.run_started_at_ms = None;
+        guard.run_start_instant = None;
         guard.autosplitter_cancel.store(true, Ordering::SeqCst);
         username = guard.user.as_ref().map(|u| u.username.clone());
     }
@@ -180,7 +171,7 @@ pub async fn send_player_forfeited(
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.app_state = AppState::Finished;
         guard.race_start_at = None;
-        guard.run_started_at_ms = None;
+        guard.run_start_instant = None;
     }
     let _ = app.emit(WS_PLAYER_RESULT, result);
     Ok(())
@@ -196,6 +187,6 @@ pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
     guard.split_run = None;
     guard.current_split_index = 0;
     guard.segment_start_ms = 0;
-    guard.run_started_at_ms = None;
+    crate::state::reset_run_start(&mut guard);
     Ok(())
 }

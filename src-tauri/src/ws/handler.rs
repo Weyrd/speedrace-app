@@ -8,7 +8,9 @@ struct AutosplitProbePayload {
     wasm: bool,
     livesplit: bool,
     splits_match: Option<bool>,
+    run_in_progress: bool,
 }
+use crate::autosplit::now_epoch_ms;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::{AutosplitSource, SharedState};
@@ -32,6 +34,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
 
     match msg {
         ServerMessage::LobbySetup(payload) => {
+            let payload = *payload;
             mlog!(
                 LogCat::Ws,
                 "[ws] LobbySetup: lobby={} game_id={} cat_id={} split_id={:?} split_updated_at={:?} autosplitter_updated_at={:?}",
@@ -60,6 +63,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.livesplit_connected = false;
                 guard.livesplit_splits_match = None;
                 guard.counter_buffers.clear();
+                crate::state::reset_run_start(&mut guard);
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
             init_lobby_resources(app, state, &payload);
@@ -69,7 +73,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             {
                 let mut guard = state.lock().unwrap();
                 guard.app_state = AppState::RaceInProgress;
-                guard.race_start_at = Some(payload.race_start_at.clone());
+                guard.race_start_at = Some(payload.race_start_at);
                 mlog!(
                     LogCat::Ws,
                     "[ws] LobbyStart: race_start_at={} wasm_cached={}",
@@ -127,6 +131,16 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.pending_finish = None;
             }
             let _ = app.emit(WS_PLAYER_RESULT, payload);
+        }
+
+        ServerMessage::EarlyStartWarning { active } => {
+            if active {
+                let app = app.clone();
+                let state = state.clone();
+                tauri::async_runtime::spawn(async move {
+                    report_autosplit_state(&app, &state).await;
+                });
+            }
         }
 
         ServerMessage::Ping => {}
@@ -232,13 +246,6 @@ pub(crate) fn in_lobby(state: &SharedState) -> bool {
     )
 }
 
-fn now_epoch_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
 fn race_clock_started(state: &SharedState) -> bool {
     let guard = state.lock().unwrap();
     let Some(start) = guard.race_start_at else {
@@ -335,7 +342,16 @@ async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<At
 }
 
 pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState) {
-    let (wasm, livesplit, splits_match, connected, splits_valid, run_in_progress) = {
+    let run_active = state.lock().unwrap().run_active;
+    report_autosplit_state_inner(app, state, run_active).await;
+}
+
+pub(crate) async fn report_autosplit_state_not_running(app: &AppHandle, state: &SharedState) {
+    report_autosplit_state_inner(app, state, false).await;
+}
+
+async fn report_autosplit_state_inner(app: &AppHandle, state: &SharedState, run_in_progress: bool) {
+    let (wasm, livesplit, splits_match, connected, splits_valid) = {
         let g = state.lock().unwrap();
         let connected = match g.autosplit_source {
             Some(AutosplitSource::Wasm) => g.wasm_attached,
@@ -346,17 +362,12 @@ pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState)
             Some(AutosplitSource::Wasm) => true,
             _ => g.livesplit_splits_match != Some(false),
         };
-        let run_in_progress = matches!(
-            g.app_state,
-            AppState::StreamSetup | AppState::WaitingForStart
-        ) && g.run_started_at_ms.is_some();
         (
             g.wasm_attached,
             g.livesplit_connected,
             g.livesplit_splits_match,
             connected,
             splits_valid,
-            run_in_progress,
         )
     };
     let _ = app.emit(
@@ -365,6 +376,7 @@ pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState)
             wasm,
             livesplit,
             splits_match,
+            run_in_progress,
         },
     );
     report_autosplit(app, state, connected, splits_valid, run_in_progress).await;
@@ -377,11 +389,13 @@ async fn report_autosplit(
     splits_valid: bool,
     run_in_progress: bool,
 ) {
-    let key = (connected, splits_valid, run_in_progress);
     let (lobby_id, should_send) = {
         let guard = state.lock().unwrap();
         let lobby_id = guard.lobby.as_ref().map(|l| l.lobby_id.clone());
-        (lobby_id, guard.last_autosplit_reported != Some(key))
+        (
+            lobby_id,
+            guard.last_autosplit_reported != Some((connected, splits_valid, run_in_progress)),
+        )
     };
     if !should_send {
         return;
@@ -399,7 +413,8 @@ async fn report_autosplit(
     .await
     {
         Ok(()) => {
-            state.lock().unwrap().last_autosplit_reported = Some(key);
+            state.lock().unwrap().last_autosplit_reported =
+                Some((connected, splits_valid, run_in_progress));
         }
         Err(e) => mlog!(LogCat::Autosplit, "[autosplit] report failed: {e}"),
     }

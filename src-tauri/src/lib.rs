@@ -12,8 +12,6 @@ mod settings;
 mod state;
 mod ws;
 
-pub use autosplit::early_start;
-
 use logging::{mlog, LogCat};
 use models::AppState;
 use state::{GlobalState, SharedState};
@@ -130,10 +128,8 @@ pub fn run() {
             tauri::WindowEvent::CloseRequested { .. } => {
                 window.app_handle().exit(0);
             }
-            tauri::WindowEvent::Resized(_) => {
-                if window.is_minimized().unwrap_or(false) {
-                    minimize_to_tray(window);
-                }
+            tauri::WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
+                minimize_to_tray(window);
             }
             _ => {}
         })

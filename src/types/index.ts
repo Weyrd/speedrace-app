@@ -45,6 +45,7 @@ export interface AutosplitState {
   wasm: boolean;
   livesplit: boolean;
   splits_match?: boolean | null;
+  run_in_progress?: boolean;
 }
 
 export interface LobbySetup {
