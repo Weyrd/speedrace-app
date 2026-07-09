@@ -96,7 +96,7 @@ pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), 
 struct AutosplitStatusBody {
     connected: bool,
     splits_valid: bool,
-    // true = the run looks already running while still in the lobby (drives the early-start banner)
+    // true = the run already started
     run_in_progress: bool,
 }
 
@@ -140,10 +140,9 @@ pub async fn submit_finish(
     .await
 }
 
-// Server-anchored: back stamps its own now and computes run_start = now - elapsed.
 #[derive(Serialize)]
 struct RunStartedBody {
-    elapsed_ms: i64,
+    elapsed_ms: i64, // since when it is started
 }
 
 pub async fn submit_run_started(

@@ -16,7 +16,7 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
     fire_split_impl(app, state, false);
 }
 
-// Advance the split index without recording a segment (burst intermediate, true time unknowable).
+// skip split if player started in adavance (before official start) only for livesplit
 pub fn skip_split(app: &AppHandle, state: &SharedState) {
     fire_split_impl(app, state, true);
 }
@@ -31,7 +31,7 @@ enum Outcome {
         is_final: bool,
         skip: bool,
     },
-    // Split fired with no start captured (mid-run attach, no edge/IGT): forfeit, don't record.
+    // If split without start (only case is wasm dont expose IGT, start game/run THEN app) -> forfeit instant as we cant compute the penalty
     Forfeit {
         lobby_id: String,
     },
@@ -61,9 +61,7 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
         };
         let lobby_id = lobby.lobby_id.clone();
 
-        // No start captured: the run's beginning was never seen (the runner had until this first
-        // split to reset), so forfeit instead of recording. Latch so repeated fires don't
-        // re-forfeit; a reset() clears run_forfeited and re-arms.
+        // if no start recorded (wasm no igt) runner have until he passes the first split to restart the run after -> forfeit
         if guard.run_start_instant.is_none() {
             if guard.run_forfeited {
                 return;
@@ -88,8 +86,6 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
             let segment_name = run.segment(index as usize).name().to_string();
             let start_ms = guard.segment_start_ms;
 
-            // Clamp up: a backward clock re-sync can push raw end below start; keep it monotonic so
-            // a post-gun split records at-worst-zero duration and isn't dropped as non-monotonic.
             let end_ms = end_ms.max(start_ms);
 
             let skip = force_skip;
@@ -117,7 +113,6 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
             let app = app.clone();
             let state = state.clone();
             tauri::async_runtime::spawn(async move {
-                // Flush buffered counters before the terminal POST (player-counters rule).
                 crate::counter::flush_all_counter_buffers(&app, &state, &lobby_id).await;
                 match api::lobby::post_player_forfeited(&app, &lobby_id).await {
                     Ok(result) => {
@@ -127,7 +122,6 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                             g.race_start_at = None;
                             g.run_start_instant = None;
                         }
-                        // Mirror send_player_forfeited: move the frontend off Racing.
                         let _ = app.emit(WS_PLAYER_RESULT, result);
                     }
                     Err(e) => {
@@ -135,7 +129,6 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                             LogCat::Autosplit,
                             "[autosplit] unverified-start forfeit: {e}"
                         );
-                        // Un-latch so the next split re-attempts the forfeit.
                         if let Ok(mut g) = state.lock() {
                             g.run_forfeited = false;
                         }
@@ -181,7 +174,6 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                     }
                 }
 
-                // The split just advanced; ship PerSplit-cadence buffers for the segment that ended.
                 crate::counter::flush_counter_buffers(
                     &app,
                     &state,
@@ -191,7 +183,6 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                 .await;
 
                 if is_final {
-                    // Durable: retried until the back acks, so a mid-race outage can't lose it.
                     crate::commands::lobby_commands::start_durable_finish(
                         &app, &state, lobby_id, end_ms,
                     );

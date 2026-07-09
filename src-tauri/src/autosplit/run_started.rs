@@ -4,9 +4,7 @@ use crate::logging::{mlog, LogCat};
 use crate::state::{PendingRunStarted, SharedState};
 use std::time::Duration;
 
-// Ship a known run start once per race. instant = RAW local now_epoch_ms() at run start (no
-// clock_offset; back anchors to its own now). Keyed off run_start_instant so a later real start
-// upgrades an earlier one. Reset clears the latch.
+// Send when race starts to compute penalty or not
 pub fn mark_run_start(app: &tauri::AppHandle, state: &SharedState, instant: i64) {
     let pending = {
         let mut g = match state.lock() {
@@ -56,8 +54,6 @@ fn start_durable_run_started(
     let app = app.clone();
     let state = state.clone();
     if already_running {
-        // Durable loop is already running (retry in flight); still emit the probe so the
-        // triangle icon updates even though we won't spawn a second loop.
         tauri::async_runtime::spawn(async move {
             crate::ws::handler::report_autosplit_state(&app, &state).await;
         });
@@ -78,10 +74,8 @@ async fn durable_run_started_loop(app: tauri::AppHandle, state: SharedState) {
         };
         g.pending_run_started.clone()
     } {
-        // Recompute per attempt: a retry seconds later must send a larger elapsed, not a stale one.
         let elapsed_ms = now_epoch_ms() - pending.run_start_instant;
         match crate::api::lobby::submit_run_started(&app, &pending.lobby_id, elapsed_ms).await {
-            // Rejected covers the endpoint not existing yet (404) — don't retry forever.
             PostOutcome::Ok(()) | PostOutcome::Rejected => {
                 if let Ok(mut g) = state.lock() {
                     g.pending_run_started = None;

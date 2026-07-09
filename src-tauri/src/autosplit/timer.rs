@@ -13,10 +13,7 @@ pub struct MomentumTimer {
 
 impl Timer for MomentumTimer {
     fn state(&self) -> TimerState {
-        // Return Running whenever a run is active so the WASM sees the correct state and
-        // can call timer::reset() when the game returns to the menu. Splits are independently
-        // gated by autosplit_source (not committed until the gun fires), so returning Running
-        // before the race start is safe — splits are no-ops.
+        // running -> wasm can call timer.Reset() and check if run is active
         if self.state.lock().unwrap().run_active {
             TimerState::Running
         } else {
@@ -107,8 +104,6 @@ impl Timer for MomentumTimer {
         });
     }
 
-    // Stamp the run start so the back can measure any head start. Raw local instant: the back
-    // anchors to its own now, so clock_offset cancels and must not be applied here.
     fn start(&mut self) {
         crate::autosplit::run_started::mark_run_start(&self.app, &self.state, now_epoch_ms());
     }
@@ -120,15 +115,12 @@ impl Timer for MomentumTimer {
         }
         let app = self.app.clone();
         let state = self.state.clone();
-        // Pin run_in_progress=false so a racing timer::start() on the next tick can't flip it back
-        // before this task runs and leave the banner stuck.
         tauri::async_runtime::spawn(async move {
             crate::ws::handler::report_autosplit_state_not_running(&app, &state).await;
         });
     }
     fn set_game_time(&mut self, t: livesplit_auto_splitting::time::Duration) {
-        // Mid-run WASM attach: reconstruct run_started_at_ms = now − IGT when no start edge was
-        // seen. Allowed in WaitingForStart (early-start banner) and RaceInProgress post-gun.
+        // Mid-run WASM get run_started_at_ms = now − IGT
         let igt = t.whole_milliseconds() as i64;
         if igt <= 0 {
             return;
@@ -139,8 +131,7 @@ impl Timer for MomentumTimer {
                 return;
             }
             match g.app_state {
-                // StreamSetup and WaitingForStart are both pre-race lobby phases; allow detection
-                // so a player who was already running when the app started is caught.
+                // StreamSetup and WaitingForStart detection allowed
                 AppState::StreamSetup | AppState::WaitingForStart => {}
                 AppState::RaceInProgress => {
                     let gun_passed = g

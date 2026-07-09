@@ -8,7 +8,7 @@ struct AutosplitProbePayload {
     wasm: bool,
     livesplit: bool,
     splits_match: Option<bool>,
-    // true = run detected as started before the race gun (early-start warning during lobby wait)
+    // true = run started before the start (early-start warning during lobby wait)
     run_in_progress: bool,
 }
 use crate::autosplit::now_epoch_ms;
@@ -134,8 +134,6 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             let _ = app.emit(WS_PLAYER_RESULT, payload);
         }
 
-        // Back confirmed early start; re-emit the probe so the triangle is in sync with the
-        // web banner even if AUTOSPLIT_PROBE fired before LobbySetup reset the React state.
         ServerMessage::EarlyStartWarning { active } => {
             if active {
                 let app = app.clone();
@@ -150,7 +148,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
     }
 }
 
-// Loads the split file and starts the autosplitters for a lobby (WS handler + startup restore)
+// Loads split file and starts the autosplitters (WS handler + startup restore)
 pub fn init_lobby_resources(
     app: &AppHandle,
     state: &SharedState,
@@ -162,7 +160,6 @@ pub fn init_lobby_resources(
     if lobby.split_resource_updated_at.is_none() {
         return;
     }
-    // Split resource load is idempotent, always respawn
     {
         let app = app.clone();
         let state = state.clone();
@@ -171,7 +168,6 @@ pub fn init_lobby_resources(
             load_split_resource(&app, &state, &category_split_id, updated_at.as_deref()).await;
         });
     }
-    // Guard against duplicate startup
     let can_probe = {
         let mut guard = state.lock().unwrap();
         if guard.probe_running {
@@ -205,7 +201,7 @@ pub fn init_lobby_resources(
                     Arc::clone(&g.autosplitter_cancel),
                 )
             };
-            // Run both in parallel: WASM (if any) and LiveSplit
+            // Run both in parallel WASM (if any) and LiveSplit
             if has_wasm {
                 crate::autosplit::wasm::start(app.clone(), state.clone(), cancel).await;
             }
@@ -215,10 +211,7 @@ pub fn init_lobby_resources(
     }
 }
 
-// Reconnect recovery: the app stayed alive across a WS drop, so current_split_index and
-// the committed autosplit_source are still in memory. Restart only the dead supervisors
-// (both starts are idempotent) and do NOT reload the split resource — that resets the
-// split index and would rewind mid-race. If resources were never loaded, do a full load.
+// Reconnect recovery: the app stayed alive across a WS drop, current_split_index and autosplit_source are still in memory
 pub(crate) fn resume_lobby_resources(
     app: &AppHandle,
     state: &SharedState,
@@ -258,7 +251,7 @@ pub(crate) fn in_lobby(state: &SharedState) -> bool {
     )
 }
 
-// True once the synced race clock (race_start_at) has actually started counting.
+// True once the synced race clock (race_start_at) has actually started
 fn race_clock_started(state: &SharedState) -> bool {
     let guard = state.lock().unwrap();
     let Some(start) = guard.race_start_at else {
@@ -267,7 +260,7 @@ fn race_clock_started(state: &SharedState) -> bool {
     now_epoch_ms() + guard.clock_offset_ms >= start
 }
 
-// Lock the race's autosplit source once the clock starts: WASM if attached, else LiveSplit
+// Lock the race autosplit source once the clock starts: WASM if attached, else LiveSplit
 pub(crate) fn maybe_commit_source(state: &SharedState) {
     let mut g = state.lock().unwrap();
     if g.autosplit_source.is_some() {
@@ -319,12 +312,12 @@ async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<At
     let mut ever_connected = false;
 
     loop {
-        // Stop if the lobby ended, or WASM was locked in as the source for this race.
+        // Stop if the lobby ended, or WASM was locked in as the source for this race
         if cancel.load(Ordering::SeqCst) || !in_lobby(&state) || wasm_won(&state) {
             break;
         }
 
-        // Give up if LiveSplit never connected once the race has started.
+        // Give up if LiveSplit never connected once the race has started
         if !ever_connected && race_clock_started(&state) {
             mlog!(
                 LogCat::LiveSplit,
@@ -357,14 +350,12 @@ async fn livesplit_supervisor(app: AppHandle, state: SharedState, cancel: Arc<At
     }
 }
 
-// Emits per-source badges plus the "connected" signal the back gates on (either source pre-commit, else the committed source's health).
+// Emits per-source badges plus the "connected" signal the back gates on (either source pre-commit, else the committed source's health)
 pub(crate) async fn report_autosplit_state(app: &AppHandle, state: &SharedState) {
     let run_active = state.lock().unwrap().run_active;
     report_autosplit_state_inner(app, state, run_active).await;
 }
 
-// Like report_autosplit_state but pins run_in_progress=false. Used by timer::reset() so a
-// racing timer::start() on the next WASM tick can't flip the banner back before this task runs.
 pub(crate) async fn report_autosplit_state_not_running(app: &AppHandle, state: &SharedState) {
     report_autosplit_state_inner(app, state, false).await;
 }
@@ -377,7 +368,7 @@ async fn report_autosplit_state_inner(app: &AppHandle, state: &SharedState, run_
             Some(AutosplitSource::LiveSplit) => g.livesplit_connected,
             None => g.wasm_attached || g.livesplit_connected,
         };
-        // Only the LiveSplit source can mismatch; WASM fires against our own split_run.
+        // Only LiveSplit source can mismatch
         let splits_valid = match g.autosplit_source {
             Some(AutosplitSource::Wasm) => true,
             _ => g.livesplit_splits_match != Some(false),
@@ -402,7 +393,6 @@ async fn report_autosplit_state_inner(app: &AppHandle, state: &SharedState, run_
     report_autosplit(app, state, connected, splits_valid, run_in_progress).await;
 }
 
-// POST to the back only when the autosplit connection, splits-valid, or run-in-progress state changes
 async fn report_autosplit(
     app: &AppHandle,
     state: &SharedState,

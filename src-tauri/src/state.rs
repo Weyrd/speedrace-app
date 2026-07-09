@@ -10,8 +10,7 @@ pub enum AutosplitSource {
     LiveSplit,
 }
 
-// A finish awaiting confirmation from the back; retried until acked so a mid-race
-// backend outage can't lose a result.
+// A finish wait the back retried until it work so if mid race outage it finsih still
 #[derive(Debug, Clone)]
 pub struct PendingFinish {
     pub lobby_id: String,
@@ -21,7 +20,6 @@ pub struct PendingFinish {
 #[derive(Debug, Clone)]
 pub struct PendingRunStarted {
     pub lobby_id: String,
-    // Raw local now_epoch_ms() at run start (no clock_offset); back anchors to its own now.
     pub run_start_instant: i64,
 }
 
@@ -32,11 +30,10 @@ pub struct GlobalState {
     pub lobby: Option<LobbySetup>,
     pub race_start_at: Option<i64>,
     pub clock_offset_ms: i64,
-    // raw local now_epoch_ms() at run start (no clock_offset); back anchors to its own now
+    // penalty
     pub run_start_instant: Option<i64>,
     pub run_active: bool,
-    // Latched once the app forfeits an unverified run (split fired, no start captured) so repeated
-    // split fires don't re-forfeit.
+
     pub run_forfeited: bool,
     pub pending_run_started: Option<PendingRunStarted>,
     pub run_started_retry_running: bool,

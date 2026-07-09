@@ -154,8 +154,7 @@ pub async fn poll_loop(
         }
         tick = tick.wrapping_add(1);
 
-        // Capture the run start: a live NotRunning→Running edge is trusted; a first-seen running
-        // timer is reconstructed from elapsed, or None if getcurrenttime fails.
+        // start : NotRunning→Running.  None if getcurrenttime fails or elapsed
         if index < 0 {
             saw_not_running = true;
             if run_start_captured {
@@ -167,7 +166,6 @@ pub async fn poll_loop(
             }
         } else if index >= 0 && !run_start_captured {
             if saw_not_running {
-                // Raw local instant; no clock_offset (back anchors run start to its own now).
                 crate::autosplit::run_started::mark_run_start(&app, &state, now_epoch_ms());
                 run_start_captured = true;
             } else {
@@ -186,9 +184,8 @@ pub async fn poll_loop(
                     }
                     _ => None,
                 };
-                // No getcurrenttime: can't anchor the start. The next split will forfeit.
+                // No getcurrenttime: cant know the start -> next split = forfeit
                 if let Some(elapsed) = elapsed {
-                    // Reconstruct raw local instant; no clock_offset (back anchors to its now).
                     let at = crate::autosplit::early_start::run_start_from_elapsed(
                         now_epoch_ms(),
                         elapsed,
@@ -199,10 +196,8 @@ pub async fn poll_loop(
             }
         }
 
-        // If LiveSplit is our source but the runner's timer never started (e.g. their
-        // auto-start is bound to a different game/level than the one being raced), force
-        // it once so getcurrentsplitname becomes readable and we can verify the splits.
-        // starttimer is a no-op if already running and sends no reply, so don't read one.
+        // If LiveSplit is our source but the runners timer never started  force
+        // it so getcurrentsplitname becomes readable and we can verify the splits => + 1 attemps on liveeplsit
         if fire && index < 0 && !forced_start {
             mlog!(
                 LogCat::LiveSplit,
@@ -221,8 +216,7 @@ pub async fn poll_loop(
         if !fire {
             last_index = index;
         } else if last_index < 0 && index >= 0 {
-            // Timer just started: catch up completed splits. The burst can't recover intermediate
-            // checkpoint times, so skip them and record only the final at real now.
+            // Timer just started -> catch up completed split
             if index > 0 {
                 mlog!(
                     LogCat::LiveSplit,
@@ -254,8 +248,7 @@ pub async fn poll_loop(
             last_index = index;
         }
 
-        // Once per split, compare the runner's current split name to our expected
-        // segment so we can flag (and refuse to record) a different split set.
+        // check if split match our name
         if index >= 0 && index != name_checked_index {
             let expected = {
                 let g = state.lock().unwrap();
@@ -277,7 +270,7 @@ pub async fn poll_loop(
                     .await;
                     if let Ok(Ok(n)) = name_res {
                         let actual = line.trim();
-                        // "-" means LiveSplit has no current split yet; recheck later.
+                        // "-" LiveSplit has no current split yet check alter
                         if n > 0 && actual != "-" {
                             let matches = actual.eq_ignore_ascii_case(expected.trim());
                             if !matches {
