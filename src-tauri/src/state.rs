@@ -31,6 +31,7 @@ pub struct GlobalState {
     pub clock_offset_ms: i64,
     pub run_start_instant: Option<i64>,
     pub run_active: bool,
+
     pub run_forfeited: bool,
     pub pending_run_started: Option<PendingRunStarted>,
     pub run_started_retry_running: bool,

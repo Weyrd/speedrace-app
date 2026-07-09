@@ -139,7 +139,7 @@ pub async fn submit_finish(
 
 #[derive(Serialize)]
 struct RunStartedBody {
-    elapsed_ms: i64,
+    elapsed_ms: i64, // since when it is started
 }
 
 pub async fn submit_run_started(
