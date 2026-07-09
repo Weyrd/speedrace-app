@@ -32,7 +32,11 @@ export default function Login() {
       </span>
 
       <div className="w-full flex flex-col items-center gap-2 mt-2 pt-8">
-        <Button variant="success" onClick={handleLogin} className="w-full py-3.5 tracking-wider">
+        <Button
+          variant="success"
+          onClick={handleLogin}
+          className="w-full py-3.5 tracking-wider"
+        >
           {isAuthenticating
             ? t("app:login.connecting")
             : isNotLogged

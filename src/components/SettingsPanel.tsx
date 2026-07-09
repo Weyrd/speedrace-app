@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Settings, Keyboard, RotateCcw, LogOut, Volume2 } from "lucide-react";
+import {
+  X,
+  Settings,
+  Keyboard,
+  RotateCcw,
+  LogOut,
+  Volume2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActions } from "../store";
 import { getSoundVolume, setSoundVolume, playSound, Sound } from "../lib/sound";
@@ -119,7 +126,12 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           <Settings size={14} className="text-dim" />
           {t("tooltip")}
         </span>
-        <Button variant="ghost" size="icon" onClick={handleClose} aria-label={t("close")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleClose}
+          aria-label={t("close")}
+        >
           <X size={16} />
         </Button>
       </div>

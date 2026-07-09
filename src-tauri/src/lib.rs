@@ -131,10 +131,8 @@ pub fn run() {
                 window.app_handle().exit(0);
             }
             // Minimize (-) sends Momentum to the tray instead of the taskbar/Dock
-            tauri::WindowEvent::Resized(_) => {
-                if window.is_minimized().unwrap_or(false) {
-                    minimize_to_tray(window);
-                }
+            tauri::WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
+                minimize_to_tray(window);
             }
             _ => {}
         })

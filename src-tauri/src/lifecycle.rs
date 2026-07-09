@@ -94,7 +94,7 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
         if let Some(ref resp) = lobby_response {
             guard.app_state = LobbyStatus::to_app_state(&resp.lobby_status);
             guard.lobby = Some(resp.clone());
-            guard.race_start_at = resp.race_start_at.clone();
+            guard.race_start_at = resp.race_start_at;
         } else {
             guard.app_state = AppState::Connecting;
         }

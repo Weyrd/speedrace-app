@@ -26,7 +26,11 @@ export function TrayHint() {
         <p className="text-xs text-muted font-mono tracking-wide leading-relaxed mb-4 whitespace-pre-line">
           {t("app:tray_hint.message")}
         </p>
-        <Button variant="outline" onClick={dismiss} className="w-full py-2 text-2xs">
+        <Button
+          variant="outline"
+          onClick={dismiss}
+          className="w-full py-2 text-2xs"
+        >
           {t("common:got_it")}
         </Button>
       </div>
