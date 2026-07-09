@@ -42,10 +42,18 @@ export default function StopModal({
 
         <div className="flex gap-2">
           <Button variant="outline" onClick={onCancel} className="flex-1 py-3">
-            {raceInProgress ? t("app:stop_modal.keep_racing") : t("common:cancel")}
+            {raceInProgress
+              ? t("app:stop_modal.keep_racing")
+              : t("common:cancel")}
           </Button>
-          <Button variant="destructive" onClick={onConfirm} className="flex-1 py-3">
-            {raceInProgress ? t("app:stop_modal.confirm_forfeit") : t("common:stop")}
+          <Button
+            variant="destructive"
+            onClick={onConfirm}
+            className="flex-1 py-3"
+          >
+            {raceInProgress
+              ? t("app:stop_modal.confirm_forfeit")
+              : t("common:stop")}
           </Button>
         </div>
       </div>
