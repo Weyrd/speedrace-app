@@ -116,6 +116,7 @@ export default function Racing() {
         code={lobby.code}
         live
         autosplit={state.autosplit}
+        earlyStartDetected={state.autosplit?.run_in_progress}
       />
       <div className="bg-black border border-border rounded aspect-[1920/1080] w-full overflow-hidden relative">
         <video

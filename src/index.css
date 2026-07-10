@@ -1,69 +1,69 @@
-@import url('https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&display=swap");
 @import "tailwindcss";
 
 @theme {
-    --color-bg0: #252320;
-    --color-bg1: #2E2B25;
-    --color-bg2: #3A3731;
-    --color-bg3: #4a4640;
-    --color-orange: #E8622A;
-    --color-red: #E24B4A;
-    --color-green: #4caf7d;
-    --color-text: #f0ece4;
-    --color-muted: #a09890;
-    --color-dim: #6A6460;
-    --color-border: #4a4640;
+  --color-bg0: #252320;
+  --color-bg1: #2e2b25;
+  --color-bg2: #3a3731;
+  --color-bg3: #4a4640;
+  --color-orange: #e8622a;
+  --color-red: #e24b4a;
+  --color-green: #4caf7d;
+  --color-text: #f0ece4;
+  --color-muted: #a09890;
+  --color-dim: #6a6460;
+  --color-border: #4a4640;
 
-    --font-mono: 'Fira Mono', monospace;
+  --font-mono: "Fira Mono", monospace;
 
-    --text-2xs: 0.625rem;
+  --text-2xs: 0.625rem;
 }
 
 @layer base {
-    * {
-        box-sizing: border-box;
-    }
+  * {
+    box-sizing: border-box;
+  }
 
-    body {
-        background: transparent;
-        font-family: 'Fira Mono', monospace;
-        color: #f0ece4;
-    }
+  body {
+    background: transparent;
+    font-family: "Fira Mono", monospace;
+    color: #f0ece4;
+  }
 
-    ::-webkit-scrollbar {
-        width: 4px;
-    }
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
 
-    ::-webkit-scrollbar-track {
-        background: transparent;
-    }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-    ::-webkit-scrollbar-thumb {
-        background: #4a4640;
-        border-radius: 2px;
-    }
+  ::-webkit-scrollbar-thumb {
+    background: #4a4640;
+    border-radius: 2px;
+  }
 }
 
 @utility bg-orange-dim {
-    background-color: rgba(232, 98, 42, 0.15);
+  background-color: rgba(232, 98, 42, 0.15);
 }
 
 @utility border-orange-dim {
-    border-color: rgba(232, 98, 42, 0.4);
+  border-color: rgba(232, 98, 42, 0.4);
 }
 
 @utility bg-red-dim {
-    background-color: rgba(226, 75, 74, 0.08);
+  background-color: rgba(226, 75, 74, 0.08);
 }
 
 @utility border-red-dim {
-    border-color: rgba(226, 75, 74, 0.25);
+  border-color: rgba(226, 75, 74, 0.25);
 }
 
 @utility bg-green-dim {
-    background-color: rgba(76, 175, 125, 0.10);
+  background-color: rgba(76, 175, 125, 0.1);
 }
 
 @utility border-green-dim {
-    border-color: rgba(76, 175, 125, 0.30);
+  border-color: rgba(76, 175, 125, 0.3);
 }

@@ -58,6 +58,8 @@ pub struct LobbySetup {
 pub struct AutosplitState {
     pub wasm: bool,
     pub livesplit: bool,
+    pub splits_match: Option<bool>,
+    pub run_in_progress: bool,
 }
 
 #[derive(Debug, Serialize)]
