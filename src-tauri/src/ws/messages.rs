@@ -21,6 +21,8 @@ pub struct LobbyClosedMsg {
 pub struct LobbyStartMsg {
     pub race_start_at: i64,
     pub expires_at: i64,
+    #[serde(default)]
+    pub start_delay_ms: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
