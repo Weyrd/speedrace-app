@@ -168,7 +168,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         cur &&
         cur.wasm === next.wasm &&
         cur.livesplit === next.livesplit &&
-        cur.splits_match === next.splits_match
+        cur.splits_match === next.splits_match &&
+        cur.run_in_progress === next.run_in_progress
       )
         return state;
       return { ...state, autosplit: next };

@@ -24,7 +24,9 @@ export function DevToolbar() {
   }
 
   return (
-    <div className="bottom-0 left-0 right-0 bg-bg1 border-t border-border px-2 py-1 flex gap-1 flex-wrap z-50">      <span className="text-2xs text-dim font-mono tracking-wide self-center mr-1">
+    <div className="bottom-0 left-0 right-0 bg-bg1 border-t border-border px-2 py-1 flex gap-1 flex-wrap z-50">
+      {" "}
+      <span className="text-2xs text-dim font-mono tracking-wide self-center mr-1">
         DEV
       </span>
       {DEV_PHASES.map((p) => (
@@ -33,7 +35,8 @@ export function DevToolbar() {
           size="tag"
           onClick={() => goToPhase(p)}
           className={cn(
-            state.phase === p && "bg-orange text-white border-orange hover:opacity-90",
+            state.phase === p &&
+              "bg-orange text-white border-orange hover:opacity-90",
           )}
         >
           {p}

@@ -1,3 +1,4 @@
+use crate::autosplit::now_epoch_ms;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::SharedState;
@@ -12,8 +13,8 @@ pub struct MomentumTimer {
 
 impl Timer for MomentumTimer {
     fn state(&self) -> TimerState {
-        let guard = self.state.lock().unwrap();
-        if guard.app_state == AppState::RaceInProgress {
+        // running -> wasm can call timer.Reset() and check if run is active
+        if self.state.lock().unwrap().run_active {
             TimerState::Running
         } else {
             TimerState::NotRunning
@@ -31,14 +32,20 @@ impl Timer for MomentumTimer {
     }
 
     fn split(&mut self) {
-        // Only fire when WASM is the committed source
-        {
+        let source = {
             let Ok(guard) = self.state.lock() else { return };
-            if guard.autosplit_source != Some(crate::state::AutosplitSource::Wasm) {
-                return;
+            guard.autosplit_source
+        };
+        match source {
+            // Committed to WASM (gun passed): fire normally
+            Some(crate::state::AutosplitSource::Wasm) => {
+                crate::autosplit::split::fire_split(&self.app, &self.state)
             }
+            // LiveSplit won the race: WASM ignore
+            Some(crate::state::AutosplitSource::LiveSplit) => {}
+            // Pre-gun crossing (source undecided): treat as an early start
+            None => crate::autosplit::split::buffer_early_split(&self.app, &self.state),
         }
-        crate::autosplit::split::fire_split(&self.app, &self.state);
     }
 
     fn set_variable(&mut self, key: &str, value: &str) {
@@ -103,12 +110,52 @@ impl Timer for MomentumTimer {
         });
     }
 
-    // Race clock is authoritative; no-ops for timer control methods
-    fn start(&mut self) {}
+    fn start(&mut self) {
+        crate::autosplit::run_started::mark_run_start(&self.app, &self.state, now_epoch_ms());
+    }
     fn skip_split(&mut self) {}
     fn undo_split(&mut self) {}
-    fn reset(&mut self) {}
-    fn set_game_time(&mut self, _: livesplit_auto_splitting::time::Duration) {}
+    fn reset(&mut self) {
+        if let Ok(mut g) = self.state.lock() {
+            crate::state::reset_run_start(&mut g);
+        }
+        let app = self.app.clone();
+        let state = self.state.clone();
+        tauri::async_runtime::spawn(async move {
+            crate::ws::handler::report_autosplit_state_not_running(&app, &state).await;
+        });
+    }
+    fn set_game_time(&mut self, t: livesplit_auto_splitting::time::Duration) {
+        // Mid-run WASM get run_started_at_ms = now − IGT
+        let igt = t.whole_milliseconds() as i64;
+        let at = {
+            let Ok(mut g) = self.state.lock() else { return };
+            // A live run's IGT climbs a frozen menu IGT does not.
+            let advancing = g.wasm_last_igt.is_some_and(|prev| igt > prev);
+            g.wasm_last_igt = Some(igt);
+            if g.run_start_instant.is_some() {
+                return;
+            }
+            match g.app_state {
+                AppState::StreamSetup | AppState::WaitingForStart => {
+                    if igt <= 0 || !advancing {
+                        return;
+                    }
+                }
+                AppState::RaceInProgress => {
+                    let gun_passed = g
+                        .race_start_at
+                        .is_some_and(|start| now_epoch_ms() + g.clock_offset_ms >= start);
+                    if !gun_passed || igt <= 0 {
+                        return;
+                    }
+                }
+                _ => return,
+            }
+            now_epoch_ms() - igt
+        };
+        crate::autosplit::run_started::mark_run_start(&self.app, &self.state, at);
+    }
     fn pause_game_time(&mut self) {}
     fn resume_game_time(&mut self) {}
     fn log_auto_splitter(&mut self, msg: fmt::Arguments) {

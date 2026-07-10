@@ -139,6 +139,8 @@ async fn supervise(
 
         // Commit before update() so a split fired this tick goes to the chosen source
         crate::ws::handler::maybe_commit_source(&state);
+        // Once committed to WASM at the gun, flush any pre-gun (early-start)
+        crate::autosplit::split::flush_early_splits(&app, &state);
 
         let tick_rate = splitter.tick_rate();
 

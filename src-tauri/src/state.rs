@@ -10,12 +10,36 @@ pub enum AutosplitSource {
     LiveSplit,
 }
 
-// A finish awaiting confirmation from the back; retried until acked so a mid-race
-// backend outage can't lose a result.
+// A finish wait the back retried until it work so if mid race outage it finsih still
 #[derive(Debug, Clone)]
 pub struct PendingFinish {
     pub lobby_id: String,
     pub finishing_time_ms: u64,
+    pub run_started_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingRunStarted {
+    pub lobby_id: String,
+    pub run_start_instant: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingSplit {
+    pub lobby_id: String,
+    pub split_index: u32,
+    pub segment_name: String,
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+
+// A WASM split crossed pre-source-commit -> early start buffered
+#[derive(Debug, Clone)]
+pub struct BufferedEarlySplit {
+    pub lobby_id: String,
+    pub split_index: u32,
+    pub segment_name: String,
+    pub is_final: bool,
 }
 
 pub struct GlobalState {
@@ -25,6 +49,13 @@ pub struct GlobalState {
     pub lobby: Option<LobbySetup>,
     pub race_start_at: Option<i64>,
     pub clock_offset_ms: i64,
+    // penalty
+    pub run_start_instant: Option<i64>,
+    pub run_active: bool,
+
+    pub run_forfeited: bool,
+    pub pending_run_started: Option<PendingRunStarted>,
+    pub run_started_retry_running: bool,
     pub refresh_loop_running: bool,
     pub ws_loop_running: bool,
     pub split_run: Option<livesplit_core::Run>,
@@ -36,15 +67,20 @@ pub struct GlobalState {
     pub autosplitter_cancel: Arc<AtomicBool>,
     pub probe_running: bool,
     pub livesplit_running: bool,
-    pub last_autosplit_reported: Option<(bool, bool)>,
+    pub last_autosplit_reported: Option<(bool, bool, bool)>,
     pub autosplit_source: Option<AutosplitSource>,
     pub wasm_attached: bool,
     pub livesplit_connected: bool,
-    pub livesplit_splits_match: Option<bool>, // check if right split loaded
+    pub livesplit_splits_match: Option<bool>,
     pub counter_config: Option<Vec<crate::api::counter_config::CounterConfig>>,
     pub counter_buffers: HashMap<String, CounterBuffer>,
     pub pending_finish: Option<PendingFinish>,
     pub finish_retry_running: bool,
+    pub pending_splits: Vec<PendingSplit>,
+    pub split_retry_running: bool,
+    // Last IGT the WASM reported. start is only (re)captured when it advances (rules out stale-menu re-capture)
+    pub wasm_last_igt: Option<i64>,
+    pub pending_early_splits: Vec<BufferedEarlySplit>,
 }
 
 impl GlobalState {
@@ -56,6 +92,11 @@ impl GlobalState {
             lobby: None,
             race_start_at: None,
             clock_offset_ms: 0,
+            run_start_instant: None,
+            run_active: false,
+            run_forfeited: false,
+            pending_run_started: None,
+            run_started_retry_running: false,
             refresh_loop_running: false,
             ws_loop_running: false,
             split_run: None,
@@ -75,6 +116,10 @@ impl GlobalState {
             counter_buffers: HashMap::new(),
             pending_finish: None,
             finish_retry_running: false,
+            pending_splits: Vec::new(),
+            split_retry_running: false,
+            wasm_last_igt: None,
+            pending_early_splits: Vec::new(),
         }
     }
 }
@@ -83,6 +128,16 @@ impl Default for GlobalState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// Clear all run-start capture so the next race starts fresh.
+pub fn reset_run_start(g: &mut GlobalState) {
+    g.run_start_instant = None;
+    g.run_active = false;
+    g.run_forfeited = false;
+    g.pending_run_started = None;
+    g.wasm_last_igt = None;
+    g.pending_early_splits.clear();
 }
 
 pub type SharedState = Arc<Mutex<GlobalState>>;

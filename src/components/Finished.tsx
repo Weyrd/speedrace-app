@@ -76,7 +76,11 @@ export default function Finished() {
         </span>
       </div>
 
-      <Button variant="outline" onClick={() => actions.newRace()} className="w-full py-3.5 mt-auto">
+      <Button
+        variant="outline"
+        onClick={() => actions.newRace()}
+        className="w-full py-3.5 mt-auto"
+      >
         {t("race.new_race")}
       </Button>
     </div>

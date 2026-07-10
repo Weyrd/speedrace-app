@@ -88,6 +88,10 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
 }
 
 pub async fn retry_once(app: AppHandle, state: SharedState) {
+    if state.lock().map(|g| g.ws_loop_running).unwrap_or(false) {
+        return;
+    }
+
     let token = match TokenStore::new(app.clone()).get_access_token() {
         Some(t) => t,
         None => {
@@ -270,8 +274,13 @@ async fn register_transient(
     *failures += 1;
     emit_ws_status(app, state, WsStatus::Disconnected);
     if *failures >= config::WS_MAX_RETRIES {
-        emit_app_state(app, state, AppState::ServerUnavailable);
-        return true;
+        if *failures == config::WS_MAX_RETRIES {
+            emit_app_state(app, state, AppState::ServerUnavailable);
+        }
+        let in_lobby = state.lock().map(|g| g.lobby.is_some()).unwrap_or(false);
+        if !in_lobby {
+            return true;
+        }
     }
     tokio::time::sleep(*backoff).await;
     *backoff = (*backoff * 2).min(Duration::from_secs(config::WS_RECONNECT_MAX_SECS));

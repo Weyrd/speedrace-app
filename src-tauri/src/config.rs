@@ -42,6 +42,10 @@ pub fn lobby_finish_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/finish")
 }
 
+pub fn lobby_run_started_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/run-started")
+}
+
 pub fn lobby_forfeit_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/forfeit")
 }

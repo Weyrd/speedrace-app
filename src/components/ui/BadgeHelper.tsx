@@ -1,4 +1,5 @@
 import { MonitorCheck, TriangleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Tooltip } from "./Tooltip";
 import { AutosplitState } from "../../types";
 import livesplitIcon from "../../assets/livesplit.svg";
@@ -10,6 +11,7 @@ type LobbyHeaderProps = {
   live?: boolean;
   label?: string;
   autosplit?: AutosplitState;
+  earlyStartDetected?: boolean;
 };
 
 export function LobbyHeader({
@@ -19,7 +21,9 @@ export function LobbyHeader({
   live = false,
   label,
   autosplit,
+  earlyStartDetected = false,
 }: LobbyHeaderProps) {
+  const { t } = useTranslation("app");
   const dash = code.indexOf("-");
   const codePrefix = dash >= 0 ? code.slice(0, dash) : code;
   const codeSuffix = dash >= 0 ? code.slice(dash) : "";
@@ -47,7 +51,16 @@ export function LobbyHeader({
           )}
           {autosplit?.livesplit && (
             <Tooltip content="LiveSplit connected" side="top">
-              <img src={livesplitIcon} alt="LiveSplit" className="w-3.5 h-3.5" />
+              <img
+                src={livesplitIcon}
+                alt="LiveSplit"
+                className="w-3.5 h-3.5"
+              />
+            </Tooltip>
+          )}
+          {earlyStartDetected && (
+            <Tooltip content={t("autosplit.early_start_tooltip")} side="top">
+              <TriangleAlert className="w-3.5 h-3.5 text-red" />
             </Tooltip>
           )}
           {autosplit?.splits_match === false && (
