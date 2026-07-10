@@ -236,7 +236,14 @@ pub fn flush_early_splits(app: &AppHandle, state: &SharedState) {
     };
 
     for bs in buffered {
-        emit_prestart_split(app, state, bs.lobby_id, bs.split_index, bs.segment_name, bs.is_final);
+        emit_prestart_split(
+            app,
+            state,
+            bs.lobby_id,
+            bs.split_index,
+            bs.segment_name,
+            bs.is_final,
+        );
     }
 }
 
