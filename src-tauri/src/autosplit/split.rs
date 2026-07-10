@@ -239,33 +239,78 @@ pub fn flush_early_splits(app: &AppHandle, state: &SharedState) {
         std::mem::take(&mut g.pending_early_splits)
     };
 
-    let mut finish_lobby: Option<String> = None;
     for bs in buffered {
-        let _ = app.emit(
-            SPLIT_FIRED,
-            SplitFiredPayload {
-                index: bs.split_index,
-                segment_ms: 0,
-                new_start_ms: 0,
-            },
-        );
-        enqueue_split(
-            app,
-            state,
-            PendingSplit {
-                lobby_id: bs.lobby_id.clone(),
-                split_index: bs.split_index,
-                segment_name: bs.segment_name,
-                start_ms: 0,
-                end_ms: 0,
-            },
-        );
-        if bs.is_final {
-            finish_lobby = Some(bs.lobby_id);
-        }
+        emit_prestart_split(app, state, bs.lobby_id, bs.split_index, bs.segment_name, bs.is_final);
     }
+}
 
-    if let Some(lobby_id) = finish_lobby {
+// LiveSplit catch-up: a split the runner completed before the gun. Resolve its
+// name from the loaded run, advance the index, and emit it as a 0/0 pre-gun split
+// — identical shape to the WASM flush so the back applies the same early-start rule.
+pub fn fire_prestart_split(app: &AppHandle, state: &SharedState) {
+    let (lobby_id, split_index, segment_name, is_final) = {
+        let mut guard = match state.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        if guard.app_state != AppState::RaceInProgress {
+            return;
+        }
+        if guard.autosplit_source == Some(AutosplitSource::LiveSplit)
+            && guard.livesplit_splits_match == Some(false)
+        {
+            return;
+        }
+        let Some(lobby) = guard.lobby.as_ref() else {
+            return;
+        };
+        let lobby_id = lobby.lobby_id.clone();
+        let Some(run) = guard.split_run.as_ref() else {
+            return;
+        };
+        let seg_count = run.len() as u32;
+        let index = guard.current_split_index;
+        if index >= seg_count {
+            return;
+        }
+        let segment_name = run.segment(index as usize).name().to_string();
+        guard.current_split_index = index + 1;
+        let is_final = guard.current_split_index >= seg_count;
+        (lobby_id, index, segment_name, is_final)
+    };
+
+    emit_prestart_split(app, state, lobby_id, split_index, segment_name, is_final);
+}
+
+// Shared 0/0 pre-gun emit path for both sources (WASM flush + LiveSplit catch-up).
+fn emit_prestart_split(
+    app: &AppHandle,
+    state: &SharedState,
+    lobby_id: String,
+    split_index: u32,
+    segment_name: String,
+    is_final: bool,
+) {
+    let _ = app.emit(
+        SPLIT_FIRED,
+        SplitFiredPayload {
+            index: split_index,
+            segment_ms: 0,
+            new_start_ms: 0,
+        },
+    );
+    enqueue_split(
+        app,
+        state,
+        PendingSplit {
+            lobby_id: lobby_id.clone(),
+            split_index,
+            segment_name,
+            start_ms: 0,
+            end_ms: 0,
+        },
+    );
+    if is_final {
         crate::commands::lobby_commands::start_durable_finish(app, state, lobby_id, 0);
     }
 }
