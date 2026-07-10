@@ -240,13 +240,17 @@ pub fn flush_early_splits(app: &AppHandle, state: &SharedState) {
     };
 
     for bs in buffered {
-        emit_prestart_split(app, state, bs.lobby_id, bs.split_index, bs.segment_name, bs.is_final);
+        emit_prestart_split(
+            app,
+            state,
+            bs.lobby_id,
+            bs.split_index,
+            bs.segment_name,
+            bs.is_final,
+        );
     }
 }
 
-// LiveSplit catch-up: a split the runner completed before the gun. Resolve its
-// name from the loaded run, advance the index, and emit it as a 0/0 pre-gun split
-// — identical shape to the WASM flush so the back applies the same early-start rule.
 pub fn fire_prestart_split(app: &AppHandle, state: &SharedState) {
     let (lobby_id, split_index, segment_name, is_final) = {
         let mut guard = match state.lock() {
