@@ -4,10 +4,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
-    LobbySetup(LobbySetup), //  lobbySetup donc pas de typeMsg (match WS AppEvent::LobbySetup ET get lobby/current response pour n'avoir qu'une struct)
+    LobbySetup(Box<LobbySetup>), //  lobbySetup donc pas de typeMsg (match WS AppEvent::LobbySetup ET get lobby/current response pour n'avoir qu'une struct)
     LobbyStart(LobbyStartMsg),
     LobbyClosed(LobbyClosedMsg),
     PlayerResult(PlayerResultPayload),
+    EarlyStartWarning { active: bool },
     Ping,
 }
 
