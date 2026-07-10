@@ -71,15 +71,19 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             init_lobby_resources(app, state, &payload);
         }
 
-        ServerMessage::LobbyStart(payload) => {
+        ServerMessage::LobbyStart(mut payload) => {
+            // start_delay_ms = handicap
+            let effective_start = payload.race_start_at + payload.start_delay_ms as i64;
+            payload.race_start_at = effective_start;
             {
                 let mut guard = state.lock().unwrap();
                 guard.app_state = AppState::RaceInProgress;
-                guard.race_start_at = Some(payload.race_start_at);
+                guard.race_start_at = Some(effective_start);
                 mlog!(
                     LogCat::Ws,
-                    "[ws] LobbyStart: race_start_at={} wasm_cached={}",
-                    payload.race_start_at,
+                    "[ws] LobbyStart: race_start_at={} start_delay_ms={} wasm_cached={}",
+                    effective_start,
+                    payload.start_delay_ms,
                     guard.autosplitter_wasm.is_some()
                 );
             }

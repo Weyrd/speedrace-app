@@ -82,6 +82,10 @@ pub async fn poll_loop(
     let mut saw_not_running = false;
     let mut tick: u32 = 0;
 
+    let mut was_committed = {
+        state.lock().unwrap().autosplit_source == Some(crate::state::AutosplitSource::LiveSplit)
+    };
+
     loop {
         if cancel.load(Ordering::SeqCst) {
             break;
@@ -109,6 +113,10 @@ pub async fn poll_loop(
         // Fire splits only when LiveSplit is the committed source; otherwise just track position.
         let fire = phase == crate::models::AppState::RaceInProgress
             && source == Some(crate::state::AutosplitSource::LiveSplit);
+
+        let committed = source == Some(crate::state::AutosplitSource::LiveSplit);
+        let just_committed = committed && !was_committed;
+        was_committed = committed;
 
         if let Err(e) = writer.write_all(b"getsplitindex\r\n").await {
             mlog!(LogCat::LiveSplit, "[livesplit-tcp] write error: {e}");
@@ -214,16 +222,27 @@ pub async fn poll_loop(
 
         if fire {
             if last_index < 0 && index >= 0 {
-                // Firing just began -> catch up completed splits (incl. an early start)
                 if index > 0 {
-                    mlog!(
-                        LogCat::LiveSplit,
-                        "[livesplit-tcp] catching up {index} split(s) (index jumped to {index})"
-                    );
-                    for _ in 0..(index - 1) {
-                        crate::autosplit::split::skip_split(&app, &state);
+                    if just_committed {
+                        //  happened before the gun -> emit each as a 0/0 pre-gun
+                        mlog!(
+                            LogCat::LiveSplit,
+                            "[livesplit-tcp] pre-gun early start: {index} completed split(s) -> 0/0"
+                        );
+                        for _ in 0..index {
+                            crate::autosplit::split::fire_prestart_split(&app, &state);
+                        }
+                    } else {
+                        // Mid-race reconnect (loop re-entered already-committed)
+                        mlog!(
+                            LogCat::LiveSplit,
+                            "[livesplit-tcp] reconnect catch-up {index} split(s), no 0/0"
+                        );
+                        for _ in 0..(index - 1) {
+                            crate::autosplit::split::skip_split(&app, &state);
+                        }
+                        crate::autosplit::split::fire_split(&app, &state);
                     }
-                    crate::autosplit::split::fire_split(&app, &state);
                 }
                 last_index = index;
             } else if index > last_index {
