@@ -1,5 +1,5 @@
 const base = import.meta.env.DEV
-  ? "http://localhost:3000"
+  ? "http://localhost:3001"
   : (import.meta.env.WEB_BASE_URL as string);
 
 export const webUrls = {

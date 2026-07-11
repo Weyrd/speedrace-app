@@ -7,6 +7,7 @@ import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
 import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
+import { useFinishHotkey } from "../hooks/useFinishHotkey";
 import { useClockOffset } from "../hooks/useClockOffset";
 import { primeCountdown, scheduleCountdown, Sound } from "../lib/sound";
 import { Button } from "./ui/button";
@@ -46,6 +47,7 @@ export default function Racing() {
 
   const now = useSyncExternalStore(subscribeToRaf, getNow);
   const { offsetMs } = useClockOffset();
+  const { data: finishHotkey } = useFinishHotkey();
   const startAt =
     state.phase === Phase.RaceInProgress ? state.raceStartAt : null;
 
@@ -74,7 +76,7 @@ export default function Racing() {
         console.error("[race] unregisterFinishHotkey error", e),
       );
     };
-  }, [autosplitDrivesFinish]);
+  }, [autosplitDrivesFinish, finishHotkey]);
 
   useEffect(() => {
     if (startAt == null) return;
