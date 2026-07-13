@@ -3,6 +3,8 @@ import {
   AUTH_STATE,
   APP_STATE,
   WS_STATUS,
+  STREAM_STATUS,
+  STREAM_PREVIEW,
   WS_LOBBY_SETUP,
   WS_LOBBY_CLOSED,
   WS_LOBBY_START,
@@ -21,6 +23,8 @@ import type {
   PlayerResult,
   AutosplitState,
   SplitFiredPayload,
+  StreamStatusPayload,
+  StreamPreviewPayload,
 } from "../types";
 import type { Phase } from "../store/types";
 
@@ -44,6 +48,10 @@ export const onAppState = (cb: (p: Phase) => void) =>
   safeListen<Phase>(APP_STATE, cb);
 export const onWsStatus = (cb: (p: WsStatus) => void) =>
   safeListen<WsStatus>(WS_STATUS, cb);
+export const onStreamStatus = (cb: (p: StreamStatusPayload) => void) =>
+  safeListen<StreamStatusPayload>(STREAM_STATUS, cb);
+export const onStreamPreview = (cb: (p: StreamPreviewPayload) => void) =>
+  safeListen<StreamPreviewPayload>(STREAM_PREVIEW, cb);
 export const onLobbySetup = (cb: (p: LobbySetup) => void) =>
   safeListen<LobbySetup>(WS_LOBBY_SETUP, cb);
 export const onLobbyClosed = (cb: (p: LobbyClosedPayload) => void) =>

@@ -6,5 +6,16 @@
   "reset_default": "Reset to default",
   "sound_title": "Sound volume",
   "sound_description": "Volume of in-app sounds (countdown, lobby, race results).",
+  "stream_title": "Stream quality",
+  "stream_description": "Capture framerate and bitrate for your live stream.",
+  "framerate_label": "Framerate",
+  "bitrate_label": "Bitrate",
+  "replay_title": "Replays",
+  "replay_description": "Ranked races are saved to your computer as an MP4 you can upload later.",
+  "replay_folder_unset": "Default folder",
+  "replay_change_folder": "Change",
+  "replay_open_folder": "Open",
+  "replay_casual_label": "Also record casual races",
+  "replay_autodelete_label": "Automatically delete replays after one week",
   "logout": "Log out"
 }

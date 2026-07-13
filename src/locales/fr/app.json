@@ -12,17 +12,25 @@
   },
   "stream": {
     "lobby": "Dans le lobby",
-    "source_screen": "Écran",
-    "source_camera": "Caméra",
-    "preview_placeholder": "▶ Démarrer le stream d'un jeu",
-    "fullscreen_note": "Les jeux en plein écran ne sont pas encore supportés — partage tout l'écran si le jeu est en plein écran.",
-    "publish": "● PUBLIER",
-    "publishing": "Connexion au stream...",
-    "error_source": "Impossible d'accéder à la source. Réessaie.",
-    "error_connection": "Erreur de connexion au stream.",
+    "preview_starting": "Démarrage de l'aperçu...",
+    "preview_error": "Aperçu indisponible. Choisissez une autre source.",
+    "monitor_option": "Écran {{index}} ({{width}}×{{height}})",
+    "monitor_primary": " (principal)",
+    "monitor_short": "Écran {{index}}",
+    "source_picker_title": "Choisir une source",
+    "source_picker_close": "Fermer",
+    "tab_fullscreen": "Plein écran",
+    "tab_windows": "Fenêtres",
+    "no_windows": "Aucune fenêtre capturable trouvée",
+    "change_source_hint": "Cliquez sur l'aperçu pour changer de source",
+    "publish": "● Publier",
+    "publishing": "Publication...",
+    "error_start": "Impossible de démarrer le stream.",
+    "error_monitors": "Impossible de lister les écrans.",
     "stream_active": "Stream actif",
-    "stop_stream": "▪ Arrêter le stream",
-    "click_to_change": "Cliquer pour changer"
+    "stream_lost": "Stream perdu",
+    "reconnecting": "Reconnexion...",
+    "stop_stream": "▪ Arrêter le stream"
   },
   "waiting": {
     "waiting_host": "En attente que l'hôte\nlance la race..."
@@ -40,6 +48,10 @@
     "finish_time": "Temps final",
     "status_finished": "Terminé",
     "status_forfeited": "Forfait"
+  },
+  "replay": {
+    "saved": "Rediffusion enregistrée sur ton ordinateur",
+    "show_in_folder": "Ouvrir le dossier"
   },
   "autosplit": {
     "early_start_tooltip": "Ton timer semble déjà lancé. Réinitialise-le avant le départ pour éviter une pénalité."

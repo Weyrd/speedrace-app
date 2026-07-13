@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
+import { WhepPreview } from "./ui/WhepPreview";
 import { formatTime } from "../lib/formatTime";
 import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useFinishHotkey } from "../hooks/useFinishHotkey";
@@ -57,15 +58,6 @@ export default function Racing() {
       (state.autosplit?.livesplit === true &&
         state.autosplit.splits_match !== false));
 
-  const videoRef = useCallback(
-    (node: HTMLVideoElement | null) => {
-      if (node && state.phase === Phase.RaceInProgress) {
-        node.srcObject = state.stream;
-      }
-    },
-    [state],
-  );
-
   useEffect(() => {
     if (autosplitDrivesFinish) return;
     registerFinishHotkey().catch((e) =>
@@ -105,6 +97,7 @@ export default function Racing() {
     completedSegmentTimes,
     currentSegmentStartMs,
   } = state;
+  const whepUrl = lobby.whep_url || lobby.whip_url.replace(/\/whip$/, "/whep");
 
   const elapsed = now + offsetMs - raceStartAt;
   const negative = elapsed < 0;
@@ -120,20 +113,7 @@ export default function Racing() {
         autosplit={state.autosplit}
         earlyStartDetected={state.autosplit?.run_in_progress}
       />
-      <div className="bg-black border border-border rounded aspect-[1920/1080] w-full overflow-hidden relative">
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/70 rounded px-2 py-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green shrink-0 animate-pulse" />
-          <span className="text-2xs text-green font-mono tracking-wide">
-            {t("stream.stream_active")}
-          </span>
-        </div>
-      </div>
+      <WhepPreview whepUrl={whepUrl} streamStatus={state.streamStatus} />
       <div className="flex flex-col items-center py-2 gap-1">
         <span
           className={`text-4xl font-bold font-mono tracking-wide transition-colors ${negative ? "text-muted" : "text-text"}`}
