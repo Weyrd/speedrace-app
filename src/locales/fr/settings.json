@@ -6,5 +6,16 @@
   "reset_default": "Réinitialiser",
   "sound_title": "Volume du son",
   "sound_description": "Volume des sons de l'application (compte à rebours, lobby, résultats).",
+  "stream_title": "Qualité du stream",
+  "stream_description": "Fréquence d'images et débit de ton stream en direct.",
+  "framerate_label": "Fréquence d'images",
+  "bitrate_label": "Débit",
+  "replay_title": "Rediffusions",
+  "replay_description": "Les races classées sont enregistrées sur ton ordinateur en MP4, à mettre en ligne plus tard.",
+  "replay_folder_unset": "Dossier par défaut",
+  "replay_change_folder": "Modifier",
+  "replay_open_folder": "Ouvrir",
+  "replay_casual_label": "Enregistrer aussi les races non classées",
+  "replay_autodelete_label": "Supprimer automatiquement les rediffusions après une semaine",
   "logout": "Se déconnecter"
 }

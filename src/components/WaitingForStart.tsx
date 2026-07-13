@@ -1,9 +1,10 @@
-import { useRef, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
+import { WhepPreview } from "./ui/WhepPreview";
 import { Button } from "./ui/button";
 
 export default function WaitingForStart() {
@@ -11,17 +12,10 @@ export default function WaitingForStart() {
   const actions = useActions();
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    if (state.phase !== Phase.WaitingForStart) return;
-    if (videoRef.current && state.stream) {
-      videoRef.current.srcObject = state.stream;
-    }
-  }, [state]);
 
   if (state.phase !== Phase.WaitingForStart) return null;
   const { lobby } = state;
+  const whepUrl = lobby.whep_url || lobby.whip_url.replace(/\/whip$/, "/whep");
 
   return (
     <div className="h-full flex flex-col gap-3 px-4 py-4">
@@ -34,22 +28,7 @@ export default function WaitingForStart() {
         earlyStartDetected={state.autosplit?.run_in_progress}
       />
 
-      {/* Stream preview - view only */}
-      <div className="bg-black border border-border rounded aspect-[1920/1080] w-full overflow-hidden relative">
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          className="w-full h-full object-cover"
-        />
-        {/* Stream active badge overlaid on preview */}
-        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/70 rounded px-2 py-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green shrink-0 animate-pulse" />
-          <span className="text-2xs text-green font-mono tracking-wide">
-            {t("stream.stream_active")}
-          </span>
-        </div>
-      </div>
+      <WhepPreview whepUrl={whepUrl} streamStatus={state.streamStatus} />
 
       {lobby.split_resource_updated_at && <SplitList />}
 

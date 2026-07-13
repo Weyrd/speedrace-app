@@ -41,11 +41,11 @@ User-initiated actions go the other way: a screen calls a hook from `useActions`
 
 ## Frontend state (`src/store/`)
 
-- **`types.ts`** — `Phase`, the `AppState` discriminated union (each phase carries exactly the data it needs, e.g. `RaceInProgress` has `lobby`, `raceStartAt`, `stream`), `ActionType`, and the `AppAction` union. Add new state by extending these three.
-- **`appReducer.ts`** — pure `(state, action) => AppState`. **Guard every transition**: each `case` checks the current phase and returns `state` unchanged if the transition is invalid (e.g. `StreamReady` only applies in `StreamSetup`). This is the single source of transition rules.
-- **`AppContext.tsx`** — `AppProvider` holds the reducer + a `whipRef` (the WHIP streaming client, kept in a ref so it survives re-renders). Exposes `useAppState()`, `useAppDispatch()`, `useWhipRef()`. On mount it **hydrates** from Rust via `getCurrentUser()` + `getLobbyState()`.
-- **`AppEventBridge.tsx`** — the only place that subscribes to Rust events; translates each into a `dispatch(...)`. Also tears down the WHIP client on logout / lobby-closed / player-result. Renders `null`.
-- **`useActions.ts`** — the imperative API screens use (`login`, `logout`, `streamReady`, `stopStream`, `finish`, `forfeit`, `newRace`). Each calls a command wrapper, dispatches the local action, and manages `whipRef`. Wrapped in `useMemo`.
+- **`types.ts`** — `Phase`, the `AppState` discriminated union (each phase carries exactly the data it needs, e.g. `RaceInProgress` has `lobby`, `raceStartAt`, `streamStatus`), `ActionType`, and the `AppAction` union. Add new state by extending these three.
+- **`appReducer.ts`** — pure `(state, action) => AppState`. **Guard every transition**: each `case` checks the current phase and returns `state` unchanged if the transition is invalid (e.g. `StreamReady` only applies in `StreamSetup` and only when `streamStatus === live`). This is the single source of transition rules.
+- **`AppContext.tsx`** — `AppProvider` holds the reducer. Exposes `useAppState()`, `useAppDispatch()`. On mount it **hydrates** from Rust via `getCurrentUser()` + `getLobbyState()`. (No `whipRef` — Rust owns the ffmpeg stream now.)
+- **`AppEventBridge.tsx`** — the only place that subscribes to Rust events; translates each into a `dispatch(...)` (including `onStreamStatus` → `StreamStatusChanged`). Renders `null`. Stream teardown lives in Rust, not here.
+- **`useActions.ts`** — the imperative API screens use (`login`, `logout`, `streamReady`, `stopStream`, `finish`, `forfeit`, `newRace`). Each calls a command wrapper and dispatches the local action. Wrapped in `useMemo`.
 
 Components read `useAppState()` for data and call `useActions()` for behavior — they don't `invoke` or `listen` directly.
 
@@ -112,9 +112,11 @@ Rules followed throughout:
 
 `single_instance` (focus existing window), `opener`, `deep_link` (OAuth callback via `momentum://` scheme — registered in DEV in `setup()`), `store` (persisted token storage), `updater` (+ `UpdateChecker`/`UpdateModal` on the frontend, see `lib/updater.ts`), `process`. OAuth: `open_login` opens the browser; the deep-link callback is handled by `auth::oauth::handle_callback`. Session is restored on startup via `lifecycle::restore_session`.
 
-## Streaming (WHIP)
+## Streaming (local preview → Publish → WHIP + MP4, self-WHEP after)
 
-The browser captures a `MediaStream` and publishes via WebRTC-WHIP (`src/stream/whip.ts`, `WhipClient`). The client instance is held in `whipRef` (AppContext) so it persists across renders; it's `.stop()`-ed and nulled on logout, lobby-closed, player-result, forfeit, and stop-stream — see `AppEventBridge` and `useActions`. Background/design: `docs/README_STREAM_V2.md`.
+**Rust owns the stream — and the preview.** Nothing is published or recorded until the racer clicks **Publish**. On StreamSetup, Rust auto-starts a **local preview** (`stream/preview.rs`: a preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events, rendered imperatively by `components/ui/PreviewCanvas.tsx` — never through React state). Clicking the preview opens `SourcePicker.tsx` (monitors + WGC windows, lazy thumbnails); the source is a tagged `CaptureSource` (`monitor`/`window`, const-object mirror in `src/types/`). `publish_stream(lobbyId)` is **one Rust transaction**: kill preview → ffmpeg (`ddagrab` monitor or `wgc.rs` rawvideo-pipe window capture + cpal WASAPI audio pipe) → `-f whip` to MediaMTX (+ MP4 replay when applicable) → await live (25 s timeout) → POST stream-ready → `WaitingForStart`; failure restores the preview and POSTs nothing. Requires the bundled **ffmpeg 8.x** sidecar with a real DTLS backend (GnuTLS/OpenSSL/mbedTLS — **not** SChannel; run `scripts/get-ffmpeg.ps1`). The supervisor emits `stream:status`; the FSM tracks it as `streamStatus`. Commands: `publish_stream`, `stop_stream`, `restart_preview`, `get`/`set_capture_source`, `list_monitors`, `list_windows`, `capture_monitor_thumb`, `capture_window_thumb`, `get`/`set_stream_settings`.
+
+After publish the webview **plays the racer's own stream back via WHEP** (`src/stream/whep.ts`, `components/ui/WhepPreview.tsx`). Teardown is Rust-owned via the single `stream::shutdown` choke point (it kills preview + live) called from logout, `stop_stream`, forfeit, finish, WS `PlayerResult`/`LobbyClosed`, auth-lost/banned and app exit; `ServerUnavailable` keeps the stream alive, and mid-race ffmpeg death never POSTs stream-stopped (the back would forfeit). All stream data types live in `stream/types.rs`. Background/design: `docs/README_STREAM_V2.md`.
 
 ## i18n
 

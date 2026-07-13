@@ -68,6 +68,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 crate::state::reset_run_start(&mut guard);
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
+            crate::stream::preview::ensure_for_phase(app, state);
             init_lobby_resources(app, state, &payload);
         }
 
@@ -128,6 +129,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.pending_splits.clear();
                 guard.pending_early_splits.clear();
             }
+            crate::stream::shutdown_spawn(app, state);
             let _ = app.emit(WS_LOBBY_CLOSED, payload);
         }
 
@@ -138,6 +140,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.race_start_at = None;
                 guard.pending_finish = None;
             }
+            crate::stream::shutdown_spawn(app, state);
             let _ = app.emit(WS_PLAYER_RESULT, payload);
         }
 

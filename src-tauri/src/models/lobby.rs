@@ -18,6 +18,14 @@ pub enum LobbyStatus {
     InProgress,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RaceType {
+    #[default]
+    Casual,
+    Ranked,
+}
+
 impl LobbyStatus {
     pub fn to_app_state(&self) -> AppState {
         match self {
@@ -33,9 +41,13 @@ pub struct LobbySetup {
     pub lobby_id: String,
     pub code: String,
     pub lobby_status: LobbyStatus,
+    #[serde(default)]
+    pub race_type: RaceType,
     pub player_status: PlayerStatus,
     pub stream_key: String,
     pub whip_url: String,
+    #[serde(default)]
+    pub whep_url: String,
     pub game_name: String,
     pub category_name: Vec<String>,
     pub max_duration_minutes: u32,

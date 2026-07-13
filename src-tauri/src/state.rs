@@ -81,6 +81,11 @@ pub struct GlobalState {
     // Last IGT the WASM reported. start is only (re)captured when it advances (rules out stale-menu re-capture)
     pub wasm_last_igt: Option<i64>,
     pub pending_early_splits: Vec<BufferedEarlySplit>,
+    pub stream: Option<crate::stream::StreamSession>,
+
+    pub capture_source: Option<crate::stream::CaptureSource>,
+    pub preview: Option<crate::stream::PreviewSession>,
+    pub preview_last_jpeg: Option<Vec<u8>>,
 }
 
 impl GlobalState {
@@ -120,6 +125,10 @@ impl GlobalState {
             split_retry_running: false,
             wasm_last_igt: None,
             pending_early_splits: Vec::new(),
+            stream: None,
+            capture_source: None,
+            preview: None,
+            preview_last_jpeg: None,
         }
     }
 }

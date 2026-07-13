@@ -1,4 +1,4 @@
-import { WsStatus, type User } from "../types";
+import { WsStatus, StreamStatus, StreamEventState, type User } from "../types";
 import { Phase, ActionType, type AppState, type AppAction } from "./types";
 
 const PHASES_WITH_WS = new Set<Phase>([
@@ -66,11 +66,15 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       ) {
         return { ...state, lobby: action.lobby } as AppState;
       }
+      if (state.phase === Phase.StreamSetup) {
+        return { ...state, lobby: action.lobby };
+      }
       return {
         phase: Phase.StreamSetup,
         user: s.user,
         wsStatus: s.wsStatus,
         lobby: action.lobby,
+        streamStatus: StreamStatus.Idle,
       };
     }
 
@@ -91,7 +95,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         user: state.user,
         wsStatus: state.wsStatus,
         lobby: state.lobby,
-        stream: action.stream,
+        streamStatus: StreamStatus.Live,
         autosplit: state.autosplit,
       };
     }
@@ -103,15 +107,40 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           user: state.user,
           wsStatus: state.wsStatus,
           lobby: state.lobby,
+          streamStatus: StreamStatus.Idle,
           autosplit: state.autosplit,
         };
       }
-      if (state.phase === Phase.RaceInProgress) {
+      if (state.phase === Phase.StreamSetup) {
+        return { ...state, streamStatus: StreamStatus.Idle };
+      }
+      return state;
+    }
+
+    case ActionType.StreamStatusChanged: {
+      const s = action.status;
+      // before race failure/stop bounces back to setup
+      if (
+        (s === StreamEventState.Error || s === StreamEventState.Stopped) &&
+        state.phase === Phase.WaitingForStart
+      ) {
         return {
-          phase: Phase.Idle,
+          phase: Phase.StreamSetup,
           user: state.user,
           wsStatus: state.wsStatus,
+          lobby: state.lobby,
+          streamStatus: StreamStatus.Idle,
+          autosplit: state.autosplit,
         };
+      }
+      if (
+        state.phase === Phase.StreamSetup ||
+        state.phase === Phase.WaitingForStart ||
+        state.phase === Phase.RaceInProgress
+      ) {
+        const streamStatus =
+          s === StreamEventState.Stopped ? StreamStatus.Idle : s;
+        return { ...state, streamStatus };
       }
       return state;
     }
@@ -124,7 +153,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         wsStatus: state.wsStatus,
         lobby: state.lobby,
         raceStartAt: action.raceStartAt,
-        stream: state.stream,
+        streamStatus: state.streamStatus,
         splitIndex: 0,
         completedSegmentTimes: [],
         currentSegmentStartMs: 0,
@@ -143,6 +172,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         user: s.user,
         wsStatus: s.wsStatus,
         result: action.result,
+        raceType:
+          state.phase === Phase.RaceInProgress
+            ? state.lobby.race_type
+            : undefined,
       };
     }
 

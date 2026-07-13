@@ -1,13 +1,17 @@
+import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import { formatTime } from "../lib/formatTime";
-import { PlayerStatus } from "../types";
+import { PlayerStatus, RaceType } from "../types";
+import { openReplayDir } from "../lib/commands";
+import { useStreamSettings } from "../hooks/useStreamSettings";
 import { Button } from "./ui/button";
 
 export default function Finished() {
   const state = useAppState();
   const actions = useActions();
   const { t } = useTranslation("app");
+  const { data: streamSettings } = useStreamSettings();
 
   if (state.phase !== Phase.Finished) return null;
   const { result } = state;
@@ -18,6 +22,11 @@ export default function Finished() {
   const positionLabel = position
     ? `${position}${["st", "nd", "rd"][position - 1] ?? "th"}`
     : null;
+
+  const replaySaved =
+    state.raceType === RaceType.Ranked ||
+    (state.raceType === RaceType.Casual &&
+      (streamSettings?.replay_casual ?? false));
 
   return (
     <div className="h-full flex flex-col items-center justify-center gap-6 px-6 py-10">
@@ -76,10 +85,26 @@ export default function Finished() {
         </span>
       </div>
 
+      {replaySaved && (
+        <div className="mt-auto flex w-full flex-col items-center gap-2">
+          <span className="text-2xs font-mono tracking-wide text-dim">
+            {t("replay.saved")}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => void openReplayDir()}
+            className="w-full py-3"
+          >
+            <FolderOpen size={14} />
+            {t("replay.show_in_folder")}
+          </Button>
+        </div>
+      )}
+
       <Button
         variant="outline"
         onClick={() => actions.newRace()}
-        className="w-full py-3.5 mt-auto"
+        className={`w-full py-3.5 ${replaySaved ? "" : "mt-auto"}`}
       >
         {t("race.new_race")}
       </Button>

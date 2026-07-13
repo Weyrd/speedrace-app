@@ -10,6 +10,7 @@ mod logging;
 mod models;
 mod settings;
 mod state;
+mod stream;
 mod ws;
 
 use logging::{mlog, LogCat};
@@ -112,6 +113,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -142,8 +144,19 @@ pub fn run() {
             commands::get_current_user,
             commands::logout,
             commands::retry_connection,
-            commands::send_stream_ready,
-            commands::send_stream_stopped,
+            commands::publish_stream,
+            commands::stop_stream,
+            commands::get_stream_settings,
+            commands::set_stream_settings,
+            commands::get_capture_source,
+            commands::set_capture_source,
+            commands::restart_preview,
+            commands::open_replay_dir,
+            commands::pick_replay_dir,
+            stream::list_monitors,
+            stream::list_windows,
+            stream::capture_monitor_thumb,
+            stream::capture_window_thumb,
             commands::get_lobby_state,
             commands::send_player_finished,
             commands::send_player_forfeited,
@@ -232,6 +245,13 @@ pub fn run() {
                 });
             }
 
+            {
+                let app_for_sweep = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    stream::sweep_old_replays(&app_for_sweep);
+                });
+            }
+
             // Seed last-known offset so the hotkey is fair before the frontend re-syncs.
             if let Some((offset, _)) = settings::load_clock_offset(&app_handle) {
                 if let Ok(mut guard) = shared_state.lock() {
@@ -252,15 +272,24 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, _event| {
+        .run(|app_handle, event| {
             // macOS: clicking the Dock icon while the window is hidden reopens it.
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = _event {
-                if let Some(w) = _app_handle.get_webview_window("main") {
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if let Some(w) = app_handle.get_webview_window("main") {
                     let _ = w.unminimize();
                     let _ = w.show();
                     let _ = w.set_focus();
                 }
+            }
+
+            if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
+                let state = app_handle.state::<SharedState>().inner().clone();
+                let app = app_handle.clone();
+                let _ = tauri::async_runtime::block_on(tokio::time::timeout(
+                    std::time::Duration::from_secs(2),
+                    stream::shutdown(&app, &state, true),
+                ));
             }
         });
 }

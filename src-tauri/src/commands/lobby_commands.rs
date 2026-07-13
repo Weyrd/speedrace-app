@@ -153,6 +153,7 @@ fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result:
             },
         );
     }
+    crate::stream::shutdown_spawn(app, state);
     let _ = app.emit(WS_PLAYER_RESULT, result);
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.request_user_attention(Some(tauri::UserAttentionType::Informational));
@@ -193,6 +194,7 @@ pub async fn send_player_forfeited(
         guard.race_start_at = None;
         guard.run_start_instant = None;
     }
+    crate::stream::shutdown(&app, state.inner(), true).await;
     let _ = app.emit(WS_PLAYER_RESULT, result);
     Ok(())
 }

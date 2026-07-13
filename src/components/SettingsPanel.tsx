@@ -7,6 +7,9 @@ import {
   RotateCcw,
   LogOut,
   Volume2,
+  MonitorPlay,
+  Clapperboard,
+  FolderOpen,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActions } from "../store";
@@ -17,6 +20,10 @@ import {
   useUnregisterFinishHotkey,
 } from "../hooks/useFinishHotkey";
 import {
+  useStreamSettings,
+  useSetStreamSettings,
+} from "../hooks/useStreamSettings";
+import {
   eventToAccelerator,
   eventToLiveAccelerator,
   formatAccelerator,
@@ -24,6 +31,7 @@ import {
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
 import { tryCatch } from "../lib/tryCatch";
+import { openReplayDir, pickReplayDir } from "../lib/commands";
 
 const DEFAULT_FINISH_HOTKEY = "CmdOrCtrl+Shift+F";
 
@@ -40,6 +48,18 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const [capturing, setCapturing] = useState(false);
   const [liveCombo, setLiveCombo] = useState("");
   const [volume, setVolume] = useState(getSoundVolume);
+  const { data: streamSettings } = useStreamSettings();
+  const { mutate: saveStreamSettings } = useSetStreamSettings();
+  const fps = streamSettings?.framerate ?? 60;
+  const bitrate = streamSettings?.bitrate_kbps ?? 2000;
+  const replayDir = streamSettings?.replay_dir ?? "";
+  const replayAutodelete = streamSettings?.replay_autodelete ?? true;
+  const replayCasual = streamSettings?.replay_casual ?? false;
+
+  const handlePickReplayDir = async () => {
+    const dir = await pickReplayDir();
+    if (dir) saveStreamSettings({ replay_dir: dir });
+  };
 
   const startCapture = async () => {
     const { error } = await tryCatch(releaseHotkey());
@@ -63,18 +83,18 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       if (e.code === "Escape") {
         setCapturing(false);
         setLiveCombo("");
-        if (hotkey) applyHotkey(hotkey); // re-register the previous binding
+        if (hotkey) applyHotkey(hotkey);
         return;
       }
 
-      setLiveCombo(eventToLiveAccelerator(e)); // live preview in the input
+      setLiveCombo(eventToLiveAccelerator(e));
       const accel = eventToAccelerator(e);
-      if (accel) candidate = accel; // valid modifier(s) + key
+      if (accel) candidate = accel;
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
       e.preventDefault();
-      if (!candidate) return; // no complete chord yet → keep listening
+      if (!candidate) return;
       setCapturing(false);
       applyHotkey(candidate);
     };
@@ -199,6 +219,114 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               {Math.round(volume * 100)}%
             </span>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
+            <MonitorPlay size={14} className="text-dim" />
+            {t("stream_title")}
+          </span>
+          <p className="text-2xs font-mono text-dim leading-relaxed">
+            {t("stream_description")}
+          </p>
+          <div className="flex items-center gap-3 mt-1">
+            <label className="flex-1 flex flex-col gap-1">
+              <span className="text-2xs font-mono text-dim">
+                {t("framerate_label")}
+              </span>
+              <select
+                value={fps}
+                onChange={(e) =>
+                  saveStreamSettings({
+                    bitrate_kbps: bitrate,
+                    framerate: Number(e.target.value),
+                  })
+                }
+                className="bg-black border border-border rounded px-2 py-2 text-xs text-text font-mono"
+              >
+                <option value={30}>30 fps</option>
+                <option value={60}>60 fps</option>
+              </select>
+            </label>
+            <label className="flex-1 flex flex-col gap-1">
+              <span className="text-2xs font-mono text-dim">
+                {t("bitrate_label")}
+              </span>
+              <select
+                value={bitrate}
+                onChange={(e) =>
+                  saveStreamSettings({
+                    bitrate_kbps: Number(e.target.value),
+                    framerate: fps,
+                  })
+                }
+                className="bg-black border border-border rounded px-2 py-2 text-xs text-text font-mono"
+              >
+                <option value={1500}>1500 kbps</option>
+                <option value={2000}>2000 kbps</option>
+                <option value={2500}>2500 kbps</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
+            <Clapperboard size={14} className="text-dim" />
+            {t("replay_title")}
+          </span>
+          <p className="text-2xs font-mono text-dim leading-relaxed">
+            {t("replay_description")}
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <span
+              className="flex-1 truncate rounded-sm border border-border bg-black px-2 py-2 text-2xs font-mono text-text"
+              title={replayDir}
+            >
+              {replayDir || t("replay_folder_unset")}
+            </span>
+            <Button
+              variant="outline"
+              onClick={handlePickReplayDir}
+              className="px-3 border-dim"
+            >
+              {t("replay_change_folder")}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void openReplayDir()}
+              className="px-3 border-dim"
+            >
+              <FolderOpen size={14} />
+              {t("replay_open_folder")}
+            </Button>
+          </div>
+          <label className="flex items-center gap-2 mt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={replayCasual}
+              onChange={(e) =>
+                saveStreamSettings({ replay_casual: e.target.checked })
+              }
+              className="accent-orange"
+            />
+            <span className="text-2xs font-mono text-dim">
+              {t("replay_casual_label")}
+            </span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={replayAutodelete}
+              onChange={(e) =>
+                saveStreamSettings({ replay_autodelete: e.target.checked })
+              }
+              className="accent-orange"
+            />
+            <span className="text-2xs font-mono text-dim">
+              {t("replay_autodelete_label")}
+            </span>
+          </label>
         </div>
       </div>
 

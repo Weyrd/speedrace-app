@@ -1,5 +1,13 @@
 # ffmpeg Sidecar - Build & Integration
 
+> **STATUS: NOT CURRENTLY USED — future size optimization.**
+> Phase 1 ships a prebuilt **BtbN GPL win64 ffmpeg 8.x** sidecar via `get-ffmpeg.ps1`
+> (see `README.md`). This from-source minimal build is aspirational: it would cut the
+> ~140 MB prebuilt down to ~15–20 MB, but it is not wired into the app and `build-ffmpeg.ps1`
+> has known bugs (`--enable-nonfree` → non-redistributable; `--disable-avdevice` conflicts
+> with the `gdigrab`/`dshow` indevs it enables) and predates the ffmpeg-8 whip muxer
+> requirement (needs OpenSSL/DTLS). Treat everything below as a future plan, not current state.
+
 The Momentum desktop app bundles a **custom minimal ffmpeg** (~15–20MB instead of ~130MB) as a Tauri sidecar. It handles screen capture → WHIP live stream + local MP4 replay simultaneously.
 
 This folder contains the build script and this guide.

@@ -55,7 +55,10 @@ pub async fn do_refresh(refresh_token: &str) -> Result<Tokens, String> {
 }
 
 fn logout_and_notify(app: &AppHandle, store: &TokenStore) {
+    use tauri::Manager;
     let _ = store.clear();
+    let state = app.state::<crate::state::SharedState>();
+    crate::stream::shutdown_spawn(app, &state);
     emit_auth_state(app, AuthStatePayload::Unauthenticated);
 }
 

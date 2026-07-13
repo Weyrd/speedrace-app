@@ -12,17 +12,25 @@
   },
   "stream": {
     "lobby": "In lobby",
-    "source_screen": "Screen",
-    "source_camera": "Camera",
-    "preview_placeholder": "▶ Start streaming a game",
-    "fullscreen_note": "Fullscreen games aren't supported yet, share your whole screen if the game runs fullscreen.",
-    "publish": "● PUBLISH",
-    "publishing": "Connecting to stream...",
-    "error_source": "Unable to access source. Try again.",
-    "error_connection": "Stream connection error.",
+    "preview_starting": "Starting preview...",
+    "preview_error": "Preview unavailable. Pick another source.",
+    "monitor_option": "Display {{index}} ({{width}}×{{height}})",
+    "monitor_primary": " (primary)",
+    "monitor_short": "Display {{index}}",
+    "source_picker_title": "Choose a source",
+    "source_picker_close": "Close",
+    "tab_fullscreen": "Fullscreen",
+    "tab_windows": "Windows",
+    "no_windows": "No capturable window found",
+    "change_source_hint": "Click the preview to change the source",
+    "publish": "● Publish",
+    "publishing": "Publishing...",
+    "error_start": "Couldn't start the stream.",
+    "error_monitors": "Couldn't list monitors.",
     "stream_active": "Stream active",
-    "stop_stream": "▪ Stop stream",
-    "click_to_change": "Click to change"
+    "stream_lost": "Stream lost",
+    "reconnecting": "Reconnecting...",
+    "stop_stream": "▪ Stop stream"
   },
   "waiting": {
     "waiting_host": "Waiting for the host\nto start the race..."
@@ -40,6 +48,10 @@
     "finish_time": "Finish Time",
     "status_finished": "Finished",
     "status_forfeited": "Forfeited"
+  },
+  "replay": {
+    "saved": "Replay saved to your computer",
+    "show_in_folder": "Show in folder"
   },
   "autosplit": {
     "early_start_tooltip": "Your timer looks already running. Reset before the race starts to avoid a penalty."

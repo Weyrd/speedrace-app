@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Settings, ExternalLink, Clock, Loader2 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -7,6 +7,7 @@ import { WsStatus } from "../types";
 import { Tooltip } from "./ui/Tooltip";
 import SettingsPanel from "./SettingsPanel";
 import { useClockOffset } from "../hooks/useClockOffset";
+import { useNow } from "../hooks/useNow";
 import { formatOffset } from "../lib/formatTime";
 import { webUrls } from "../lib/webUrls";
 import { Button } from "./ui/button";
@@ -28,19 +29,14 @@ export default function Header() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { offsetMs, syncedAt, isSynced, isSyncing, resync } = useClockOffset();
 
-  const [now, setNow] = useState(() => Date.now());
+  const now = useNow(
+    syncedAt != null && Date.now() < syncedAt + CLOCK_RESYNC_COOLDOWN_MS,
+  );
   const remainingMs = syncedAt
     ? Math.max(0, syncedAt + CLOCK_RESYNC_COOLDOWN_MS - now)
     : 0;
   const onCooldown = remainingMs > 0;
   const clockDisabled = isSyncing || onCooldown;
-
-  // Tick once a second only while the resync button is cooling down.
-  useEffect(() => {
-    if (!onCooldown) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [onCooldown]);
 
   const username = "user" in state ? state.user.username : null;
   const isAuthenticated = username != null;

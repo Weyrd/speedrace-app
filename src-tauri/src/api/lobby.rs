@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::counter::CounterSample;
-use crate::models::lobby::PlayerStatus;
+use crate::models::lobby::{PlayerStatus, RaceType};
 use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
@@ -25,9 +25,13 @@ pub struct LobbyCurrentResponse {
     pub lobby_id: String,
     pub code: String,
     pub lobby_status: LobbyStatus,
+    #[serde(default)]
+    pub race_type: RaceType,
     pub player_status: PlayerStatus,
     pub stream_key: String,
     pub whip_url: String,
+    #[serde(default)]
+    pub whep_url: String,
     pub game_name: String,
     pub category_name: Vec<String>,
     pub max_duration_minutes: u32,
@@ -55,9 +59,11 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         lobby_id: l.lobby_id,
         code: l.code,
         lobby_status: l.lobby_status,
+        race_type: l.race_type,
         player_status: l.player_status,
         stream_key: l.stream_key,
         whip_url: l.whip_url,
+        whep_url: l.whep_url,
         game_name: l.game_name,
         category_name: l.category_name,
         max_duration_minutes: l.max_duration_minutes,

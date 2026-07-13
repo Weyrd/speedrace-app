@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAppDispatch, useWhipRef } from "./AppContext";
+import { useAppDispatch } from "./AppContext";
 import { ActionType, Phase } from "./types";
 import { AuthState, PlayerStatus, type WsStatus } from "../types";
 import { ensureClockFresh, resyncClock } from "../hooks/useClockOffset";
@@ -17,6 +17,7 @@ import {
   onAuthState,
   onAppState,
   onWsStatus,
+  onStreamStatus,
   onLobbySetup,
   onLobbyClosed,
   onLobbyStart,
@@ -28,7 +29,6 @@ import {
 
 export function AppEventBridge(): null {
   const dispatch = useAppDispatch();
-  const whipRef = useWhipRef();
   const qc = useQueryClient();
   const lobbyIdRef = useRef<string | null>(null);
 
@@ -38,8 +38,7 @@ export function AppEventBridge(): null {
         if (payload.state === AuthState.Authenticated) {
           dispatch({ type: ActionType.AuthOk, user: payload.user });
         } else {
-          whipRef.current?.stop();
-          whipRef.current = null;
+          // Rust owns ffmpeg teardown on logout.
           dispatch({ type: ActionType.Logout });
         }
       }),
@@ -48,14 +47,20 @@ export function AppEventBridge(): null {
         dispatch({ type: ActionType.WsStatus, ws_status: ws_status });
       }),
 
+      // ffmpeg pipeline lifecycle (connecting/live/reconnecting/error/stopped)
+      onStreamStatus((payload) => {
+        dispatch({
+          type: ActionType.StreamStatusChanged,
+          status: payload.state,
+        });
+      }),
+
       // Only the connection-level terminal phases; other app:state emits are driven by dedicated events.
       onAppState((phase) => {
         if (phase === Phase.ServerUnavailable) {
-          // keep stream if ever it reconnect
+          // ffmpeg stays alive across a back outage.
           dispatch({ type: ActionType.ServerUnavailable });
         } else if (phase === Phase.Banned) {
-          whipRef.current?.stop();
-          whipRef.current = null;
           dispatch({ type: ActionType.Banned });
         }
       }),
@@ -77,8 +82,6 @@ export function AppEventBridge(): null {
 
       onLobbyClosed((payload) => {
         lobbyIdRef.current = null;
-        whipRef.current?.stop();
-        whipRef.current = null;
         playSound(Sound.LobbyClosed);
         dispatch({ type: ActionType.LobbyClosed, reason: payload.reason });
       }),
@@ -94,8 +97,6 @@ export function AppEventBridge(): null {
 
       onPlayerResult((result) => {
         lobbyIdRef.current = null;
-        whipRef.current?.stop();
-        whipRef.current = null;
         playSound(
           result.player_status === PlayerStatus.Forfeited
             ? Sound.RaceForfeit
@@ -123,7 +124,7 @@ export function AppEventBridge(): null {
     ];
 
     return () => unsubs.forEach((fn) => fn());
-  }, [dispatch, whipRef, qc]);
+  }, [dispatch, qc]);
 
   return null;
 }

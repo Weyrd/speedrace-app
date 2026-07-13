@@ -112,6 +112,7 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
     if let Some(ref lobby) = lobby_response {
         crate::ws::handler::init_lobby_resources(&app, &shared_state, lobby);
         let _ = app.emit(WS_LOBBY_SETUP, lobby);
+        crate::stream::preview::ensure_for_phase(&app, &shared_state);
     }
 
     start_background_loops(&app, &shared_state);

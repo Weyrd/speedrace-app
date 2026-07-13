@@ -34,6 +34,9 @@ import type {
   LobbyClosedReason,
   PlayerResult,
   AutosplitState,
+  StreamStatus,
+  StreamEventState,
+  RaceType,
 } from "../types";
 
 // Phase = the React app's current screen/state
@@ -60,6 +63,7 @@ export type AppState =
       user: User;
       wsStatus: WsStatus;
       lobby: LobbySetup;
+      streamStatus: StreamStatus;
       autosplit?: AutosplitState;
     }
   | {
@@ -67,7 +71,7 @@ export type AppState =
       user: User;
       wsStatus: WsStatus;
       lobby: LobbySetup;
-      stream: MediaStream;
+      streamStatus: StreamStatus;
       autosplit?: AutosplitState;
     }
   | {
@@ -76,7 +80,7 @@ export type AppState =
       wsStatus: WsStatus;
       lobby: LobbySetup;
       raceStartAt: number;
-      stream: MediaStream;
+      streamStatus: StreamStatus;
       splitIndex: number;
       completedSegmentTimes: number[];
       currentSegmentStartMs: number;
@@ -87,6 +91,7 @@ export type AppState =
       user: User;
       wsStatus: WsStatus;
       result: PlayerResult;
+      raceType?: RaceType;
     }
   | { phase: typeof Phase.ServerUnavailable }
   | { phase: typeof Phase.Banned };
@@ -103,6 +108,7 @@ export const ActionType = {
   PlayerResult: "PLAYER_RESULT",
   StreamReady: "STREAM_READY",
   StreamStopped: "STREAM_STOPPED",
+  StreamStatusChanged: "STREAM_STATUS_CHANGED",
   NewRace: "NEW_RACE",
   AutosplitStatus: "AUTOSPLIT_STATUS",
   SplitFired: "SPLIT_FIRED",
@@ -121,8 +127,12 @@ export type AppAction =
   | { type: typeof ActionType.LobbyClosed; reason: LobbyClosedReason }
   | { type: typeof ActionType.LobbyStart; raceStartAt: number }
   | { type: typeof ActionType.PlayerResult; result: PlayerResult }
-  | { type: typeof ActionType.StreamReady; stream: MediaStream }
+  | { type: typeof ActionType.StreamReady }
   | { type: typeof ActionType.StreamStopped }
+  | {
+      type: typeof ActionType.StreamStatusChanged;
+      status: StreamEventState;
+    }
   | { type: typeof ActionType.NewRace }
   | { type: typeof ActionType.AutosplitStatus; status: AutosplitState }
   | {

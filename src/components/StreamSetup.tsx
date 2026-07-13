@@ -1,79 +1,44 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
-import { WhipClient } from "../stream/whip";
+import { useCaptureSource } from "../hooks/useStreamSettings";
+import { CaptureSourceKind } from "../types";
 import { tryCatch } from "../lib/tryCatch";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
+import { PreviewCanvas } from "./ui/PreviewCanvas";
+import SourcePicker from "./SourcePicker";
 import { Button } from "./ui/button";
 
 export default function StreamSetup() {
   const state = useAppState();
   const actions = useActions();
   const { t } = useTranslation("app");
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
+  const { data: captureSource } = useCaptureSource();
   const [error, setError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const stopPreview = useCallback(() => {
-    streamRef.current?.getTracks().forEach((tr) => tr.stop());
-    streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-    setIsPreviewing(false);
-  }, []);
+  const sourceLabel =
+    captureSource?.kind === CaptureSourceKind.Window
+      ? captureSource.title
+      : captureSource
+        ? t("stream.monitor_short", { index: captureSource.index + 1 })
+        : null;
 
-  useEffect(() => () => stopPreview(), [stopPreview]);
-
-  const startPreview = useCallback(async () => {
-    stopPreview();
+  const handlePublish = async (lobbyId: string) => {
     setError(null);
-    const { data: media, error } = await tryCatch(
-      navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 50 }, // TODO: v2 make configurable
-        audio: true,
-      }),
-    );
+    setPublishing(true);
+    const { error } = await tryCatch(actions.publish(lobbyId));
+    setPublishing(false);
     if (error) {
-      if (error instanceof DOMException && error.name === "NotAllowedError")
-        return;
+      console.error("[stream] publish_stream error", error);
       setError(
-        t("stream.error_source") +
-          (error instanceof Error ? ` (${error.message})` : ""),
+        error instanceof Error ? error.message : t("stream.error_start"),
       );
-      return;
     }
-    streamRef.current = media;
-    if (videoRef.current) videoRef.current.srcObject = media;
-    media.getVideoTracks()[0].addEventListener("ended", () => {
-      setIsPreviewing(false);
-      streamRef.current = null;
-    });
-    setIsPreviewing(true);
-  }, [stopPreview, t]);
-
-  const handlePublish = useCallback(async () => {
-    if (!streamRef.current) return;
-    setIsPublishing(true);
-    setError(null);
-    const client = new WhipClient();
-    const { error } = await tryCatch(
-      (async () => {
-        await client.start(lobby.whip_url, streamRef.current!);
-        await actions.streamReady(client, streamRef.current!, lobby.lobby_id); // pass stream
-        streamRef.current = null;
-      })(),
-    );
-    if (error) {
-      console.error("[stream] WHIP publish error", error);
-      client.stop();
-      setError(
-        error instanceof Error ? error.message : t("stream.error_connection"),
-      );
-      setIsPublishing(false);
-    }
-  }, [actions, state, t]);
+  };
 
   if (state.phase !== Phase.StreamSetup) return null;
   const { lobby } = state;
@@ -89,38 +54,17 @@ export default function StreamSetup() {
         earlyStartDetected={state.autosplit?.run_in_progress}
       />
 
-      {/* Preview area - always clickable to start or change source */}
-      <div
-        onClick={!isPublishing ? startPreview : undefined}
-        className="bg-black border border-border rounded aspect-[1920/1080] w-full flex items-center justify-center overflow-hidden relative group cursor-pointer"
-      >
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          className={`w-full h-full object-cover ${isPreviewing ? "" : "hidden"}`}
-        />
-
-        {!isPreviewing ? (
-          <span className="text-sm text-orange font-mono tracking-wide z-10 group-hover:opacity-80 transition-opacity">
-            {t("stream.preview_placeholder")}
-          </span>
-        ) : (
-          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10">
-            <span className="text-xs text-white font-mono tracking-wide">
-              {t("stream.click_to_change")}
-            </span>
-          </div>
+      <PreviewCanvas
+        onClick={publishing ? undefined : () => setPickerOpen(true)}
+      />
+      <p className="text-2xs text-dim font-mono tracking-wide text-center -mt-1">
+        {t("stream.change_source_hint")}
+        {sourceLabel && (
+          <span className="text-text"> ({sourceLabel})</span>
         )}
-      </div>
+      </p>
 
       {lobby.split_resource_updated_at && <SplitList />}
-
-      {!isPreviewing && (
-        <p className="text-2xs text-dim font-mono tracking-wide leading-relaxed text-center">
-          {t("stream.fullscreen_note")}
-        </p>
-      )}
 
       {error && (
         <p className="text-2xs text-red font-mono tracking-wide leading-relaxed">
@@ -130,12 +74,15 @@ export default function StreamSetup() {
 
       <Button
         variant="destructive"
-        onClick={handlePublish}
-        disabled={!isPreviewing || isPublishing}
-        className="w-full py-3.5"
+        onClick={() => handlePublish(lobby.lobby_id)}
+        disabled={publishing}
+        className="w-full py-3.5 mt-auto"
       >
-        {isPublishing ? t("stream.publishing") : t("stream.publish")}
+        {publishing && <Loader2 size={14} className="animate-spin" />}
+        {publishing ? t("stream.publishing") : t("stream.publish")}
       </Button>
+
+      {pickerOpen && <SourcePicker onClose={() => setPickerOpen(false)} />}
     </div>
   );
 }
