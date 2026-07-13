@@ -19,7 +19,7 @@ GlobalState.stream = Some(StreamSession{ stop_tx, join })                     �
                                     webview ◀── WhepClient (recvonly preview) ┘
 ```
 
-Design doc with the full rationale: `docs/README_STREAM_V2.md`. This skill is the fast path;
+Design doc with the full rationale: `docs/SPEC_FFMPEG.md`. This skill is the fast path;
 the doc is the deep dive. Confirm both against the code — this is an actively evolving feature.
 
 ## Two invariants you must not break
@@ -194,6 +194,5 @@ that an instant re-publish to the same path works (this underpins the mid-race a
 ## Maintaining this skill
 
 This feature is being built out — **update this file in the same change** when you touch the
-stream code. Keep the module map, command list, the two invariants, and the Phase 1 vs future
-split accurate. When Phase 2 (MP4 replay) or Phase 3 (WGC window capture) land, promote them out
-of "future" in `docs/README_STREAM_V2.md` and reflect the new pipe/output topology here.
+stream code. Keep the module map, command list, the two invariants, and the implemented vs
+future split accurate, and keep `docs/SPEC_FFMPEG.md` in sync with the pipe/output topology.

@@ -7,7 +7,7 @@ description: Conventions and code patterns for the Momentum desktop app — a Ta
 
 **Tauri 2** desktop app — the racer-side client of the Momentum speedrun platform. Frontend: **React 18 + Vite + Tailwind v4**, state via a `useReducer` finite-state machine (no TanStack Router; it's a single-window phase switcher). Backend: **Rust** (`src-tauri/`) owning auth (OAuth deep-link), the persistent WebSocket to momentum-back, HTTP calls, and a `SharedState` global. The two halves talk over Tauri IPC.
 
-> There is no copilot-instructions.md here — this skill is derived directly from the code. The one design doc is `docs/README_STREAM_V2.md` (streaming). Verify paths against `src/` and `src-tauri/src/`.
+> There is no copilot-instructions.md here — this skill is derived directly from the code. The one design doc is `docs/SPEC_FFMPEG.md` (streaming). Verify paths against `src/` and `src-tauri/src/`.
 
 ## Workflow
 
@@ -116,7 +116,7 @@ Rules followed throughout:
 
 **Rust owns the stream — and the preview.** Nothing is published or recorded until the racer clicks **Publish**. On StreamSetup, Rust auto-starts a **local preview** (`stream/preview.rs`: a preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events, rendered imperatively by `components/ui/PreviewCanvas.tsx` — never through React state). Clicking the preview opens `SourcePicker.tsx` (monitors + WGC windows, lazy thumbnails); the source is a tagged `CaptureSource` (`monitor`/`window`, const-object mirror in `src/types/`). `publish_stream(lobbyId)` is **one Rust transaction**: kill preview → ffmpeg (`ddagrab` monitor or `wgc.rs` rawvideo-pipe window capture + cpal WASAPI audio pipe) → `-f whip` to MediaMTX (+ MP4 replay when applicable) → await live (25 s timeout) → POST stream-ready → `WaitingForStart`; failure restores the preview and POSTs nothing. Requires the bundled **ffmpeg 8.x** sidecar with a real DTLS backend (GnuTLS/OpenSSL/mbedTLS — **not** SChannel; run `scripts/get-ffmpeg.ps1`). The supervisor emits `stream:status`; the FSM tracks it as `streamStatus`. Commands: `publish_stream`, `stop_stream`, `restart_preview`, `get`/`set_capture_source`, `list_monitors`, `list_windows`, `capture_monitor_thumb`, `capture_window_thumb`, `get`/`set_stream_settings`.
 
-After publish the webview **plays the racer's own stream back via WHEP** (`src/stream/whep.ts`, `components/ui/WhepPreview.tsx`). Teardown is Rust-owned via the single `stream::shutdown` choke point (it kills preview + live) called from logout, `stop_stream`, forfeit, finish, WS `PlayerResult`/`LobbyClosed`, auth-lost/banned and app exit; `ServerUnavailable` keeps the stream alive, and mid-race ffmpeg death never POSTs stream-stopped (the back would forfeit). All stream data types live in `stream/types.rs`. Background/design: `docs/README_STREAM_V2.md`.
+After publish the webview **plays the racer's own stream back via WHEP** (`src/stream/whep.ts`, `components/ui/WhepPreview.tsx`). Teardown is Rust-owned via the single `stream::shutdown` choke point (it kills preview + live) called from logout, `stop_stream`, forfeit, finish, WS `PlayerResult`/`LobbyClosed`, auth-lost/banned and app exit; `ServerUnavailable` keeps the stream alive, and mid-race ffmpeg death never POSTs stream-stopped (the back would forfeit). All stream data types live in `stream/types.rs`. Background/design: `docs/SPEC_FFMPEG.md`.
 
 ## i18n
 
