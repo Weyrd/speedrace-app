@@ -14,6 +14,9 @@ dist
 dist-ssr
 *.local
 
+# ffmpeg sidecar fetched by src-tauri/scripts/get-ffmpeg.ps1
+src-tauri/binaries/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -68,6 +68,7 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
             }
             AttemptResult::Banned => {
                 mlog!(LogCat::Ws, "[ws] connection refused: banned (4003)");
+                crate::stream::shutdown_spawn(&app, &state);
                 emit_app_state(&app, &state, AppState::Banned);
                 break;
             }
@@ -118,6 +119,7 @@ pub async fn retry_once(app: AppHandle, state: SharedState) {
         }
         AttemptResult::Banned => {
             mlog!(LogCat::Ws, "[ws] retry refused: banned (4003)");
+            crate::stream::shutdown_spawn(&app, &state);
             emit_app_state(&app, &state, AppState::Banned);
         }
         AttemptResult::Transient => {
@@ -198,6 +200,7 @@ async fn announce_connection(app: &AppHandle, state: &SharedState) {
         }
         let _ = app.emit(APP_STATE, &new_app_state);
         let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp);
+        crate::stream::preview::ensure_for_phase(app, state);
         if !player_done {
             crate::ws::handler::resume_lobby_resources(app, state, &lobby_resp);
         }
@@ -304,6 +307,7 @@ async fn refresh_or_logout(app: &AppHandle, state: &SharedState) -> bool {
 
 fn logout(app: &AppHandle, state: &SharedState, store: &TokenStore) {
     let _ = store.clear();
+    crate::stream::shutdown_spawn(app, state);
     {
         let mut guard = state.lock().unwrap();
         guard.app_state = AppState::Unauthenticated;

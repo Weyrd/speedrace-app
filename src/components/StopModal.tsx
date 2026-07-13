@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface Props {
   raceInProgress: boolean;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -14,6 +15,17 @@ export default function StopModal({
   onCancel,
 }: Props) {
   const { t } = useTranslation(["app", "common"]);
+  const [busy, setBusy] = useState(false);
+
+  const handleConfirm = async () => {
+    setBusy(true);
+    try {
+      await onConfirm();
+    } catch {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 px-3">
       <div className="bg-bg1 border border-red-dim rounded-sm p-4 w-full max-w-xs">
@@ -41,16 +53,23 @@ export default function StopModal({
         </p>
 
         <div className="flex gap-2">
-          <Button variant="outline" onClick={onCancel} className="flex-1 py-3">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            disabled={busy}
+            className="flex-1 py-3"
+          >
             {raceInProgress
               ? t("app:stop_modal.keep_racing")
               : t("common:cancel")}
           </Button>
           <Button
             variant="destructive"
-            onClick={onConfirm}
+            onClick={handleConfirm}
+            disabled={busy}
             className="flex-1 py-3"
           >
+            {busy && <Loader2 size={14} className="animate-spin" />}
             {raceInProgress
               ? t("app:stop_modal.confirm_forfeit")
               : t("common:stop")}

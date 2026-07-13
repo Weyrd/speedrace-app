@@ -3,6 +3,7 @@ import {
   type User,
   type LobbySetup,
   PlayerStatus,
+  RaceType,
 } from "../../types";
 import { Phase, ActionType, type AppAction } from "../types";
 
@@ -13,10 +14,12 @@ export const MOCK_USER: User = {
 export const MOCK_LOBBY: LobbySetup = {
   lobby_id: "MOCK-4821",
   lobby_status: "waiting",
+  race_type: RaceType.Casual,
   code: "MOCK",
   player_status: PlayerStatus.Preparing,
   stream_key: "MOCK-stream-key",
   whip_url: "https://stream.momentum.weyrd.space:8889/MOCK-stream/whip",
+  whep_url: "https://stream.momentum.weyrd.space:8889/MOCK-stream/whep",
   game_name: "MOCK-Game",
   category_name: ["MOCK-Game", "Any%"],
   max_duration_minutes: 60,

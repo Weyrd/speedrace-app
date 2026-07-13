@@ -1,27 +1,22 @@
 import { useMemo } from "react";
-import { useAppDispatch, useWhipRef } from "./AppContext";
+import { useAppDispatch } from "./AppContext";
 import { ActionType } from "./types";
 import {
   openLogin,
   logout,
   retryConnection,
-  sendStreamReady,
-  sendStreamStopped,
+  publishStream,
+  stopStream,
   sendPlayerFinished,
   sendPlayerForfeited,
   acknowledgeResults,
 } from "../lib/commands";
-import type { WhipClient } from "../stream/whip";
 import { tryCatch } from "../lib/tryCatch";
 
 export interface Actions {
   login(): Promise<void>;
   logout(): Promise<void>;
-  streamReady(
-    client: WhipClient,
-    stream: MediaStream,
-    lobbyId: string,
-  ): Promise<void>;
+  publish(lobbyId: string): Promise<void>;
   stopStream(lobbyId: string): Promise<void>;
   finish(lobbyId: string, finishingTimeMs: number): Promise<void>;
   forfeit(lobbyId: string): Promise<void>;
@@ -31,7 +26,6 @@ export interface Actions {
 
 export function useActions(): Actions {
   const dispatch = useAppDispatch();
-  const whipRef = useWhipRef();
 
   return useMemo(
     (): Actions => ({
@@ -46,29 +40,19 @@ export function useActions(): Actions {
       },
 
       async logout() {
-        whipRef.current?.stop();
-        whipRef.current = null;
         dispatch({ type: ActionType.Logout });
         const { error } = await tryCatch(logout());
         if (error) console.error("[auth] logout error", error);
       },
 
-      async streamReady(
-        client: WhipClient,
-        stream: MediaStream,
-        lobbyId: string,
-      ) {
-        whipRef.current = client;
-        const { error } = await tryCatch(sendStreamReady(lobbyId));
-        if (error) console.error("[stream] send_stream_ready error", error);
-        dispatch({ type: ActionType.StreamReady, stream });
+      async publish(lobbyId: string) {
+        await publishStream(lobbyId);
+        dispatch({ type: ActionType.StreamReady });
       },
 
       async stopStream(lobbyId: string) {
-        whipRef.current?.stop();
-        whipRef.current = null;
-        const { error } = await tryCatch(sendStreamStopped(lobbyId));
-        if (error) console.error("[stream] send_stream_stopped error", error);
+        const { error } = await tryCatch(stopStream(lobbyId));
+        if (error) console.error("[stream] stop_stream error", error);
         dispatch({ type: ActionType.StreamStopped });
       },
 
@@ -80,8 +64,6 @@ export function useActions(): Actions {
       },
 
       async forfeit(lobbyId: string) {
-        whipRef.current?.stop();
-        whipRef.current = null;
         const { error } = await tryCatch(sendPlayerForfeited(lobbyId));
         if (error) console.error("[race] send_player_forfeited error", error);
       },
@@ -97,6 +79,6 @@ export function useActions(): Actions {
         if (error) console.error("[ws] retry_connection error", error);
       },
     }),
-    [dispatch, whipRef],
+    [dispatch],
   );
 }

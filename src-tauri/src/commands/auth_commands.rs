@@ -43,6 +43,8 @@ pub async fn logout(app: AppHandle, state: State<'_, SharedState>) -> Result<(),
         .map(|a| a.tokens.refresh_token);
     TokenStore::new(app.clone()).clear()?;
 
+    crate::stream::shutdown(&app, state.inner(), true).await;
+
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.app_state = AppState::Unauthenticated;

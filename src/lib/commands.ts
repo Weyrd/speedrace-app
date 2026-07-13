@@ -1,5 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { User, LobbySetup, AutosplitState } from "../types";
+import type {
+  User,
+  LobbySetup,
+  AutosplitState,
+  MonitorInfo,
+  WindowInfo,
+  StreamSettings,
+  CaptureSource,
+} from "../types";
 
 import type { Phase } from "../store/types";
 
@@ -25,12 +33,68 @@ export async function retryConnection(): Promise<void> {
   return invoke("retry_connection");
 }
 
-export async function sendStreamReady(lobbyId: string): Promise<void> {
-  return invoke("send_stream_ready", { lobbyId });
+export async function publishStream(lobbyId: string): Promise<void> {
+  return invoke("publish_stream", { lobbyId });
 }
 
-export async function sendStreamStopped(lobbyId: string): Promise<void> {
-  return invoke("send_stream_stopped", { lobbyId });
+export async function stopStream(lobbyId: string): Promise<void> {
+  return invoke("stop_stream", { lobbyId });
+}
+
+export async function listMonitors(): Promise<MonitorInfo[]> {
+  return invoke<MonitorInfo[]>("list_monitors");
+}
+
+export async function listWindows(): Promise<WindowInfo[]> {
+  return invoke<WindowInfo[]>("list_windows");
+}
+
+export async function captureMonitorThumb(index: number): Promise<string> {
+  return invoke<string>("capture_monitor_thumb", { index });
+}
+
+export async function captureWindowThumb(hwnd: number): Promise<string> {
+  return invoke<string>("capture_window_thumb", { hwnd });
+}
+
+export async function getStreamSettings(): Promise<StreamSettings> {
+  return invoke<StreamSettings>("get_stream_settings");
+}
+
+export async function setStreamSettings(
+  bitrateKbps: number,
+  framerate: number,
+  replayDir: string,
+  replayAutodelete: boolean,
+  replayCasual: boolean,
+): Promise<void> {
+  return invoke("set_stream_settings", {
+    bitrateKbps,
+    framerate,
+    replayDir,
+    replayAutodelete,
+    replayCasual,
+  });
+}
+
+export async function getCaptureSource(): Promise<CaptureSource> {
+  return invoke<CaptureSource>("get_capture_source");
+}
+
+export async function setCaptureSource(source: CaptureSource): Promise<void> {
+  return invoke("set_capture_source", { source });
+}
+
+export async function restartPreview(): Promise<void> {
+  return invoke("restart_preview");
+}
+
+export async function openReplayDir(): Promise<void> {
+  return invoke("open_replay_dir");
+}
+
+export async function pickReplayDir(): Promise<string | null> {
+  return invoke<string | null>("pick_replay_dir");
 }
 
 export async function getLobbyState(): Promise<ClientState> {

@@ -1,8 +1,52 @@
-# FFmpeg build - quick README
+# FFmpeg sidecar
 
-This folder contains `build-ffmpeg.ps1`, a one-shot builder that produces a minimal FFmpeg sidecar for the Momentum Tauri app.
+## Current: prebuilt Gyan build via `get-ffmpeg.ps1` (run once after clone)
 
-This short README explains how to add the generated binary to the repo and the recommended workflow.
+The app streams via ffmpeg's native `-f whip` muxer, which requires **ffmpeg 8.x with a real
+DTLS-SRTP backend** (GnuTLS, OpenSSL, or mbedTLS). We ship a prebuilt **Gyan GPL `full_build`
+static win64** build (`--enable-gnutls`) as a Tauri sidecar instead of building our own.
+
+> **Do not substitute a Windows SChannel build** (BtbN's default `win64-gpl` is SChannel-only).
+> SChannel compiles the whip muxer but its DTLS handshake fails against MediaMTX at runtime
+> (`SEC_E_ALGORITHM_MISMATCH 0x80090331` / "DTLS session failed"). Sanity-check any binary:
+> `ffmpeg -buildconf` must show `--enable-gnutls`/`--enable-openssl`/`--enable-mbedtls`, and
+> `ffmpeg -protocols` must list **both** `dtls` and `srtp`.
+
+```powershell
+# from src-tauri/scripts/
+.\get-ffmpeg.ps1           # download + SHA256-verify + install the sidecar
+.\get-ffmpeg.ps1 -Force    # re-download even if already present
+```
+
+It installs `../binaries/ffmpeg-<target-triple>.exe` (gitignored), which
+`tauri.conf.json` → `bundle.externalBin: ["binaries/ffmpeg"]` bundles next to the app exe.
+`binaries/` is not committed, so **every fresh clone must run this once** before
+`pnpm tauri dev`/`build`.
+
+The pin lives in `get-ffmpeg.ps1` (`$Url` + `$ExpectedSha256`). Gyan's GitHub release assets
+are immutable per tag, so the hash is stable. To bump ffmpeg, point `$Url` at a newer
+`GyanD/codexffmpeg` `full_build.zip`, run `-Force`, re-verify the DTLS backend (above), and
+update `$ExpectedSha256` to the printed hash. (Gyan mirrors on GitHub because gyan.dev itself
+is DNS-blocked on some ISPs.)
+
+**GPL / redistribution**: the Gyan `full_build` links x264 (GPL). Bundling it makes our
+installer GPL-encumbered; we accept that and the heavier updater artifacts (the full build is
+~240 MB — a minimal GnuTLS build would trim this later). Corresponding source: the upstream
+ffmpeg tag matching the version string the script prints (e.g. `8.1.x`) at
+<https://github.com/GyanD/codexffmpeg>.
+
+---
+
+## Legacy: minimal self-built sidecar (`build-ffmpeg.ps1`)
+
+> **STATUS: NOT CURRENTLY USED.** Kept only as a future size optimization (a from-source
+> ~15–20 MB build vs the ~240 MB prebuilt). It is *not* wired into the app and has known
+> bugs — see the banner in `build-ffmpeg.ps1` and `README_FFMPEG_MINIMAL_BUILD.md`. Do
+> not run it for Phase 1.
+
+`build-ffmpeg.ps1` is a one-shot builder that produces a minimal FFmpeg sidecar via
+media-autobuild_suite. This section explains how the generated binary would be added to
+the repo.
 
 What you get
 
