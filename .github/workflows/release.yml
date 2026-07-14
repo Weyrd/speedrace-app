@@ -108,6 +108,11 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
+      - name: Fetch ffmpeg sidecar
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: ./src-tauri/scripts/get-ffmpeg.ps1
+
       - name: Set version from tag
         shell: bash
         env:

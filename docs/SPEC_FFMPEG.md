@@ -83,9 +83,12 @@ without re-checking its reason.
 ## Requirements
 
 **ffmpeg 8+ with a real DTLS-SRTP backend.** The `-f whip` muxer shipped in ffmpeg 8.0
-(Aug 2025). We bundle **Gyan's GPL `full_build` static win64** (8.1.x, `--enable-gnutls`) as a
-Tauri sidecar — run `src-tauri/scripts/get-ffmpeg.ps1` once after cloning (see
-`src-tauri/scripts/README.md`). The muxer defaults to H.264 + Opus, exactly what MediaMTX ingests.
+(Aug 2025). We bundle a **minimal from-source static win64 build** (~10 MB, `--enable-gnutls`,
+GPLv3, only the components this pipeline uses) as a Tauri sidecar — run
+`src-tauri/scripts/get-ffmpeg.ps1` once after cloning (see
+`src-tauri/scripts/README.md`); CI runs it automatically on the Windows leg, and
+`bundle.externalBin` lives in `tauri.windows.conf.json` so the macOS/Linux legs build without a
+sidecar. The muxer defaults to H.264 + Opus, exactly what MediaMTX ingests.
 
 > **DTLS backend gotcha.** BtbN's default `win64-gpl` build is **SChannel**-only. It compiles
 > the whip muxer and lists `dtls` in `-protocols`, but the handshake fails at runtime with
@@ -317,9 +320,7 @@ re-run:
 
 ## Future work (aspirational — NOT built)
 
-- **Hardware encoding (NVENC/QSV/AMF).** Probe `ffmpeg -encoders` and prefer
-  `h264_nvenc`/`h264_qsv`/`h264_amf` over software x264 — the replay's second encode doubles
-  CPU, which is exactly what a hardware encoder absorbs.
-- **Minimal from-source ffmpeg.** `src-tauri/scripts/build-ffmpeg.ps1` could produce a
-  ~15–20 MB build vs the ~240 MB Gyan prebuilt. It is **not used** and has known bugs (see the
-  banner in that file and `README_FFMPEG_MINIMAL_BUILD.md`).
+- **Hardware encoding (NVENC/AMF).** Probe `ffmpeg -encoders` and prefer
+  `h264_nvenc`/`h264_amf` over software x264 — the replay's second encode doubles
+  CPU, which is exactly what a hardware encoder absorbs. Both encoders are already
+  compiled into the bundled sidecar, so this is purely an app-side arg change.

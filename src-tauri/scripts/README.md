@@ -1,16 +1,19 @@
 # FFmpeg sidecar
 
-## Current: prebuilt Gyan build via `get-ffmpeg.ps1` (run once after clone)
-
 The app streams via ffmpeg's native `-f whip` muxer, which requires **ffmpeg 8.x with a real
-DTLS-SRTP backend** (GnuTLS, OpenSSL, or mbedTLS). We ship a prebuilt **Gyan GPL `full_build`
-static win64** build (`--enable-gnutls`) as a Tauri sidecar instead of building our own.
+DTLS-SRTP backend** (GnuTLS, OpenSSL, or mbedTLS). We ship our own **minimal from-source
+build** (~10 MB exe, `--enable-gnutls`, GPLv3) as a Tauri sidecar — hosted as a pinned GitHub
+**prerelease** asset on this repo, downloaded by `get-ffmpeg.ps1`, reproduced by
+`build-ffmpeg.ps1`. Current pin: `ffmpeg-min-1` (git master `8bea614d98`), verified against
+MediaMTX live.
 
 > **Do not substitute a Windows SChannel build** (BtbN's default `win64-gpl` is SChannel-only).
 > SChannel compiles the whip muxer but its DTLS handshake fails against MediaMTX at runtime
 > (`SEC_E_ALGORITHM_MISMATCH 0x80090331` / "DTLS session failed"). Sanity-check any binary:
 > `ffmpeg -buildconf` must show `--enable-gnutls`/`--enable-openssl`/`--enable-mbedtls`, and
 > `ffmpeg -protocols` must list **both** `dtls` and `srtp`.
+
+## Getting the sidecar: `get-ffmpeg.ps1` (run once after clone)
 
 ```powershell
 # from src-tauri/scripts/
@@ -19,99 +22,128 @@ static win64** build (`--enable-gnutls`) as a Tauri sidecar instead of building 
 ```
 
 It installs `../binaries/ffmpeg-<target-triple>.exe` (gitignored), which
-`tauri.conf.json` → `bundle.externalBin: ["binaries/ffmpeg"]` bundles next to the app exe.
+`tauri.windows.conf.json` → `bundle.externalBin: ["binaries/ffmpeg"]` bundles next to the app
+exe (Windows-only on purpose: streaming is `#[cfg(windows)]`, and keeping `externalBin` out of
+the base `tauri.conf.json` lets the macOS/Linux CI legs build without a sidecar).
 `binaries/` is not committed, so **every fresh clone must run this once** before
-`pnpm tauri dev`/`build`.
+`pnpm tauri dev`/`build`. CI is automatic: both workflows (`release.yml`, `dev.yml`) run this
+script on the Windows leg before `tauri-action`. The Rust side spawns the binary directly via
+`tokio::process` (`stream/ffmpeg.rs::resolve_ffmpeg_path` finds it next to the exe, or in
+`binaries/` in dev) — no `tauri-plugin-shell` involved.
 
-The pin lives in `get-ffmpeg.ps1` (`$Url` + `$ExpectedSha256`). Gyan's GitHub release assets
-are immutable per tag, so the hash is stable. To bump ffmpeg, point `$Url` at a newer
-`GyanD/codexffmpeg` `full_build.zip`, run `-Force`, re-verify the DTLS backend (above), and
-update `$ExpectedSha256` to the printed hash. (Gyan mirrors on GitHub because gyan.dev itself
-is DNS-blocked on some ISPs.)
+The pin lives in `get-ffmpeg.ps1` (`$Url` + `$ExpectedSha256`), pointing at an asset on a
+dedicated `ffmpeg-min-N` **prerelease** tag. Prerelease is load-bearing: the app updater
+resolves `releases/latest`, and a normal release here would shadow it and break auto-updates.
+Bumps get a new tag + new hash — existing assets are never overwritten.
 
-**GPL / redistribution**: the Gyan `full_build` links x264 (GPL). Bundling it makes our
-installer GPL-encumbered; we accept that and the heavier updater artifacts (the full build is
-~240 MB — a minimal GnuTLS build would trim this later). Corresponding source: the upstream
-ffmpeg tag matching the version string the script prints (e.g. `8.1.x`) at
-<https://github.com/GyanD/codexffmpeg>.
+**Not a general-purpose ffmpeg**: everything the app doesn't use is compiled out (no h264/aac
+decoders, no gdigrab/dshow, most formats absent). If the streaming pipeline gains a codec,
+filter, muxer, or protocol, the build must gain it too — see below. The component inventory
+comes from `docs/SPEC_FFMPEG.md` and `src/stream/pipeline.rs`.
 
----
+## Rebuilding: `build-ffmpeg.ps1` (only for bumps, never per-clone/CI)
 
-## Legacy: minimal self-built sidecar (`build-ffmpeg.ps1`)
+### Prerequisites (Windows)
 
-> **STATUS: NOT CURRENTLY USED.** Kept only as a future size optimization (a from-source
-> ~15–20 MB build vs the ~240 MB prebuilt). It is *not* wired into the app and has known
-> bugs — see the banner in `build-ffmpeg.ps1` and `README_FFMPEG_MINIMAL_BUILD.md`. Do
-> not run it for Phase 1.
+- Git in PATH
+- ~10 GB free disk (build toolchain + intermediates)
+- media-autobuild_suite cloned:
+  `git clone https://github.com/m-ab-s/media-autobuild_suite.git C:\media-autobuild_suite`
 
-`build-ffmpeg.ps1` is a one-shot builder that produces a minimal FFmpeg sidecar via
-media-autobuild_suite. This section explains how the generated binary would be added to
-the repo.
+### Build
 
-What you get
-
-- `src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe` (expected ~15–20 MB stripped)
-- Optional UPX-compressed variant: ~8–12 MB (smaller, may be flagged by AV)
-
-Recommended repository options
-
-1. Git LFS (recommended)
-
-- Pros: avoids bloating `.git` history, transparent for collaborators.
-- Cons: needs LFS enabled for each dev/machine.
-
-Commands to set up and commit the binary:
-
-```bash
-# once per machine
-git lfs install
-
-# in repo (track the ffmpeg binary)
-git lfs track "src-tauri/binaries/ffmpeg-*.exe"
-
-# commit attributes and binary
-git add .gitattributes
-git add src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
-git commit -m "feat: add ffmpeg sidecar (LFS)"
-git push origin main
+```powershell
+.\build-ffmpeg.ps1 -SuitePath "C:\media-autobuild_suite"
+# the suite compiles in its own mintty window (the console launcher exiting
+# nonzero is normal); when the mintty window finishes:
+.\build-ffmpeg.ps1 -SuitePath "C:\media-autobuild_suite" -InstallOnly
 ```
 
-2. Commit directly (only if < ~20MB and you don't rebuild often)
+**No prompts**: the script seeds the suite's answer file from the checked-in snapshot
+(`scripts/media-autobuild_suite.ini` — GPLv3, 64-bit only, x264 8-bit lib, static ffmpeg,
+every optional tool declined). GPLv3 is deliberate: it keeps `gmp` for GnuTLS, and the suite
+disables OpenSSL under GPL, which is why the DTLS backend is GnuTLS. If the suite ever asks
+a *new* question interactively, answer it, then refresh the snapshot from
+`C:\media-autobuild_suite\build\media-autobuild_suite.ini`. Build time: ~30-60 min first run
+(MSYS2 bootstrap + toolchain), ~5-10 min on rebuilds (ccache enabled).
 
-- If you choose to commit the stripped binary directly (no LFS), it's acceptable for a single ~15–20MB file. Add it to `.gitignore` later if you want to stop tracking rebuilds.
+The script writes `build/ffmpeg_options.txt` (our pinned configure flags, BOM-less — configure
+rejects a BOM as an unknown option), runs the suite, and `-InstallOnly` copies the output to
+`src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe`. No UPX on purpose: packed exes trigger
+AV false positives on end-user machines.
 
-3. Ignore binary (rebuild on demand)
+### Verify
 
-- Add to `.gitignore`:
+```powershell
+$ffmpeg = ".\src-tauri\binaries\ffmpeg-x86_64-pc-windows-msvc.exe"
 
-```gitignore
-src-tauri/binaries/ffmpeg-*.exe
+# License + DTLS backend: expect --enable-gnutls and NO --enable-nonfree
+& $ffmpeg -hide_banner -buildconf
+
+# WHIP transport: expect BOTH dtls and srtp
+& $ffmpeg -hide_banner -protocols
+
+# Everything the pipeline spawns
+& $ffmpeg -hide_banner -muxers 2>&1   | Select-String "whip|mp4|mpjpeg|mjpeg"
+& $ffmpeg -hide_banner -encoders 2>&1 | Select-String "libx264|libopus|aac|mjpeg|nvenc|amf"
+& $ffmpeg -hide_banner -filters 2>&1  | Select-String "ddagrab|hwdownload|scale|aresample|split"
+
+# Smoke tests (lavfi indev + the app's real capture/encode paths)
+& $ffmpeg -f lavfi -i "anullsrc=r=48000:cl=stereo" -t 1 -c:a aac -f mp4 -y $env:TEMP\smoke.mp4
+& $ffmpeg -f lavfi -i "ddagrab=output_idx=0:framerate=5" -frames:v 1 `
+  -vf "hwdownload,format=bgra,scale=320:-2" -c:v mjpeg -f mjpeg -y $env:TEMP\thumb.mjpeg
 ```
 
-- Useful if you prefer each developer to build locally, but requires build time and MSYS2 setup.
+Then the **runtime drills** from `docs/SPEC_FFMPEG.md` with this exe in `binaries/`:
+preview (monitor + window), thumbnails, Publish → live → ready against MediaMTX (the DTLS
+handshake is the real gate), ranked MP4 playable, stop → preview restart.
 
-UPX note
+### Ship a new pin
 
-- If `upx` is installed and used by the script, the binary will be ~8–12MB.
-- UPX reduces download size but may increase startup time slightly and sometimes trigger AV false positives.
-- If you plan to store the UPX version in the repo, consider using Git LFS as well.
+1. Zip the exe (as `ffmpeg.exe` inside the archive) and upload it as an asset on a new
+   `ffmpeg-min-N` release, **marked `prerelease`**. Attach `ffmpeg_options.txt` and point the
+   release body at the exact upstream ffmpeg source commit (GPL corresponding-source
+   obligation) — `ffmpeg -version` prints it.
+2. Re-pin `get-ffmpeg.ps1`: `$Url` → the new asset, `$ExpectedSha256` → the zip's hash.
+3. Fresh-clone test: `get-ffmpeg.ps1 -Force`, hash passes, launch the app, start a preview.
 
-Tauri integration reminder
+## Troubleshooting
 
-- `tauri.conf.json` should include an `externalBin` mapping under `bundle`. Example:
+| Problem                       | Fix                                                                                     |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| Script says "exit code 1" but a mintty window is compiling | Normal — the suite detaches the compile into mintty. Wait for it, then re-run with `-InstallOnly`. |
+| `configure: Unknown option "?"` | BOM in `ffmpeg_options.txt` — the script writes it BOM-less; don't rewrite it with PS5 `Set-Content -Encoding UTF8` |
+| `nvenc requested ... ffnvcodec` | `--enable-ffnvcodec` missing — with `--disable-autodetect` the suite won't install nv-codec-headers on its own |
+| `-f lavfi` input fails: no decoder for wrapped_avframe / pcm_u8 | lavfi wraps its outputs in those codecs; both decoders must stay enabled |
+| Binary too large (>30 MB)     | Confirm the suite used our `build\ffmpeg_options.txt` (script rewrites it each run)     |
+| WHIP muxer missing            | GnuTLS not linked or dtls protocol disabled; check `-buildconf` and `-protocols`        |
+| DTLS handshake fails live     | Wrong TLS backend (SChannel) — must be GnuTLS/OpenSSL/mbedTLS, see the warning up top   |
 
-```json
-"bundle": {
-  "externalBin": ["binaries/ffmpeg"]
-}
-```
+## Appendix: what's in the build and why
 
-- The builder copies `ffmpeg-x86_64-pc-windows-msvc.exe` to `src-tauri/binaries`.
-- Tauri resolves the correct platform binary name automatically at runtime.
+| Category      | Components                                                       | Purpose                                         |
+| ------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
+| **Encoders**  | libx264, libopus, aac, mjpeg (+ h264_nvenc, h264_amf)            | WHIP + MP4 + preview/thumb JPEG (+ future hw)   |
+| **Decoders**  | rawvideo, pcm_f32le, wrapped_avframe, pcm_u8                     | Raw pipes + lavfi wrapping (never h264)         |
+| **Muxers**    | whip, mp4, mpjpeg, mjpeg                                         | Live + replay + preview stream + one-shot thumb |
+| **Inputs**    | lavfi indev, rawvideo + pcm_f32le demuxers                       | ddagrab/anullsrc via `-f lavfi` + raw pipes     |
+| **Filters**   | ddagrab, hwdownload, format, scale, aresample, anullsrc, (a)split | Capture → scale → dual output                  |
+| **Protocols** | file, pipe, http(s), tcp, udp, tls, dtls, srtp, rtp, crypto      | Pipes + WHIP POST + WebRTC transport            |
+| **BSFs**      | h264_mp4toannexb, aac_adtstoasc, extract_extradata               | Payload/container conversion                    |
+| **Hw/TLS**    | d3d11va (ddagrab dep), ffnvcodec + amf headers, GnuTLS           | Capture + future hw encode + DTLS               |
 
-Which to choose?
+Deliberately absent: gdigrab/dshow (dead since the WGC rework), h264/aac **de**coders,
+qsv/libmfx (deprecated upstream, would need libvpl), dxva2, mov/concat demuxers, UPX.
 
-- Default: use Git LFS. It's simple, safe, and keeps the repo small.
-- If you prefer not to install LFS and the binary is UPX-compressed (~8–12MB), you can commit it directly.
+Licensing: `--enable-gpl --enable-version3` + GnuTLS is redistributable as GPLv3 —
+`--enable-nonfree` is never allowed (it would make the binary legally non-redistributable),
+and the suite's GPL license choice disables OpenSSL anyway. HW encoder headers are build-time
+only; at runtime NVENC/AMF use the user's GPU driver, and the app currently only invokes
+libx264 anyway.
 
-Questions or want me to add a `Makefile`/npm script to automate the commit/push step? Ask and I can add it.
+## Fallback: Gyan prebuilt full build
+
+If the minimal pin is ever broken, the previously shipped Gyan GPL `full_build` (231 MB,
+same GnuTLS backend, proven against MediaMTX) can be re-pinned in `get-ffmpeg.ps1`:
+`https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-full_build.zip`
+(sha256 `b8cdefab5f50590a076c27c2b56b0294a0e6154faded28ba1ba05ebc4f801f57`).

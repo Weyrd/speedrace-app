@@ -20,7 +20,7 @@ Rust: `cargo check` / `cargo clippy` from `src-tauri/`. There is no test suite a
 ## Docs
 
 - `docs/SPEC_FFMPEG.md` — the streaming spec (preview, Publish, WHIP, capture, replay) with the why behind each decision. Read it before touching `src/stream/`, `src-tauri/src/stream/` or stream commands.
-- `src-tauri/scripts/README_FFMPEG_MINIMAL_BUILD.md` — the bundled minimal FFmpeg sidecar: what it does, how it's built and integrated. `src-tauri/scripts/README.md` covers the build script workflow itself.
+- `src-tauri/scripts/README.md` — the bundled minimal FFmpeg sidecar: fetching it (`get-ffmpeg.ps1`), rebuilding it (`build-ffmpeg.ps1`), verification, and shipping a new pin.
 
 ## Rules
 
