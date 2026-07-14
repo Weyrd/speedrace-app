@@ -1,17 +1,34 @@
 # build-ffmpeg.ps1
-# One-shot script to build a minimal ffmpeg for the Momentum Tauri sidecar.
-# Run this on Windows. The output goes directly to src-tauri/binaries/.
+#
+# Builds the minimal ffmpeg sidecar (~15-25 MB vs the ~231 MB Gyan full_build) via
+# media-autobuild_suite. The verified output is hosted as a pinned GitHub release asset
+# that get-ffmpeg.ps1 downloads; this script is only needed to (re)produce that asset,
+# not by regular clones or CI.
+#
+# The component list below mirrors exactly what the app uses (see docs/SPEC_FFMPEG.md
+# and src-tauri/src/stream/pipeline.rs). WHIP needs ffmpeg 8.x with a real DTLS backend:
+# we use GnuTLS (the suite's GPL license choice disables OpenSSL; GnuTLS matches the
+# proven Gyan pin). Never --enable-nonfree: the output must stay redistributable.
+# Suite license prompt: answer 2 (GPLv3 - keeps gmp, which GnuTLS needs); 64-bit only.
+# Note: `-f lavfi` (ddagrab/anullsrc inputs) is an avdevice *indev*, so avdevice must
+# stay enabled; gdigrab/dshow are dropped (unused since the WGC/rawvideo-pipe rework).
 #
 # Prerequisites:
-#   - Git installed and in PATH
-#   - (Optional) UPX installed for compression: winget install upx
+#   - Git in PATH
+#   - media-autobuild_suite cloned:
+#       git clone https://github.com/m-ab-s/media-autobuild_suite.git C:\media-autobuild_suite
+#     (first run is interactive: MSYS2 bootstrap + toolchain prompts, ~10 GB disk, 20-60 min)
 #
 # Usage:
-#   .\build-ffmpeg.ps1
-#   .\build-ffmpeg.ps1 -SuitePath "C:\path\to\media-autobuild_suite"
+#   .\build-ffmpeg.ps1 -SuitePath "C:\media-autobuild_suite"
+#   .\build-ffmpeg.ps1 -SuitePath "C:\media-autobuild_suite" -InstallOnly
+#     (skip the build; just copy/strip/install an already-built local64\bin-video\ffmpeg.exe —
+#      needed after a first run, where the suite detaches the compile into a mintty window)
 
 param(
-    [string]$SuitePath
+    [Parameter(Mandatory = $true)]
+    [string]$SuitePath,
+    [switch]$InstallOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,71 +40,36 @@ $BinariesDir = Join-Path $TauriDir "binaries"
 $TargetBinary = Join-Path $BinariesDir "ffmpeg-x86_64-pc-windows-msvc.exe"
 
 Write-Host ""
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  Momentum - Minimal ffmpeg Builder" -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "This script builds a minimal ffmpeg (~15-20MB) with only the"
-Write-Host "components needed for screen capture + WHIP streaming + MP4 recording."
-Write-Host ""
+Write-Host "Momentum - minimal ffmpeg sidecar builder" -ForegroundColor Cyan
 Write-Host "Output: $TargetBinary"
 Write-Host ""
 
-# --- Step 1: Locate or clone media-autobuild_suite ---
-
-if (-not $SuitePath) {
-    Write-Host "-------------------------------------------" -ForegroundColor Yellow
-    Write-Host "  Step 1: media-autobuild_suite location" -ForegroundColor Yellow
-    Write-Host "-------------------------------------------" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "If you haven't cloned it yet, run this first:"
-    Write-Host ""
-    Write-Host "  git clone https://github.com/m-ab-s/media-autobuild_suite.git C:\media-autobuild_suite" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "Then provide the path below."
-    Write-Host ""
-
-    $SuitePath = Read-Host "Path to media-autobuild_suite folder"
-}
-
-$SuitePath = $SuitePath.Trim('"').Trim("'")
-
+$SuitePath = $SuitePath.Trim().Trim('"', "'").Trim()
 if (-not (Test-Path $SuitePath)) {
     Write-Host "ERROR: Path does not exist: $SuitePath" -ForegroundColor Red
-    Write-Host ""
     Write-Host "Clone it first:" -ForegroundColor Yellow
     Write-Host "  git clone https://github.com/m-ab-s/media-autobuild_suite.git `"$SuitePath`"" -ForegroundColor Green
     exit 1
 }
 
-# --- Step 2: Git pull latest ---
+if ($InstallOnly) {
+    Write-Host "InstallOnly: skipping build, installing existing suite output..." -ForegroundColor Cyan
+} else {
 
-Write-Host ""
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host "  Step 2: Updating media-autobuild_suite" -ForegroundColor Yellow
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host ""
+# --- Step 1: Update media-autobuild_suite ---
 
 Push-Location $SuitePath
 try {
-    Write-Host "Running git pull..."
+    Write-Host "Updating media-autobuild_suite (git pull)..."
     git pull --ff-only
     if ($LASTEXITCODE -ne 0) {
         Write-Host "WARNING: git pull failed. Continuing with current version..." -ForegroundColor Yellow
-    } else {
-        Write-Host "Updated to latest." -ForegroundColor Green
     }
 } finally {
     Pop-Location
 }
 
-# --- Step 3: Write ffmpeg_options.txt ---
-
-Write-Host ""
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host "  Step 3: Writing ffmpeg build options" -ForegroundColor Yellow
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host ""
+# --- Step 2: Write ffmpeg_options.txt ---
 
 $BuildDir = Join-Path $SuitePath "build"
 if (-not (Test-Path $BuildDir)) {
@@ -95,129 +77,106 @@ if (-not (Test-Path $BuildDir)) {
 }
 
 $OptionsFile = Join-Path $BuildDir "ffmpeg_options.txt"
-
-# Back up existing options if present
 if (Test-Path $OptionsFile) {
-    $BackupFile = Join-Path $BuildDir "ffmpeg_options.txt.bak"
-    Copy-Item $OptionsFile $BackupFile -Force
+    Copy-Item $OptionsFile "$OptionsFile.bak" -Force
     Write-Host "Backed up existing options to ffmpeg_options.txt.bak"
 }
 
 $FfmpegOptions = @"
 # Momentum minimal ffmpeg build
-# Auto-generated by build-ffmpeg.ps1 - do not edit manually
+# Auto-generated by build-ffmpeg.ps1 - do not edit manually.
+# Component inventory source: momentum-app docs/SPEC_FFMPEG.md + src/stream/pipeline.rs
 
 --enable-gpl
---enable-nonfree
 --enable-version3
 
-# Disable everything, re-enable selectively
+# Strip to nothing, re-enable exactly what the app uses
 --disable-everything
+--disable-autodetect
 --disable-doc
 --disable-htmlpages
 --disable-manpages
 --disable-podpages
 --disable-txtpages
---disable-autodetect
 --disable-programs
---disable-avdevice
-
-# Re-enable core
 --enable-ffmpeg
 --enable-network
 --enable-small
 
-# External libraries
+# External libraries (GnuTLS = the DTLS backend the whip muxer needs; the suite's
+# GPL license choice disables OpenSSL, and GnuTLS matches the proven Gyan build)
 --enable-libx264
 --enable-libopus
---enable-openssl
+--enable-gnutls
 
-# Hardware acceleration (Windows)
+# Hardware (d3d11va is a ddagrab dependency; nvenc/amf are header-only, compiled in
+# for the planned hw-encode follow-up). ffnvcodec is explicit because --disable-autodetect
+# also stops the suite from installing the nv-codec-headers nvenc needs.
 --enable-d3d11va
---enable-dxva2
+--enable-ffnvcodec
 --enable-nvenc
 --enable-amf
---enable-libmfx
 
-# Encoders
+# Encoders (mjpeg serves the mpjpeg preview + monitor thumbnails)
 --enable-encoder=libx264
 --enable-encoder=h264_nvenc
---enable-encoder=h264_qsv
 --enable-encoder=h264_amf
---enable-encoder=h264_mf
 --enable-encoder=libopus
 --enable-encoder=aac
---enable-encoder=pcm_f32le
+--enable-encoder=mjpeg
 
-# Decoders
+# Decoders (the app never decodes h264/aac; inputs are raw pipes). The lavfi indev
+# wraps its outputs: ddagrab frames arrive as wrapped_avframe, anullsrc as pcm_u8.
 --enable-decoder=rawvideo
 --enable-decoder=pcm_f32le
---enable-decoder=pcm_s16le
---enable-decoder=h264
---enable-decoder=aac
+--enable-decoder=wrapped_avframe
+--enable-decoder=pcm_u8
 
 # Muxers
 --enable-muxer=whip
 --enable-muxer=mp4
---enable-muxer=mov
---enable-muxer=null
---enable-muxer=rawvideo
+--enable-muxer=mpjpeg
+--enable-muxer=mjpeg
 
-# Demuxers
---enable-demuxer=lavfi
+# Input: lavfi indev (ddagrab/anullsrc via -f lavfi) + raw pipes
+--enable-indev=lavfi
 --enable-demuxer=rawvideo
 --enable-demuxer=pcm_f32le
---enable-demuxer=pcm_s16le
---enable-demuxer=mov
---enable-demuxer=concat
 
 # Parsers
 --enable-parser=h264
 --enable-parser=aac
 --enable-parser=opus
 
-# Protocols
+# Protocols (dtls+srtp+rtp = WHIP; http/https = the WHIP POST endpoint)
 --enable-protocol=file
 --enable-protocol=pipe
 --enable-protocol=http
 --enable-protocol=https
---enable-protocol=udp
 --enable-protocol=tcp
+--enable-protocol=udp
 --enable-protocol=tls
---enable-protocol=crypto
---enable-protocol=rtp
+--enable-protocol=dtls
 --enable-protocol=srtp
+--enable-protocol=rtp
+--enable-protocol=crypto
 
 # Filters
 --enable-filter=ddagrab
 --enable-filter=hwdownload
---enable-filter=hwupload
 --enable-filter=format
 --enable-filter=scale
---enable-filter=scale_cuda
---enable-filter=null
---enable-filter=anull
 --enable-filter=aresample
---enable-filter=aformat
---enable-filter=abuffer
---enable-filter=buffer
---enable-filter=abuffersink
---enable-filter=buffersink
---enable-filter=setpts
---enable-filter=asetpts
---enable-filter=trim
---enable-filter=atrim
+--enable-filter=anullsrc
 --enable-filter=split
 --enable-filter=asplit
+--enable-filter=null
+--enable-filter=anull
 
 # Bitstream filters
 --enable-bsf=h264_mp4toannexb
 --enable-bsf=aac_adtstoasc
---enable-bsf=null
-
-# Input devices (Windows)
---enable-indev=gdigrab
---enable-indev=dshow
+--enable-bsf=extract_extradata
 
 # Optimizations
 --enable-optimizations
@@ -227,30 +186,20 @@ $FfmpegOptions = @"
 --extra-ldflags=-s
 "@
 
-Set-Content -Path $OptionsFile -Value $FfmpegOptions -Encoding UTF8
+# BOM-less on purpose: PS5's UTF8 writes a BOM, which ffmpeg configure rejects as an option
+[System.IO.File]::WriteAllText($OptionsFile, $FfmpegOptions.Replace("`r`n", "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
 Write-Host "Written: $OptionsFile" -ForegroundColor Green
 
-# Also write media-autobuild_suite.ini for non-interactive mode if it doesn't exist
+# Seed the suite's answer file from our checked-in snapshot so a fresh machine
+# skips every interactive prompt (GPLv3, 64-bit, x264 8-bit, static ffmpeg, no tools).
 $IniFile = Join-Path $BuildDir "media-autobuild_suite.ini"
+$IniSnapshot = Join-Path $ScriptDir "media-autobuild_suite.ini"
 if (-not (Test-Path $IniFile)) {
-    Write-Host ""
-    Write-Host "NOTE: First run of media-autobuild_suite will be interactive." -ForegroundColor Yellow
-    Write-Host "It will ask you setup questions (MSYS2 install, toolchain, etc.)." -ForegroundColor Yellow
-    Write-Host "After the first run, subsequent builds are automatic." -ForegroundColor Yellow
+    Copy-Item $IniSnapshot $IniFile
+    Write-Host "Seeded suite answers from: $IniSnapshot" -ForegroundColor Green
 }
 
-# --- Step 4: Run the build ---
-
-Write-Host ""
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host "  Step 4: Running media-autobuild_suite" -ForegroundColor Yellow
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "Starting the build. This will take 20-60 minutes on first run"
-Write-Host "(downloads + compiles all dependencies: x264, opus, openssl, ffmpeg)."
-Write-Host ""
-Write-Host "On subsequent runs it only rebuilds what changed (~5-10 min)."
-Write-Host ""
+# --- Step 3: Run the build ---
 
 $BatFile = Join-Path $SuitePath "media-autobuild_suite.bat"
 if (-not (Test-Path $BatFile)) {
@@ -258,112 +207,80 @@ if (-not (Test-Path $BatFile)) {
     exit 1
 }
 
-# Run the build
+Write-Host ""
+Write-Host "Starting the build (first run 20-60 min, incremental ~5-10 min)..." -ForegroundColor Cyan
+
+# The suite refuses to run inside an MSVC environment (VS dev shells put cl.exe/lib.exe
+# in PATH); strip those entries and the MSVC env vars for the child process only.
+function Test-DirHasTool([string]$dir, [string]$tool) {
+    try { Test-Path -LiteralPath (Join-Path $dir $tool) -ErrorAction SilentlyContinue } catch { $false }
+}
+$CleanPath = ($env:PATH -split ';' | Where-Object {
+    $_ -and -not (Test-DirHasTool $_ 'cl.exe') -and -not (Test-DirHasTool $_ 'lib.exe')
+}) -join ';'
+
+$Saved = @{}
+foreach ($v in 'PATH', 'LIB', 'INCLUDE', 'LIBPATH', 'VSINSTALLDIR') {
+    $Saved[$v] = [Environment]::GetEnvironmentVariable($v)
+}
 Push-Location $SuitePath
 try {
+    $env:PATH = $CleanPath
+    $env:LIB = $null; $env:INCLUDE = $null; $env:LIBPATH = $null; $env:VSINSTALLDIR = $null
     & cmd /c $BatFile
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Build failed with exit code $LASTEXITCODE" -ForegroundColor Red
-        exit 1
+        # With mintty enabled the .bat detaches the compile into a mintty window and
+        # returns nonzero from the console part — not a build failure.
+        Write-Host "NOTE: launcher exited with code $LASTEXITCODE." -ForegroundColor Yellow
+        Write-Host "If a mintty window is still compiling, wait for it, then re-run with -InstallOnly." -ForegroundColor Yellow
     }
 } finally {
+    foreach ($v in $Saved.Keys) {
+        [Environment]::SetEnvironmentVariable($v, $Saved[$v])
+    }
     Pop-Location
 }
 
-# --- Step 5: Find the built ffmpeg.exe ---
+}  # end if (-not $InstallOnly)
 
-Write-Host ""
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host "  Step 5: Locating built ffmpeg.exe" -ForegroundColor Yellow
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host ""
+# --- Step 4: Locate and install the built ffmpeg.exe ---
 
-# media-autobuild_suite outputs to local64/bin-video/ or local64/bin/
 $PossiblePaths = @(
     (Join-Path $SuitePath "local64\bin-video\ffmpeg.exe"),
-    (Join-Path $SuitePath "local64\bin\ffmpeg.exe"),
-    (Join-Path $SuitePath "local32\bin-video\ffmpeg.exe")
+    (Join-Path $SuitePath "local64\bin\ffmpeg.exe")
 )
-
-$BuiltFfmpeg = $null
-foreach ($p in $PossiblePaths) {
-    if (Test-Path $p) {
-        $BuiltFfmpeg = $p
-        break
-    }
-}
-
+$BuiltFfmpeg = $PossiblePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $BuiltFfmpeg) {
-    Write-Host "ERROR: Could not find built ffmpeg.exe in expected locations:" -ForegroundColor Red
-    foreach ($p in $PossiblePaths) {
-        Write-Host "  - $p" -ForegroundColor Red
-    }
-    Write-Host ""
-    Write-Host "Check the build output above for errors." -ForegroundColor Yellow
+    Write-Host "ERROR: built ffmpeg.exe not found in:" -ForegroundColor Red
+    $PossiblePaths | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+    Write-Host "If the mintty window is still compiling, wait for it to finish, then re-run:" -ForegroundColor Yellow
+    Write-Host "  .\build-ffmpeg.ps1 -SuitePath `"$SuitePath`" -InstallOnly" -ForegroundColor Green
     exit 1
 }
 
-Write-Host "Found: $BuiltFfmpeg" -ForegroundColor Green
-$OriginalSize = (Get-Item $BuiltFfmpeg).Length / 1MB
-Write-Host "Size: $([math]::Round($OriginalSize, 1)) MB"
-
-# --- Step 6: Post-build optimization ---
-
-Write-Host ""
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host "  Step 6: Post-build optimization" -ForegroundColor Yellow
-Write-Host "-------------------------------------------" -ForegroundColor Yellow
-Write-Host ""
-
-# Create binaries directory if it doesn't exist
 if (-not (Test-Path $BinariesDir)) {
     New-Item -ItemType Directory -Path $BinariesDir -Force | Out-Null
 }
-
-# Copy to target location first
 Copy-Item $BuiltFfmpeg $TargetBinary -Force
-Write-Host "Copied to: $TargetBinary"
 
-# Try to strip (if strip is available via MSYS2 in PATH)
 $StripExe = Get-Command "strip" -ErrorAction SilentlyContinue
 if ($StripExe) {
-    Write-Host "Stripping debug symbols..."
     & strip --strip-all $TargetBinary
-    $StrippedSize = (Get-Item $TargetBinary).Length / 1MB
-    Write-Host "Size after strip: $([math]::Round($StrippedSize, 1)) MB" -ForegroundColor Green
 } else {
-    Write-Host "SKIP: 'strip' not found in PATH (add MSYS2/mingw64/bin to PATH for stripping)" -ForegroundColor Yellow
+    Write-Host "SKIP: 'strip' not in PATH (add MSYS2 mingw64\bin for a smaller binary)" -ForegroundColor Yellow
 }
+# No UPX on purpose: packed exes trigger AV false positives on end-user machines.
 
-# Try UPX compression (optional)
-$UpxExe = Get-Command "upx" -ErrorAction SilentlyContinue
-if ($UpxExe) {
-    Write-Host "Compressing with UPX..."
-    & upx --best --lzma $TargetBinary
-    $FinalSize = (Get-Item $TargetBinary).Length / 1MB
-    Write-Host "Size after UPX: $([math]::Round($FinalSize, 1)) MB" -ForegroundColor Green
-} else {
-    Write-Host "SKIP: 'upx' not found. Install with: winget install upx" -ForegroundColor Yellow
-    Write-Host "      UPX can reduce size by ~50% but some AV may flag it." -ForegroundColor Yellow
-}
-
-# --- Step 7: Summary ---
-
+$FinalSize = [math]::Round((Get-Item $TargetBinary).Length / 1MB, 1)
 Write-Host ""
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  Done!" -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "Installed: $TargetBinary ($FinalSize MB)" -ForegroundColor Green
 Write-Host ""
-
-$FinalSize = (Get-Item $TargetBinary).Length / 1MB
-Write-Host "  Binary: $TargetBinary" -ForegroundColor Green
-Write-Host "  Size:   $([math]::Round($FinalSize, 1)) MB" -ForegroundColor Green
+Write-Host "Verify before shipping (all must pass):" -ForegroundColor Yellow
+Write-Host "  & `"$TargetBinary`" -hide_banner -buildconf   # expect --enable-gnutls, NO --enable-nonfree"
+Write-Host "  & `"$TargetBinary`" -hide_banner -protocols   # expect BOTH dtls and srtp"
+Write-Host "  & `"$TargetBinary`" -hide_banner -muxers 2>&1    | Select-String 'whip|mp4|mpjpeg'"
+Write-Host "  & `"$TargetBinary`" -hide_banner -encoders 2>&1  | Select-String 'libx264|libopus|aac|mjpeg|nvenc|amf'"
+Write-Host "  & `"$TargetBinary`" -hide_banner -filters 2>&1   | Select-String 'ddagrab|hwdownload|split|aresample'"
 Write-Host ""
-Write-Host "  The ffmpeg sidecar is ready. Tauri will bundle it automatically"
-Write-Host "  on the next build (cargo tauri build)."
-Write-Host ""
-Write-Host "  Verify it works:" -ForegroundColor Yellow
-Write-Host "    & `"$TargetBinary`" -hide_banner -encoders 2>&1 | Select-String 'libx264|h264_nvenc|libopus|aac'"
-Write-Host "    & `"$TargetBinary`" -hide_banner -muxers 2>&1 | Select-String 'whip|mp4'"
-Write-Host "    & `"$TargetBinary`" -hide_banner -filters 2>&1 | Select-String 'ddagrab|scale|hwdownload'"
-Write-Host ""
+Write-Host "Then run the runtime drills in docs/SPEC_FFMPEG.md (preview, Publish, MP4 replay)."
+Write-Host "Once verified, zip + upload as the pinned release asset and re-pin get-ffmpeg.ps1."
