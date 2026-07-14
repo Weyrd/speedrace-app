@@ -48,9 +48,9 @@ tauri-plugin-global-shortcut = "2"
 livesplit-core = "0.13.0"
 livesplit-auto-splitting = { git = "https://github.com/LiveSplit/livesplit-core", branch = "master" }
 
-cpal = "0.18"
-
 [target.'cfg(windows)'.dependencies]
+# cpal stays windows-only: pulling it on Linux CI demands ALSA dev libs for code that's #[cfg(windows)] anyway
+cpal = "0.18"
 windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_System_JobObjects",
