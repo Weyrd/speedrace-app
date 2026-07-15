@@ -74,6 +74,7 @@ pub struct WindowInfo {
 }
 
 pub enum AudioSource {
+    #[cfg(windows)]
     Pipe(String),
     Silent, // fallback when WASAPI loopback is unavailable
 }

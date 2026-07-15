@@ -112,6 +112,7 @@ pub fn build_args(
 
     // Audio input
     match audio {
+        #[cfg(windows)]
         AudioSource::Pipe(path) => {
             push("-thread_queue_size");
             push("512");

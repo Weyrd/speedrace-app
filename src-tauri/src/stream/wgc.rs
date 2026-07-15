@@ -1,6 +1,7 @@
 use super::WgcHandle;
 #[cfg(windows)]
 use super::{WgcCapture, WgcError, WgcFlags};
+#[cfg(windows)]
 use crate::logging::{mlog, LogCat};
 
 impl WgcHandle {
