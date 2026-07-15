@@ -1,4 +1,5 @@
 use super::{AudioSource, StopFlag};
+#[cfg(windows)]
 use crate::logging::{mlog, LogCat};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

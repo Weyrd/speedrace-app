@@ -110,6 +110,7 @@ pub fn build_args(
     let mut push = |s: &str| a.push(s.to_string());
 
     match audio {
+        #[cfg(windows)]
         AudioSource::Pipe(path) => {
             push("-thread_queue_size");
             push("512");
