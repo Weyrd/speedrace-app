@@ -1,8 +1,3 @@
-// Dev-gated, category-filtered logging. Release is silent unless MOMENTUM_LOG is set.
-// Categories are *types* of log (ws, livesplit, wasm, ...), not severity levels.
-// Filter (evaluated once): MOMENTUM_LOG="all"|"none"|"ws,livesplit,..." selects categories.
-// Legacy WS_DEBUG=true still forces the Ws category. With nothing set: all on in dev, off in release.
-
 use std::sync::OnceLock;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -48,7 +43,7 @@ impl LogCat {
 
 fn compute() -> [bool; ALL.len()] {
     let mut on = [false; ALL.len()];
-    match std::env::var("MOMENTUM_LOG") {
+    match std::env::var("SPEEDRACE_LOG") {
         Ok(spec) => {
             for token in spec.split(',') {
                 match token.trim().to_ascii_lowercase().as_str() {

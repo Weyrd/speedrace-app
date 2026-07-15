@@ -6,12 +6,12 @@ use livesplit_auto_splitting::{LogLevel, Timer, TimerState};
 use std::fmt;
 use tauri::AppHandle;
 
-pub struct MomentumTimer {
+pub struct SpeedraceTimer {
     pub app: AppHandle,
     pub state: SharedState,
 }
 
-impl Timer for MomentumTimer {
+impl Timer for SpeedraceTimer {
     fn state(&self) -> TimerState {
         // running -> wasm can call timer.Reset() and check if run is active
         if self.state.lock().unwrap().run_active {

@@ -1,11 +1,11 @@
 ---
-name: momentum-app
-description: Conventions and code patterns for the Momentum desktop app — a Tauri 2 app with a React 18 frontend (useReducer state machine) and a Rust src-tauri backend. Covers the IPC contract (invoke commands ↔ emitted events), the Phase state machine mirrored on both sides, the AppEventBridge, the SharedState global, the WebSocket/API/OAuth Rust layers, and WHIP streaming. Use when adding or editing a Tauri command, an event, a reducer phase/action, a React screen, or anything in src/ or src-tauri/.
+name: speedrace-app
+description: Conventions and code patterns for the Speedrace desktop app — a Tauri 2 app with a React 18 frontend (useReducer state machine) and a Rust src-tauri backend. Covers the IPC contract (invoke commands ↔ emitted events), the Phase state machine mirrored on both sides, the AppEventBridge, the SharedState global, the WebSocket/API/OAuth Rust layers, and WHIP streaming. Use when adding or editing a Tauri command, an event, a reducer phase/action, a React screen, or anything in src/ or src-tauri/.
 ---
 
-# Momentum App
+# Speedrace App
 
-**Tauri 2** desktop app — the racer-side client of the Momentum speedrun platform. Frontend: **React 18 + Vite + Tailwind v4**, state via a `useReducer` finite-state machine (no TanStack Router; it's a single-window phase switcher). Backend: **Rust** (`src-tauri/`) owning auth (OAuth deep-link), the persistent WebSocket to momentum-back, HTTP calls, and a `SharedState` global. The two halves talk over Tauri IPC.
+**Tauri 2** desktop app — the racer-side client of the Speedrace speedrun platform. Frontend: **React 18 + Vite + Tailwind v4**, state via a `useReducer` finite-state machine (no TanStack Router; it's a single-window phase switcher). Backend: **Rust** (`src-tauri/`) owning auth (OAuth deep-link), the persistent WebSocket to speedrace-back, HTTP calls, and a `SharedState` global. The two halves talk over Tauri IPC.
 
 > There is no copilot-instructions.md here — this skill is derived directly from the code. The one design doc is `docs/SPEC_FFMPEG.md` (streaming). Verify paths against `src/` and `src-tauri/src/`.
 
@@ -88,7 +88,7 @@ pub async fn send_stream_ready(
     state: State<'_, SharedState>,
     app: AppHandle,
 ) -> Result<(), String> {
-    api::lobby::post_stream_ready(&app, &lobby_id).await?;   // HTTP to momentum-back
+    api::lobby::post_stream_ready(&app, &lobby_id).await?;   // HTTP to speedrace-back
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;  // lock briefly
         guard.app_state = AppState::WaitingForStart;               // mutate global state
@@ -106,11 +106,11 @@ Rules followed throughout:
 
 ### WebSocket inbound
 
-`ws/messages.rs` defines `ServerMessage` as `#[serde(tag = "type", rename_all = "snake_case")]` — inbound frames from momentum-back are matched by their `type` field (`lobby_setup`, `lobby_start`, `lobby_closed`, `player_result`, `ping`). Handling lives in `ws/handler.rs`, which mutates `SharedState` and emits the matching `ws:*` event to the frontend. A new server message = a new `ServerMessage` variant + handler arm + (usually) a new emitted event mirrored on both sides.
+`ws/messages.rs` defines `ServerMessage` as `#[serde(tag = "type", rename_all = "snake_case")]` — inbound frames from speedrace-back are matched by their `type` field (`lobby_setup`, `lobby_start`, `lobby_closed`, `player_result`, `ping`). Handling lives in `ws/handler.rs`, which mutates `SharedState` and emits the matching `ws:*` event to the frontend. A new server message = a new `ServerMessage` variant + handler arm + (usually) a new emitted event mirrored on both sides.
 
 ## Plugins & platform features (registered in `lib.rs`)
 
-`single_instance` (focus existing window), `opener`, `deep_link` (OAuth callback via `momentum://` scheme — registered in DEV in `setup()`), `store` (persisted token storage), `updater` (+ `UpdateChecker`/`UpdateModal` on the frontend, see `lib/updater.ts`), `process`. OAuth: `open_login` opens the browser; the deep-link callback is handled by `auth::oauth::handle_callback`. Session is restored on startup via `lifecycle::restore_session`.
+`single_instance` (focus existing window), `opener`, `deep_link` (OAuth callback via `speedrace://` scheme — registered in DEV in `setup()`), `store` (persisted token storage), `updater` (+ `UpdateChecker`/`UpdateModal` on the frontend, see `lib/updater.ts`), `process`. OAuth: `open_login` opens the browser; the deep-link callback is handled by `auth::oauth::handle_callback`. Session is restored on startup via `lifecycle::restore_session`.
 
 ## Streaming (local preview → Publish → WHIP + MP4, self-WHEP after)
 

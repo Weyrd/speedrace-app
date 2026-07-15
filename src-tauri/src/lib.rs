@@ -132,7 +132,7 @@ pub fn run() {
             tauri::WindowEvent::CloseRequested { .. } => {
                 window.app_handle().exit(0);
             }
-            // Minimize (-) sends Momentum to the tray instead of the taskbar/Dock
+            // Minimize (-) sends Speedrace to the tray instead of the taskbar/Dock
             tauri::WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
                 minimize_to_tray(window);
             }
@@ -185,7 +185,7 @@ pub fn run() {
 
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
-                    .tooltip("Momentum")
+                    .tooltip("Speedrace")
                     .menu(&menu)
                     .show_menu_on_left_click(false)
                     .on_menu_event(|app, event| match event.id.as_ref() {
@@ -223,7 +223,7 @@ pub fn run() {
 
             // Register deep link in DEV
             #[cfg(debug_assertions)]
-            app.deep_link().register("momentum").ok();
+            app.deep_link().register("speedrace").ok();
 
             // Deep-link handler
             {

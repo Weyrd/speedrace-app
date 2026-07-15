@@ -1,15 +1,15 @@
 ---
 name: player-counters
-description: How the momentum-app racer client EMITS per-game "player counters" (deaths / dashes / money the wasm autosplitter exposes) to the back — the config-driven drop/buffer/post decision in `set_variable`, the mode-shaped per-counter buffers in `SharedState`, the cadence-driven flush routine and its finish/forfeit "flush before archive" ordering rule, the `fetch_counter_config` updated-at cache, and the batch `POST /lobby/{id}/counter`. Read this BEFORE touching anything counter-related in momentum-app — `src-tauri/src/counter.rs`, `set_variable` in `autosplit/timer.rs`, the flush call sites, `api/counter_config.rs`, or `post_player_counter` — because dropping/buffering by the wrong cadence, or forgetting to flush before a finish/forfeit POST, silently loses a player's counter data. Counters are Rust-only (no React/IPC). The storage half lives in momentum-back and the display half in momentum-web, each with its own sibling `player-counters` skill.
+description: How the speedrace-app racer client EMITS per-game "player counters" (deaths / dashes / money the wasm autosplitter exposes) to the back — the config-driven drop/buffer/post decision in `set_variable`, the mode-shaped per-counter buffers in `SharedState`, the cadence-driven flush routine and its finish/forfeit "flush before archive" ordering rule, the `fetch_counter_config` updated-at cache, and the batch `POST /lobby/{id}/counter`. Read this BEFORE touching anything counter-related in speedrace-app — `src-tauri/src/counter.rs`, `set_variable` in `autosplit/timer.rs`, the flush call sites, `api/counter_config.rs`, or `post_player_counter` — because dropping/buffering by the wrong cadence, or forgetting to flush before a finish/forfeit POST, silently loses a player's counter data. Counters are Rust-only (no React/IPC). The storage half lives in speedrace-back and the display half in speedrace-web, each with its own sibling `player-counters` skill.
 ---
 
-# Player Counters — momentum-app (emit side)
+# Player Counters — speedrace-app (emit side)
 
 > This is the **app** skill. Counters are purely `src-tauri` Rust — no React, no IPC.
-> The back **stores** them (`momentum-back/.claude/skills/player-counters/`); the web
-> **displays** them (`momentum-web/.claude/skills/player-counters/`). Shared canonical
-> spec: `momentum-back/TEST & DOCS/SPEC_Player_Counters.md`. For the timer/wasm side that
-> *produces* the values, see the `momentum-autosplitter` skill.
+> The back **stores** them (`speedrace-back/.claude/skills/player-counters/`); the web
+> **displays** them (`speedrace-web/.claude/skills/player-counters/`). Shared canonical
+> spec: `speedrace-back/TEST & DOCS/SPEC_Player_Counters.md`. For the timer/wasm side that
+> *produces* the values, see the `speedrace-autosplitter` skill.
 
 ## The axes the app cares about
 

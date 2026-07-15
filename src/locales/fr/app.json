@@ -3,7 +3,7 @@
     "connect": "Se connecter au web",
     "connecting": "Connexion... (cliquez pour réessayer)",
     "disconnect": "Déconnexion",
-    "opens_web": "Ouvre momentm.run dans le navigateur"
+    "opens_web": "Ouvre speedrace.run dans le navigateur"
   },
   "idle": {
     "title": "En attente",
@@ -78,7 +78,7 @@
   },
   "server_unavailable": {
     "title": "Serveur indisponible",
-    "description": "Momentum ne parvient pas à joindre le serveur.\nIl est peut-être en maintenance ou en cours de mise à jour.\nRéessaie dans quelques minutes.",
+    "description": "Speedrace ne parvient pas à joindre le serveur.\nIl est peut-être en maintenance ou en cours de mise à jour.\nRéessaie dans quelques minutes.",
     "retry": "Réessayer"
   },
   "banned": {
@@ -88,6 +88,6 @@
   },
   "tray_hint": {
     "title": "Toujours actif",
-    "message": "Momentum continue de tourner dans la barre.\nClique sur l'icône pour le rouvrir,\nou utilise le bouton fermer pour quitter."
+    "message": "Speedrace continue de tourner dans la barre.\nClique sur l'icône pour le rouvrir,\nou utilise le bouton fermer pour quitter."
   }
 }

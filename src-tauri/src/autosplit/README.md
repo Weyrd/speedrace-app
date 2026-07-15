@@ -7,7 +7,7 @@ parallel** during a lobby; exactly one is locked in at race start and used for t
 
 | Source | "Connected" means | Fires splits via |
 | --- | --- | --- |
-| **WASM** (`wasm.rs`) | the LiveSplit auto-splitter `.wasm` (per game) is **attached to the game process** | `timer.rs` `MomentumTimer::split()` |
+| **WASM** (`wasm.rs`) | the LiveSplit auto-splitter `.wasm` (per game) is **attached to the game process** | `timer.rs` `SpeedraceTimer::split()` |
 | **LiveSplit TCP** (`tcp.rs`) | a TCP connection to LiveSplit Server (`127.0.0.1:16834`) is open | `poll_loop` diffing `getsplitindex` |
 
 WASM is preferred. LiveSplit is the fallback when there is no `.wasm`, it won't compile, or it
@@ -75,5 +75,5 @@ seeds the badge from it; the reducer then carries `autosplit` across in-lobby ph
 - `mod.rs` - module exports
 - `wasm.rs` - WASM compile + supervise (re-instantiate on trap), attach detection
 - `tcp.rs` - LiveSplit TCP connect + poll loop, split diffing
-- `timer.rs` - `MomentumTimer` bridging the WASM runtime to our race clock/state
+- `timer.rs` - `SpeedraceTimer` bridging the WASM runtime to our race clock/state
 - `split.rs` - `fire_split`: records a split, posts to the back, handles the final split/finish

@@ -1,9 +1,9 @@
 ---
-name: momentum-autosplitter
-description: How the momentum-app racer client drives splits/finish from a runner's timer — the WASM + LiveSplit dual-source autosplitter, the sticky source arbiter, the connection/forfeit contract with the back, and the UI badges. Use this whenever you touch anything autosplit-related: LiveSplit TCP, the WASM auto-splitter (.wasm), split/finish firing, the `autosplit:probe` event or connection badges, the ranked auto-forfeit-on-disconnect, `src-tauri/src/autosplit/`, `MomentumTimer`, or `maybe_commit_source` — and especially before adding a new timer source or changing when/how splits fire, because the "one source per race, never swapped" invariant is easy to break and corrupts ranked results if you do.
+name: speedrace-autosplitter
+description: How the speedrace-app racer client drives splits/finish from a runner's timer — the WASM + LiveSplit dual-source autosplitter, the sticky source arbiter, the connection/forfeit contract with the back, and the UI badges. Use this whenever you touch anything autosplit-related: LiveSplit TCP, the WASM auto-splitter (.wasm), split/finish firing, the `autosplit:probe` event or connection badges, the ranked auto-forfeit-on-disconnect, `src-tauri/src/autosplit/`, `SpeedraceTimer`, or `maybe_commit_source` — and especially before adding a new timer source or changing when/how splits fire, because the "one source per race, never swapped" invariant is easy to break and corrupts ranked results if you do.
 ---
 
-# Momentum Autosplitter
+# Speedrace Autosplitter
 
 The racer client turns a runner's timer into split/finish events for the race. Two sources exist
 and **run in parallel**; one is chosen per race. Getting the arbitration wrong double-fires splits
@@ -15,7 +15,7 @@ or desyncs the index, which corrupts results — so read this before changing sp
 
 | Source | File | "Connected" means | Fires splits via |
 | --- | --- | --- | --- |
-| **WASM** | `wasm.rs` | the per-game `.wasm` auto-splitter is **attached to the game process** (`attached_processes()`) | `timer.rs` `MomentumTimer::split()` |
+| **WASM** | `wasm.rs` | the per-game `.wasm` auto-splitter is **attached to the game process** (`attached_processes()`) | `timer.rs` `SpeedraceTimer::split()` |
 | **LiveSplit TCP** | `tcp.rs` | a socket to LiveSplit Server (`127.0.0.1:16834`) is open | `poll_loop` diffing `getsplitindex` |
 
 WASM is preferred; LiveSplit is the fallback (no `.wasm`, won't compile, or can't attach).
@@ -28,7 +28,7 @@ The two sources track position with incompatible models — WASM increments `cur
 as the game advances; LiveSplit diffs an absolute index from the server. If both fire, or you hand
 off mid-race, you double-fire or desync. So firing is gated on the committed source:
 
-- `MomentumTimer::split()` fires only if `autosplit_source == Wasm`.
+- `SpeedraceTimer::split()` fires only if `autosplit_source == Wasm`.
 - `tcp.rs poll_loop` fires only if `autosplit_source == LiveSplit`.
 
 `autosplit_source: Option<AutosplitSource>` lives in `state.rs` and is **sticky** for the race.
@@ -65,7 +65,7 @@ Both supervisors loop while `in_lobby(&state)` and `!autosplitter_cancel`.
   - **Post-commit**: `connected` tracks **only the committed source's health** — so losing it
     triggers the forfeit.
 
-Back side (`momentum-back`): `lobby_service/stream.rs::set_autosplit_connected` records the bool and,
+Back side (`speedrace-back`): `lobby_service/stream.rs::set_autosplit_connected` records the bool and,
 in a ranked in-progress race, schedules `spawn_autosplit_forfeit_guard`, which forfeits the player
 if still disconnected after `AUTOSPLIT_FORFEIT_GRACE_SECS` (in `constants.rs`). A server-initiated
 forfeit must also `send_to_app(AppEvent::PlayerResult)` or the still-connected app stays on Racing.
@@ -92,7 +92,7 @@ LiveSplit=socket open). The ranked gate and forfeit both ride on this single boo
 (e.g. "module loaded" for WASM) weakens the ranked guarantee.
 
 **Add a new probe/event field:** event names are duplicated constants — edit `events.rs` **and**
-`lib/events.ts`, then `listeners.ts` + `AppEventBridge` + the reducer (see the `momentum-app` skill's
+`lib/events.ts`, then `listeners.ts` + `AppEventBridge` + the reducer (see the `speedrace-app` skill's
 IPC checklist).
 
 ## Anti-patterns (never)

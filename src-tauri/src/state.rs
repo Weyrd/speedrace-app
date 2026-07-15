@@ -63,7 +63,7 @@ pub struct GlobalState {
     pub segment_start_ms: u64,
     pub autosplitter_wasm: Option<Vec<u8>>,
     pub autosplitter_runtime:
-        Option<Arc<livesplit_auto_splitting::AutoSplitter<crate::autosplit::timer::MomentumTimer>>>,
+        Option<Arc<livesplit_auto_splitting::AutoSplitter<crate::autosplit::timer::SpeedraceTimer>>>,
     pub autosplitter_cancel: Arc<AtomicBool>,
     pub probe_running: bool,
     pub livesplit_running: bool,

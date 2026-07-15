@@ -1,10 +1,10 @@
-# Momentum App
+# Speedrace App
 
-Racer-side desktop client of the Momentum speedrun platform — Tauri 2, React 18 + Vite + Tailwind v4 frontend, Rust backend in `src-tauri/`. Product overview: @README.md.
+Racer-side desktop client of the Speedrace speedrun platform — Tauri 2, React 18 + Vite + Tailwind v4 frontend, Rust backend in `src-tauri/`. Product overview: @README.md.
 
-Detailed conventions (IPC contract, Phase state machine, add-a-command/event checklists, anti-patterns) live in the `momentum-app` skill (`.claude/skills/momentum-app/SKILL.md`) — read it before touching `src/` or `src-tauri/`.
+Detailed conventions (IPC contract, Phase state machine, add-a-command/event checklists, anti-patterns) live in the `speedrace-app` skill (`.claude/skills/speedrace-app/SKILL.md`) — read it before touching `src/` or `src-tauri/`.
 
-Sibling repos (local checkouts): `../momentum-back` (API + WebSocket server) and `../momentum-web` (web frontend). When an API or WS contract is in doubt, check the server side there instead of guessing.
+Sibling repos (local checkouts): `../speedrace-back` (API + WebSocket server) and `../speedrace-web` (web frontend). When an API or WS contract is in doubt, check the server side there instead of guessing.
 
 ## Commands
 

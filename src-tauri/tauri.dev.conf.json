@@ -1,17 +1,17 @@
 {
-  "productName": "Momentum Dev",
-  "identifier": "com.momentum-app.dev",
+  "productName": "Speedrace Dev",
+  "identifier": "com.speedrace-app.dev",
   "app": {
     "windows": [
       {
-        "title": "Momentum Dev"
+        "title": "Speedrace Dev"
       }
     ]
   },
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["momentum-dev"]
+        "schemes": ["speedrace-dev"]
       }
     },
     "updater": {

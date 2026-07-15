@@ -1,4 +1,4 @@
-use crate::autosplit::timer::MomentumTimer;
+use crate::autosplit::timer::SpeedraceTimer;
 use crate::logging::{mlog, LogCat};
 use crate::state::SharedState;
 use livesplit_auto_splitting::{settings, AutoSplitter, CompiledAutoSplitter, Config, Runtime};
@@ -86,8 +86,8 @@ fn instantiate(
     compiled: &CompiledAutoSplitter,
     app: &AppHandle,
     state: &SharedState,
-) -> Option<Arc<AutoSplitter<MomentumTimer>>> {
-    let timer = MomentumTimer {
+) -> Option<Arc<AutoSplitter<SpeedraceTimer>>> {
+    let timer = SpeedraceTimer {
         app: app.clone(),
         state: state.clone(),
     };
@@ -112,7 +112,7 @@ enum Tick {
 
 async fn supervise(
     compiled: CompiledAutoSplitter,
-    mut splitter: Arc<AutoSplitter<MomentumTimer>>,
+    mut splitter: Arc<AutoSplitter<SpeedraceTimer>>,
     app: AppHandle,
     state: SharedState,
     cancel: Arc<AtomicBool>,
