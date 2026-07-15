@@ -1,7 +1,7 @@
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 
-const STORE_PATH: &str = "momentum_settings.json";
+const STORE_PATH: &str = "speedrace_settings.json";
 const FINISH_HOTKEY_KEY: &str = "finish_hotkey";
 const CLOCK_OFFSET_KEY: &str = "clock_offset_ms";
 const CLOCK_SYNCED_AT_KEY: &str = "clock_synced_at";

@@ -3,7 +3,7 @@
     "connect": "Connect to the web",
     "connecting": "Connecting... (click to retry)",
     "disconnect": "Disconnect",
-    "opens_web": "Opens momentum.run in your browser"
+    "opens_web": "Opens speedrace.run in your browser"
   },
   "idle": {
     "title": "Waiting",
@@ -78,7 +78,7 @@
   },
   "server_unavailable": {
     "title": "Server unavailable",
-    "description": "Momentum can't reach the server right now.\nIt may be down for maintenance or updating.\nTry again in a few minutes.",
+    "description": "Speedrace can't reach the server right now.\nIt may be down for maintenance or updating.\nTry again in a few minutes.",
     "retry": "Retry"
   },
   "banned": {
@@ -88,6 +88,6 @@
   },
   "tray_hint": {
     "title": "Still running",
-    "message": "Momentum keeps running in the tray.\nClick the tray icon to bring it back,\nor use the close button to quit."
+    "message": "Speedrace keeps running in the tray.\nClick the tray icon to bring it back,\nor use the close button to quit."
   }
 }

@@ -1,4 +1,3 @@
-
 fn main() {
     if let Ok(contents) =
         std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env"))

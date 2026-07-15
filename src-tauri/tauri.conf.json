@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Momentum",
+  "productName": "Speedrace",
   "version": "5.3.3",
-  "identifier": "com.momentum-app.app",
+  "identifier": "com.speedrace-app.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Momentm",
+        "title": "Speedrace",
         "width": 400,
         "height": 600,
         "resizable": false,
@@ -29,12 +29,12 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["momentum"]
+        "schemes": ["speedrace"]
       }
     },
     "updater": {
       "endpoints": [
-        "https://github.com/Weyrd/momentum-app/releases/latest/download/latest.json"
+        "https://github.com/Weyrd/speedrace-app/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlBNUJBNUQ4QTg1N0FGNTgKUldSWXIxZW8yS1ZibWl2Snd0c3VPdDdFSHpyQjQ3K3NmdmQzekVINS9TcXUyNGg2UFllWjZSSHYK"
     }

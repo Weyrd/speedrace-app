@@ -12,7 +12,7 @@ pub const AUTH_LOGOUT_PATH: &str = "/api/v1/auth/desktop/logout";
 
 const DEEP_LINK_SCHEME: &str = match option_env!("DEEP_LINK_SCHEME") {
     Some(s) => s,
-    None => "momentum",
+    None => "speedrace",
 };
 
 pub const OAUTH_CLIENT_ID: &str = "tauri_desktop";

@@ -3,8 +3,8 @@
 <plist version="1.0">
   <dict>
     <key>NSScreenCaptureUsageDescription</key>
-    <string>Momentum requires screen capture access to stream your game screen.</string>
+    <string>Speedrace requires screen capture access to stream your game screen.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Momentum requires microphone access to stream game audio.</string>
+    <string>Speedrace requires microphone access to stream game audio.</string>
   </dict>
 </plist>
