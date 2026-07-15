@@ -1,12 +1,12 @@
 [package]
-name = "momentum-app"
+name = "speedrace-app"
 version = "0.1.0"
-description = "Momentum - Tauri desktop client"
+description = "Speedrace - Tauri desktop client"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "momentum_app_lib"
+name = "speedrace_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

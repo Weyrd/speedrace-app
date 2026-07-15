@@ -182,7 +182,7 @@ pub fn run() {
 
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
-                    .tooltip("Momentum")
+                    .tooltip("Speedrace")
                     .menu(&menu)
                     .show_menu_on_left_click(false)
                     .on_menu_event(|app, event| match event.id.as_ref() {
@@ -219,7 +219,7 @@ pub fn run() {
             }
 
             #[cfg(debug_assertions)]
-            app.deep_link().register("momentum").ok();
+            app.deep_link().register("speedrace").ok();
 
             {
                 let app_for_link = app_handle.clone();

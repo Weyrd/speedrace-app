@@ -1,12 +1,12 @@
 <div align="center">
 
-# Momentum
+# Speedrace
 
-**The racer-side desktop client for the Momentum speedrun race platform.**
+**The racer-side desktop client for the Speedrace speedrun race platform.**
 
 Log in, join a race lobby from the web, go live with your screen, and race the clock head-to-head.
 
-[![version](https://img.shields.io/github/v/release/Weyrd/momentum-app?sort=semver&label=version&color=orange)](https://github.com/Weyrd/momentum-app/releases/latest)
+[![version](https://img.shields.io/github/v/release/Weyrd/speedrace-app?sort=semver&label=version&color=orange)](https://github.com/Weyrd/speedrace-app/releases/latest)
 ![platform](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-blue)
 ![built with](https://img.shields.io/badge/built%20with-Tauri%202%20%C2%B7%20React%20%C2%B7%20Rust-555)
 
@@ -16,7 +16,7 @@ Log in, join a race lobby from the web, go live with your screen, and race the c
 
 ## What is it?
 
-Momentum is a speedrun **racing** platform. This app is the client a runner installs on their
+Speedrace is a speedrun **racing** platform. This app is the client a runner installs on their
 own machine. It pairs with the [web companion](https://github.com/Weyrd) (where you browse and
 join lobbies) and the realtime back-end that orchestrates each race.
 
@@ -34,7 +34,7 @@ The whole app is a single small window that walks through one screen per race ph
 
 ## Download & install
 
-Grab the latest build for your OS from the **[Releases page](https://github.com/Weyrd/momentum-app/releases/latest)**.
+Grab the latest build for your OS from the **[Releases page](https://github.com/Weyrd/speedrace-app/releases/latest)**.
 
 The app **auto-updates** itself once installed, so you only need to download it once.
 
@@ -65,8 +65,8 @@ The app **auto-updates** itself once installed, so you only need to download it 
 ### Run in development
 
 ```bash
-git clone https://github.com/Weyrd/momentum-app.git
-cd momentum-app
+git clone https://github.com/Weyrd/speedrace-app.git
+cd speedrace-app
 
 pnpm install
 pnpm tauri dev
@@ -89,7 +89,7 @@ On **macOS** you can build and launch an unsigned debug bundle directly:
 
 ```bash
 cargo tauri build --debug --bundles app
-open src-tauri/target/debug/bundle/macos/Momentum.app
+open src-tauri/target/debug/bundle/macos/Speedrace.app
 ```
 
 > The Rust side lives in `src-tauri/` run `cargo build` / `cargo clippy` / `cargo check` from there.

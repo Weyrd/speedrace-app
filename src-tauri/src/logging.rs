@@ -1,4 +1,3 @@
-
 use std::sync::OnceLock;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -44,7 +43,7 @@ impl LogCat {
 
 fn compute() -> [bool; ALL.len()] {
     let mut on = [false; ALL.len()];
-    match std::env::var("MOMENTUM_LOG") {
+    match std::env::var("SPEEDRACE_LOG") {
         Ok(spec) => {
             for token in spec.split(',') {
                 match token.trim().to_ascii_lowercase().as_str() {

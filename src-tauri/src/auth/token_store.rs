@@ -4,7 +4,7 @@ use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
-const STORE_PATH: &str = "momentum_auth.json";
+const STORE_PATH: &str = "speedrace_auth.json";
 const STORE_KEY: &str = "auth";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
