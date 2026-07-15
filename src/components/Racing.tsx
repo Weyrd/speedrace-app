@@ -54,7 +54,7 @@ export default function Racing() {
 
   const autosplitDrivesFinish =
     state.phase === Phase.RaceInProgress &&
-    (state.lobby.autosplitter_updated_at != null ||
+    (state.autosplit?.wasm === true ||
       (state.autosplit?.livesplit === true &&
         state.autosplit.splits_match !== false));
 
