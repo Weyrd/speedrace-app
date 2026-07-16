@@ -2,7 +2,7 @@
 
 Status: **implemented** (2026-07-13) except the Future work section at the end. This is the
 single streaming spec — it replaced `README_STREAM_V2.md`, `PLAN_LOCAL_PREVIEW_PUBLISH.md` and
-`PLAN_MP4_REPLAY.md`. It records both *what* the system does and *why* each decision was made,
+`PLAN_MP4_REPLAY.md`. It records both _what_ the system does and _why_ each decision was made,
 so a change that looks like a simplification can be checked against the constraint it would break.
 
 ## What it does
@@ -11,7 +11,7 @@ Nothing leaves the machine until the racer presses **Publish**. Inside a lobby:
 
 1. **StreamSetup** auto-starts a **local preview**: a preview-mode ffmpeg captures the selected
    source and streams JPEG frames to the webview. No WHIP, no MP4, no audio. The host sees the
-   racer as *not ready* the whole time (see Back contract).
+   racer as _not ready_ the whole time (see Back contract).
 2. Clicking the preview opens the **source picker** (Windows / Fullscreen tabs, live thumbnails).
    Selecting a source restarts the preview.
 3. **Publish** runs one Rust transaction: kill preview → spawn the real ffmpeg (WHIP live + MP4
@@ -25,8 +25,8 @@ Nothing leaves the machine until the racer presses **Publish**. Inside a lobby:
 ┌ Tauri app (Rust) ──────────────────────────────────────────────────────────┐
 │ preview:  ffmpeg (ddagrab | WGC pipe) ─ mpjpeg → stdout → base64 frames ───┼─▶ webview <img>
 │                                                                             │
-│ live:     cpal WASAPI loopback ──▶ paced writer ──▶ \\.\pipe\momentum_audio │
-│           WGC thread (window src) ─▶ letterbox ──▶ \\.\pipe\momentum_video  │
+│ live:     cpal WASAPI loopback ──▶ paced writer ──▶ \\.\pipe\speedrace_audio │
+│           WGC thread (window src) ─▶ letterbox ──▶ \\.\pipe\speedrace_video  │
 │           ddagrab (monitor src, in-ffmpeg)          │                       │
 │                                                     ▼                       │
 │                                    ffmpeg sidecar ──▶ WHIP ─▶ MediaMTX ─▶ WHEP preview
@@ -46,7 +46,7 @@ without re-checking its reason.
   two-step removes the state where a stream is live but the racer isn't ready — a state that had
   no purpose and needed its own UI.
 - **The preview is a second ffmpeg, not the live one muted.** The live pipeline can't run
-  without publishing (the WHIP output *is* the pipeline), and keeping one process with outputs
+  without publishing (the WHIP output _is_ the pipeline), and keeping one process with outputs
   toggled would mean restarting ffmpeg on Publish anyway. A tiny separate preview process keeps
   the live args identical to the proven form.
 - **Preview transport: `-f mpjpeg` → stdout, relayed by Rust** (Content-length-framed JPEG
@@ -59,14 +59,14 @@ without re-checking its reason.
   `preview::ensure_for_phase` runs at every transition that can land on StreamSetup and
   `start()` is hard-gated on `app_state == StreamSetup`. This is what makes the frontend
   useEffect-free and makes "which paths start/stop the preview" a one-file question.
-- **One teardown choke point.** `stream::shutdown` kills preview *and* live session. It already
+- **One teardown choke point.** `stream::shutdown` kills preview _and_ live session. It already
   had nine call sites (logout, stop, forfeit, finish, WS PlayerResult/LobbyClosed, auth-lost,
-  banned, app exit); putting preview teardown inside it means every current *and future* exit
+  banned, app exit); putting preview teardown inside it means every current _and future_ exit
   path handles the preview for free instead of requiring per-site patching.
 - **Window selections are session-only; only the monitor choice persists.** An HWND dies with
   its process, so persisting it can only produce a broken restore. Exe/title re-resolution was
   deferred until re-picking proves annoying.
-- **MP4 replay = a second output on the *same* ffmpeg process.** One process shares one capture
+- **MP4 replay = a second output on the _same_ ffmpeg process.** One process shares one capture
   and keeps the supervisor, graceful stop and Job Object unchanged. Not the `tee` muxer: tee
   needs identical codecs per branch, but WHIP mandates Opus and MP4 wants AAC — so it's two full
   output blocks via `split`/`asplit` (at ~2× encode cost; the reason NVENC is the natural
@@ -102,17 +102,17 @@ non-Windows stubs that return an error.
 
 ## Rust module — `src-tauri/src/stream/`
 
-| File | Role |
-| --- | --- |
-| `types.rs` | **Every data type of the module** (`StreamState`, `CaptureSource`, `StreamSettings`, `LaunchSpec`, sessions, payloads…). Logic files hold no type defs. |
-| `mod.rs` | `start`/`publish`/`shutdown`/`shutdown_spawn`, `current_source`, `emit_status`, replay path helpers. |
-| `preview.rs` | Local preview: preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events. `ensure_for_phase` auto-starts it on StreamSetup. |
-| `pipeline.rs` | `build_args` / `build_preview_args` → the exact ffmpeg CLI, branched on `CaptureSource`. |
-| `ffmpeg.rs` | `resolve_ffmpeg_path`, spawn (tokio::process), Job Object, the **supervisor** task, graceful stop. |
-| `wgc.rs` | Window capture: WGC session → fixed-size BGRA letterbox → paced rawvideo named pipe. |
-| `monitors.rs` / `window_list.rs` | `list_monitors` (DXGI, same order as ddagrab `output_idx`) / `list_windows` (filtered, non-cloaked). |
-| `thumbs.rs` | Picker thumbnails: monitor one-shot ffmpeg (or the preview's last frame), window WGC one-shots behind a `Semaphore(2)`. |
-| `audio.rs` | cpal WASAPI loopback on a dedicated thread + a paced named-pipe writer. |
+| File                             | Role                                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.rs`                       | **Every data type of the module** (`StreamState`, `CaptureSource`, `StreamSettings`, `LaunchSpec`, sessions, payloads…). Logic files hold no type defs. |
+| `mod.rs`                         | `start`/`publish`/`shutdown`/`shutdown_spawn`, `current_source`, `emit_status`, replay path helpers.                                                    |
+| `preview.rs`                     | Local preview: preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events. `ensure_for_phase` auto-starts it on StreamSetup.               |
+| `pipeline.rs`                    | `build_args` / `build_preview_args` → the exact ffmpeg CLI, branched on `CaptureSource`.                                                                |
+| `ffmpeg.rs`                      | `resolve_ffmpeg_path`, spawn (tokio::process), Job Object, the **supervisor** task, graceful stop.                                                      |
+| `wgc.rs`                         | Window capture: WGC session → fixed-size BGRA letterbox → paced rawvideo named pipe.                                                                    |
+| `monitors.rs` / `window_list.rs` | `list_monitors` (DXGI, same order as ddagrab `output_idx`) / `list_windows` (filtered, non-cloaked).                                                    |
+| `thumbs.rs`                      | Picker thumbnails: monitor one-shot ffmpeg (or the preview's last frame), window WGC one-shots behind a `Semaphore(2)`.                                 |
+| `audio.rs`                       | cpal WASAPI loopback on a dedicated thread + a paced named-pipe writer.                                                                                 |
 
 `GlobalState` holds `stream: Option<StreamSession>`, `preview: Option<PreviewSession>`,
 `capture_source: Option<CaptureSource>` (session-only; the monitor variant also persists as
@@ -171,12 +171,12 @@ including mid-race restarts:
 - **RaceInProgress**: **never POST stream-stopped** — the back forfeits the runner on it. Emit
   `reconnecting`, auto-restart (3 attempts, 5 s apart; each restart writes a new `…_pt{n}.mp4`
   segment); on success emit `live`, on exhaustion emit `error`.
-- **Back dies mid-race**: nothing to do — `ServerUnavailable`/WS-drop deliberately does *not*
+- **Back dies mid-race**: nothing to do — `ServerUnavailable`/WS-drop deliberately does _not_
   touch ffmpeg, so a mid-race server restart never kills the stream.
 
 ### Teardown & orphan prevention
 
-`stream::shutdown` (or `shutdown_spawn`) is the single choke point — preview *and* live —
+`stream::shutdown` (or `shutdown_spawn`) is the single choke point — preview _and_ live —
 called from: logout, `stop_stream`, forfeit, the local finish, WS `PlayerResult`/`LobbyClosed`,
 auth-lost/banned, and app exit. Orphans: a process-lifetime Job Object with
 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` covers hard app deaths (both ffmpegs are assigned);
@@ -187,10 +187,10 @@ auth-lost/banned, and app exit. Orphans: a process-lifetime Job Object with
 Video input branches on `CaptureSource`:
 
 - **Monitor** → `-f lavfi -i ddagrab=output_idx={n}:framerate={fps}`; the filter is prefixed
-  `hwdownload,format=bgra,` because ddagrab emits d3d11 *hardware* frames — feeding them
+  `hwdownload,format=bgra,` because ddagrab emits d3d11 _hardware_ frames — feeding them
   straight to a software encoder fails with "Impossible to convert between formats".
 - **Window** → `-f rawvideo -pix_fmt bgra -video_size {W}x{H} -framerate {fps}
-  -i \\.\pipe\momentum_video_{nonce}` (CPU BGRA; no hwdownload).
+-i \\.\pipe\speedrace_video_{nonce}` (CPU BGRA; no hwdownload).
 
 Common live tail: `scale=1280:-2:flags=bilinear,format=yuv420p`, x264 veryfast zerolatency
 baseline, `-g 2*fps`, Opus 96k, `-f whip`. With a replay, video/audio fan out through
@@ -220,9 +220,9 @@ rawvideo named pipe. Three constraints shape it:
 
 ### Audio (`audio.rs`)
 
-cpal WASAPI loopback on a dedicated thread (input stream on the default *output* device),
+cpal WASAPI loopback on a dedicated thread (input stream on the default _output_ device),
 silent-track fallback, a paced writer that pads zeros during digital silence and drops >200 ms
-of backlog, riding `\\.\pipe\momentum_audio_{nonce}`. stdin stays reserved for the `q` quit.
+of backlog, riding `\\.\pipe\speedrace_audio_{nonce}`. stdin stays reserved for the `q` quit.
 
 ## IPC contract
 
@@ -245,7 +245,7 @@ of backlog, riding `\\.\pipe\momentum_audio_{nonce}`. stdin stays reserved for t
   (`{kind:"monitor",index}` / `{kind:"window",hwnd,title}`, const-object mirror in `types/`);
   setting a monitor also persists it.
 - `get_stream_settings()` / `set_stream_settings(...)` — bitrate/framerate/replay knobs only
-  (`tauri_plugin_store`; the source is *not* part of this DTO, so settings edits never churn
+  (`tauri_plugin_store`; the source is _not_ part of this DTO, so settings edits never churn
   the preview).
 - `list_monitors()` / `list_windows()` — picker data.
 - `capture_monitor_thumb(index)` / `capture_window_thumb(hwnd)` — base64 JPEG thumbnails.
@@ -254,7 +254,7 @@ The frontend FSM carries `streamStatus`; `StreamReady` fires only after `publish
 resolves (Rust confirmed live, so the reducer does not re-guard on the possibly-lagging local
 `streamStatus`).
 
-## Back contract (verified in momentum-back)
+## Back contract (verified in speedrace-back)
 
 - `stream-ready` is a **pure boolean flip** (`services/lobby/lobby_service/stream.rs`) — no
   MediaMTX API, no publisher check; the back never knows whether anyone is publishing.
@@ -292,8 +292,8 @@ from the back (LobbySetup / lobby-current), with a `whip→whep` string fallback
 Ranked races always record; casual races record behind the `stream_replay_casual` opt-in
 (default off — recording is driven by the lobby's `race_type`, which the back sends in
 LobbySetup; an old back without it defaults to casual, failing safe). `resolve_replay_base`
-decides at publish time; files land in `stream_replay_dir` (default `Videos\Momentum`) as
-`momentum_{game}_{stamp}.mp4`, auto-deleted after `REPLAY_RETENTION_DAYS` (7) by a best-effort
+decides at publish time; files land in `stream_replay_dir` (default `Videos\Speedrace`) as
+`speedrace_{game}_{stamp}.mp4`, auto-deleted after `REPLAY_RETENTION_DAYS` (7) by a best-effort
 startup sweep when `stream_replay_autodelete` is on. The `Finished` screen shows "replay saved /
 show in folder" whenever a replay was actually recorded. A publish that never went live deletes
 its stub file.
