@@ -106,7 +106,7 @@ pub async fn capture_window_thumb(hwnd: u64) -> Result<String, String> {
         ) -> Result<(), Self::Error> {
             if let Some(tx) = self.tx.take() {
                 let path = std::env::temp_dir()
-                    .join(format!("momentum_thumb_{:016x}.jpg", rand::random::<u64>()));
+                    .join(format!("speedrace_thumb_{:016x}.jpg", rand::random::<u64>()));
                 let res = frame
                     .save_as_image(&path, windows_capture::encoder::ImageFormat::Jpeg)
                     .map_err(|e| e.to_string())

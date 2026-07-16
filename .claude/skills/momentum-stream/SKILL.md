@@ -1,9 +1,9 @@
 ---
-name: momentum-stream
-description: How the momentum-app racer client captures and publishes its live video — the Rust-owned ffmpeg sidecar that grabs the monitor (ddagrab) + system audio (cpal WASAPI loopback) and publishes to MediaMTX via ffmpeg's native `-f whip` muxer, plus the webview's self-WHEP preview. Read this BEFORE touching anything stream-related in momentum-app — `src-tauri/src/stream/` (mod/monitors/audio/pipeline/ffmpeg), the `stream:status` event, `start_stream`/`stop_stream`/`list_monitors`/`get`+`set_stream_settings` commands, `StreamSession` in `SharedState`, the `streamStatus` FSM field, `src/stream/whep.ts`, `WhepPreview`, `StreamSetup.tsx`, or `scripts/get-ffmpeg.ps1` — because two invariants are easy to break and both are costly: mid-race you must NEVER POST stream-stopped (the back forfeits the runner), and the whole thing needs an ffmpeg 8.x sidecar with DTLS that must be fetched once after clone or nothing streams. Phase 1 = WHIP live only; MP4 replay and window capture are future phases. The storage/contract half lives in momentum-back (`services/lobby/.../stream.rs`), the viewer half in momentum-web (WHEP playback).
+name: speedrace-stream
+description: How the speedrace-app racer client captures and publishes its live video — the Rust-owned ffmpeg sidecar that grabs the monitor (ddagrab) + system audio (cpal WASAPI loopback) and publishes to MediaMTX via ffmpeg's native `-f whip` muxer, plus the webview's self-WHEP preview. Read this BEFORE touching anything stream-related in speedrace-app — `src-tauri/src/stream/` (mod/monitors/audio/pipeline/ffmpeg), the `stream:status` event, `start_stream`/`stop_stream`/`list_monitors`/`get`+`set_stream_settings` commands, `StreamSession` in `SharedState`, the `streamStatus` FSM field, `src/stream/whep.ts`, `WhepPreview`, `StreamSetup.tsx`, or `scripts/get-ffmpeg.ps1` — because two invariants are easy to break and both are costly: mid-race you must NEVER POST stream-stopped (the back forfeits the runner), and the whole thing needs an ffmpeg 8.x sidecar with DTLS that must be fetched once after clone or nothing streams. Phase 1 = WHIP live only; MP4 replay and window capture are future phases. The storage/contract half lives in speedrace-back (`services/lobby/.../stream.rs`), the viewer half in speedrace-web (WHEP playback).
 ---
 
-# Momentum Stream (ffmpeg WHIP + self-WHEP preview)
+# Speedrace Stream (ffmpeg WHIP + self-WHEP preview)
 
 **Rust owns the stream.** An ffmpeg sidecar spawned by `src-tauri/src/stream/` captures the
 monitor (`ddagrab`) + system audio (cpal WASAPI loopback) and publishes to MediaMTX using
@@ -11,7 +11,7 @@ ffmpeg's native `-f whip` muxer. The webview captures **nothing** anymore — it
 racer's own stream back via WHEP for the local preview.
 
 ```
-cpal WASAPI loopback ─▶ paced writer ─▶ \\.\pipe\momentum_audio_<nonce> ┐
+cpal WASAPI loopback ─▶ paced writer ─▶ \\.\pipe\speedrace_audio_<nonce> ┐
 (system audio, f32le)   (silence-pads)                                  ▼
 ddagrab (monitor, in-ffmpeg) ─────────────────────▶ ffmpeg sidecar ─▶ WHIP ─▶ MediaMTX
                                                     (-f whip, h264+opus)      │ WHEP
@@ -25,7 +25,7 @@ the doc is the deep dive. Confirm both against the code — this is an actively 
 ## Two invariants you must not break
 
 1. **Mid-race, NEVER POST `stream-stopped`.** The back treats a stream-stopped during
-   `RaceInProgress` as a forfeit (momentum-back `services/lobby/lobby_service/stream.rs`). When
+   `RaceInProgress` as a forfeit (speedrace-back `services/lobby/lobby_service/stream.rs`). When
    ffmpeg dies mid-race the supervisor emits `reconnecting` and auto-restarts — it does **not**
    tell the back. Only pre-race (StreamSetup/WaitingForStart) is it safe to POST stream-stopped.
 2. **The ffmpeg sidecar must exist and have a *working* DTLS backend.** `-f whip` shipped in
@@ -116,7 +116,7 @@ race-ending path, add a shutdown call; if you add a "back is down" path, do NOT.
 
 ## `whep_url` plumbing (cross-repo)
 
-The preview needs the WHEP URL. It's minted in momentum-back (`stream_helpers::build_whep_url`)
+The preview needs the WHEP URL. It's minted in speedrace-back (`stream_helpers::build_whep_url`)
 and shipped to the app via **`AppEvent::LobbySetup`** and **`LobbyCurrentDto`**, mirrored in the
 app's `models/lobby.rs` `LobbySetup`, `api/lobby.rs` `LobbyCurrentResponse`, and `src/types.ts`.
 If a build predates the field, the frontend derives it: `whip_url.replace(/\/whip$/, "/whep")`.
@@ -149,7 +149,7 @@ mount `useEffect`. `StreamSetup` and `SettingsPanel` persist on change via the m
   and thread it into `pipeline::build_args`.
 - **Change the ffmpeg args**: `pipeline.rs::build_args` only. Test the new command by hand first
   (see Dev prep) before wiring it.
-- **A new command / event**: follow the momentum-app skill's IPC checklists (both-sides constants).
+- **A new command / event**: follow the speedrace-app skill's IPC checklists (both-sides constants).
 
 ## Dev prep (do before `pnpm tauri dev`)
 

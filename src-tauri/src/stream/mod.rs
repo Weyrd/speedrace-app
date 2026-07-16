@@ -205,7 +205,7 @@ fn resolve_replay_base(app: &AppHandle, race_type: RaceType, game_name: &str) ->
         .chars()
         .map(|c| if c.is_alphanumeric() { c } else { '_' })
         .collect();
-    Some(dir.join(format!("momentum_{game}_{stamp}.mp4")))
+    Some(dir.join(format!("speedrace_{game}_{stamp}.mp4")))
 }
 
 // Mid-race restarts cant append a ended MP4

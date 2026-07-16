@@ -18,7 +18,6 @@ const LOBBY_PHASES: ReadonlySet<string> = new Set([
   Phase.RaceInProgress,
 ]);
 
-// Manual resync is rate-limited to once a minute (matches momentum-web).
 const CLOCK_RESYNC_COOLDOWN_MS = 60_000;
 
 export default function Header() {

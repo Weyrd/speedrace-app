@@ -38,7 +38,7 @@ pub fn start_audio() -> AudioHandle {
 
     let stop: StopFlag = Arc::new(AtomicBool::new(false));
 
-    let pipe_name = format!(r"\\.\pipe\momentum_audio_{:016x}", rand::random::<u64>());
+    let pipe_name = format!(r"\\.\pipe\speedrace_audio_{:016x}", rand::random::<u64>());
     let server = match ServerOptions::new()
         .first_pipe_instance(true)
         .create(&pipe_name)
