@@ -34,9 +34,9 @@ pub fn default_replay_dir(app: &AppHandle) -> String {
         .path()
         .video_dir()
         .or_else(|_| app.path().app_data_dir())
-        .map(|p| p.join("Momentum"));
+        .map(|p| p.join("Speedrace"));
     base.map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| "Momentum".to_string())
+        .unwrap_or_else(|_| "Speedrace".to_string())
 }
 
 pub fn load_finish_hotkey(app: &AppHandle) -> String {
