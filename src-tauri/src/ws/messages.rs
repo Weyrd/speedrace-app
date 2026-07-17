@@ -9,7 +9,30 @@ pub enum ServerMessage {
     LobbyClosed(LobbyClosedMsg),
     PlayerResult(PlayerResultPayload),
     EarlyStartWarning { active: bool },
+    UploadReady(UploadReadyMsg),
+    UploadUnavailable(UploadUnavailableMsg),
     Ping,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct UploadReadyMsg {
+    pub lobby_id: String,
+    pub upload_ticket: String,
+    pub resumable_url: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct UploadUnavailableMsg {
+    pub lobby_id: String,
+    pub reason: UploadUnavailableReason,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum UploadUnavailableReason {
+    QuotaExhausted,
+    #[serde(other)]
+    Error,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

@@ -31,6 +31,7 @@ import type {
   StreamStatus,
   StreamEventState,
   RaceType,
+  UploadStatusPayload,
 } from "../types";
 
 export const Phase = {
@@ -84,6 +85,7 @@ export type AppState =
       wsStatus: WsStatus;
       result: PlayerResult;
       raceType?: RaceType;
+      upload?: UploadStatusPayload;
     }
   | { phase: typeof Phase.ServerUnavailable }
   | { phase: typeof Phase.Banned };
@@ -102,6 +104,7 @@ export const ActionType = {
   StreamStopped: "STREAM_STOPPED",
   StreamStatusChanged: "STREAM_STATUS_CHANGED",
   NewRace: "NEW_RACE",
+  UploadStatus: "UPLOAD_STATUS",
   AutosplitStatus: "AUTOSPLIT_STATUS",
   SplitFired: "SPLIT_FIRED",
   ServerUnavailable: "SERVER_UNAVAILABLE",
@@ -126,6 +129,7 @@ export type AppAction =
       status: StreamEventState;
     }
   | { type: typeof ActionType.NewRace }
+  | { type: typeof ActionType.UploadStatus; status: UploadStatusPayload }
   | { type: typeof ActionType.AutosplitStatus; status: AutosplitState }
   | {
       type: typeof ActionType.SplitFired;

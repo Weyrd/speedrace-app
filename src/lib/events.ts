@@ -9,6 +9,7 @@ export const WS_LOBBY_START = "ws:lobby_start";
 export const WS_PLAYER_RESULT = "ws:player_result";
 export const WS_STATUS = "ws:status";
 export const STREAM_STATUS = "stream:status";
+export const UPLOAD_STATUS = "upload:status";
 export const STREAM_PREVIEW = "stream:preview";
 export const SPLIT_LOADED = "split:loaded";
 export const SPLIT_FIRED = "split:fired";

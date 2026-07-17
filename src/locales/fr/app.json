@@ -53,13 +53,25 @@
     "saved": "Rediffusion enregistrée sur ton ordinateur",
     "show_in_folder": "Ouvrir le dossier"
   },
+  "upload": {
+    "preparing": "Préparation de l'upload de la VOD...",
+    "uploading": "Upload de la VOD de preuve",
+    "processing": "Vérification de l'upload...",
+    "done": "VOD uploadée",
+    "failed": "Échec de l'upload",
+    "quota_exhausted": "Quota d'upload épuisé, réessaie plus tard",
+    "abandoned": "Upload abandonné",
+    "abandon": "Abandonner l'upload",
+    "retry": "Réessayer l'upload",
+    "blocking": "Tu pourras lancer une nouvelle course une fois l'upload terminé"
+  },
   "autosplit": {
     "early_start_tooltip": "Ton timer semble déjà lancé. Réinitialise-le avant le départ pour éviter une pénalité."
   },
   "stop_modal": {
     "title_racing": "Abandonner la race ?",
     "title_idle": "Arrêter le stream ?",
-    "message_racing": "Tu es en pleine race. Arrêter ton stream maintenant compte comme un <red>forfait</red> — tu ne pourras pas rejoindre cette run.",
+    "message_racing": "Tu es en pleine race. Arrêter ton stream maintenant compte comme un <red>forfait</red>. Tu ne pourras pas rejoindre cette run.",
     "message_idle": "Le stream sera arrêté.",
     "keep_racing": "Continuer la race",
     "confirm_forfeit": "■ Forfait"

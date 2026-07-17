@@ -17,5 +17,6 @@
   "replay_open_folder": "Ouvrir",
   "replay_casual_label": "Enregistrer aussi les races non classées",
   "replay_autodelete_label": "Supprimer automatiquement les rediffusions après une semaine",
+  "replay_delete_uploaded_label": "Supprimer la rediffusion locale une fois l'upload vérifié",
   "logout": "Se déconnecter"
 }

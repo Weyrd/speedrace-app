@@ -13,6 +13,22 @@ pub struct ApiResponse<T> {
     pub data: T,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ApiErrorCode {
+    UploadNotEligible,
+    RaceHistoryNotFound,
+    LobbyNotFound,
+    PlayerNotInLobby,
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApiError {
+    pub error_code: ApiErrorCode,
+}
+
 pub enum PostOutcome<R> {
     Ok(R),
     Rejected,  // 4xx: won't change on retry (already done / gone / bad request)

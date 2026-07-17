@@ -53,6 +53,18 @@
     "saved": "Replay saved to your computer",
     "show_in_folder": "Show in folder"
   },
+  "upload": {
+    "preparing": "Preparing VOD upload...",
+    "uploading": "Uploading proof VOD",
+    "processing": "Verifying upload...",
+    "done": "VOD uploaded",
+    "failed": "Upload failed",
+    "quota_exhausted": "Upload quota exhausted. Try again later",
+    "abandoned": "Upload abandoned",
+    "abandon": "Abandon upload",
+    "retry": "Retry upload",
+    "blocking": "You can start a new race once the upload finishes"
+  },
   "autosplit": {
     "early_start_tooltip": "Your timer looks already running. Reset before the race starts to avoid a penalty."
   },

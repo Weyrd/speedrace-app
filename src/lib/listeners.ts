@@ -13,6 +13,7 @@ import {
   SPLIT_LOADED,
   SPLIT_FIRED,
   AUTOSPLIT_PROBE,
+  UPLOAD_STATUS,
 } from "./events";
 import type {
   AuthStatePayload,
@@ -25,6 +26,7 @@ import type {
   SplitFiredPayload,
   StreamStatusPayload,
   StreamPreviewPayload,
+  UploadStatusPayload,
 } from "../types";
 import type { Phase } from "../store/types";
 
@@ -68,3 +70,5 @@ export const onSplitFired = (cb: (p: SplitFiredPayload) => void) =>
   safeListen<SplitFiredPayload>(SPLIT_FIRED, cb);
 export const onAutosplitProbe = (cb: (p: AutosplitState) => void) =>
   safeListen<AutosplitState>(AUTOSPLIT_PROBE, cb);
+export const onUploadStatus = (cb: (p: UploadStatusPayload) => void) =>
+  safeListen<UploadStatusPayload>(UPLOAD_STATUS, cb);
