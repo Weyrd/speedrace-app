@@ -202,6 +202,9 @@ pub async fn send_player_forfeited(
 #[tauri::command]
 pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
     let mut guard = state.lock().map_err(|e| e.to_string())?;
+    if guard.upload.is_some() {
+        return Err("upload in progress".into());
+    }
     guard.autosplitter_cancel.store(true, Ordering::SeqCst);
     guard.autosplitter_runtime = None;
     guard.app_state = crate::models::AppState::Idle;
@@ -210,5 +213,39 @@ pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
     guard.current_split_index = 0;
     guard.segment_start_ms = 0;
     crate::state::reset_run_start(&mut guard);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn abandon_upload(state: State<SharedState>) -> Result<(), String> {
+    let guard = state.lock().map_err(|e| e.to_string())?;
+    if let Some(u) = guard.upload.as_ref() {
+        u.cancel.store(true, Ordering::SeqCst);
+    }
+    Ok(())
+}
+
+// Failed/expired/quota path ask the back for a fresh ticket and re-run
+#[tauri::command]
+pub async fn retry_upload(app: AppHandle, state: State<'_, SharedState>) -> Result<(), String> {
+    let lobby_id = {
+        let guard = state.lock().map_err(|e| e.to_string())?;
+        if guard.upload.is_some() {
+            return Err("upload already running".into());
+        }
+        guard
+            .lobby
+            .as_ref()
+            .map(|l| l.lobby_id.clone())
+            .ok_or("no race to upload for")?
+    };
+    let ticket = api::lobby::post_request_upload_ticket(&app, &lobby_id).await?;
+    crate::upload::spawn(
+        &app,
+        state.inner(),
+        lobby_id,
+        ticket.upload_ticket,
+        ticket.resumable_url,
+    );
     Ok(())
 }

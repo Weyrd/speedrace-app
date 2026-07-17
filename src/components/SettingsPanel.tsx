@@ -55,6 +55,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const replayDir = streamSettings?.replay_dir ?? "";
   const replayAutodelete = streamSettings?.replay_autodelete ?? true;
   const replayCasual = streamSettings?.replay_casual ?? false;
+  const replayDeleteUploaded = streamSettings?.replay_delete_uploaded ?? false;
 
   const handlePickReplayDir = async () => {
     const dir = await pickReplayDir();
@@ -325,6 +326,19 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             />
             <span className="text-2xs font-mono text-dim">
               {t("replay_autodelete_label")}
+            </span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={replayDeleteUploaded}
+              onChange={(e) =>
+                saveStreamSettings({ replay_delete_uploaded: e.target.checked })
+              }
+              className="accent-orange"
+            />
+            <span className="text-2xs font-mono text-dim">
+              {t("replay_delete_uploaded_label")}
             </span>
           </label>
         </div>

@@ -17,5 +17,6 @@
   "replay_open_folder": "Open",
   "replay_casual_label": "Also record casual races",
   "replay_autodelete_label": "Automatically delete replays after one week",
+  "replay_delete_uploaded_label": "Delete the local replay once its upload is verified",
   "logout": "Log out"
 }

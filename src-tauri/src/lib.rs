@@ -11,6 +11,7 @@ mod models;
 mod settings;
 mod state;
 mod stream;
+mod upload;
 mod ws;
 
 use logging::{mlog, LogCat};
@@ -161,6 +162,8 @@ pub fn run() {
             commands::send_player_finished,
             commands::send_player_forfeited,
             commands::acknowledge_results,
+            commands::abandon_upload,
+            commands::retry_upload,
             commands::get_finish_hotkey,
             commands::set_finish_hotkey,
             commands::register_finish_hotkey,

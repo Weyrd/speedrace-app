@@ -126,6 +126,25 @@ export interface StreamPreviewPayload {
   error?: string;
 }
 
+// "upload:status" ranked VOD upload
+export const UploadPhase = {
+  Preparing: "preparing",
+  Uploading: "uploading",
+  Processing: "processing",
+  Done: "done",
+  Failed: "failed",
+  QuotaExhausted: "quota_exhausted",
+  Abandoned: "abandoned",
+} as const;
+export type UploadPhase = (typeof UploadPhase)[keyof typeof UploadPhase];
+
+export interface UploadStatusPayload {
+  state: UploadPhase;
+  uploaded_bytes: number;
+  total_bytes: number;
+  message?: string;
+}
+
 export const PreviewState = {
   Starting: "starting",
   Live: "live",
@@ -164,4 +183,5 @@ export interface StreamSettings {
   replay_dir: string;
   replay_autodelete: boolean;
   replay_casual: boolean;
+  replay_delete_uploaded: boolean;
 }

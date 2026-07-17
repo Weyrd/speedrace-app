@@ -208,7 +208,7 @@ pub async fn poll_loop(
         if fire && index < 0 && !forced_start {
             mlog!(
                 LogCat::LiveSplit,
-                "[livesplit-tcp] timer NotRunning at race time — sending starttimer"
+                "[livesplit-tcp] timer NotRunning at race time, sending starttimer"
             );
             if let Err(e) = writer.write_all(b"starttimer\r\n").await {
                 mlog!(

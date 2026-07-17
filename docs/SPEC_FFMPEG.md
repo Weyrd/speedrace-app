@@ -74,9 +74,12 @@ without re-checking its reason.
 - **Fragmented MP4** (`+frag_keyframe+empty_moov`): a hard-killed ffmpeg still leaves a playable
   file — no moov repair, no next-launch recovery code.
 - **The replay spans Publish → stop, not just the race.** Trimming to the race would require
-  restarting ffmpeg at the gun, which would drop the live WHIP stream. The racer trims later;
-  the run itself is always fully captured. A mid-race reconnect necessarily starts a new file
-  (`…_pt{n}.mp4`) — each restart is a new process.
+  restarting ffmpeg at the gun (dropping the live WHIP stream) or rewriting the whole file
+  afterwards (`-c copy` remuxes every byte kept — minutes on a 4 h file). Instead the app
+  records the **server-clock epoch of the recording start** (`replay_started_at_ms`, stamped at
+  segment-0 spawn) and sends it as `video_started_at_ms` with `vod-complete`; alignment to the
+  countdown/gun is a playback **seek** computed from that offset, never a cut. A mid-race
+  reconnect necessarily starts a new file (`…_pt{n}.mp4`) — each restart is a new process.
 - **Preview is video-only.** Audio capture starts at Publish exactly like before; a pre-publish
   level meter wasn't worth wiring cpal early.
 
@@ -147,7 +150,8 @@ spinner — no new FSM state, no event orchestration:
 5. failure → full `stream::shutdown`, delete the never-went-live MP4 stub, restart the preview,
    `Err(msg)`. No `stream-stopped` POST — ready was never set.
 
-The **recording window is Publish → stop/finish** by construction.
+The **recording window is Publish → stop/finish** by construction; the recording-start
+timestamp travels with the upload so VODs can be aligned at playback (see Design decisions).
 
 ### The supervisor (`ffmpeg::supervise`)
 

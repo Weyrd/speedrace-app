@@ -50,6 +50,14 @@ pub fn lobby_forfeit_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/forfeit")
 }
 
+pub fn lobby_vod_complete_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/vod-complete")
+}
+
+pub fn lobby_request_upload_ticket_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/request-upload-ticket")
+}
+
 pub fn split_resource_path(category_split_id: &str) -> String {
     format!("/api/v1/split-resources/{category_split_id}")
 }

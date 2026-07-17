@@ -179,6 +179,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
 
+    case ActionType.UploadStatus: {
+      if (state.phase !== Phase.Finished) return state;
+      return { ...state, upload: action.status };
+    }
+
     case ActionType.NewRace: {
       if (state.phase !== Phase.Finished) return state;
       return {

@@ -37,9 +37,6 @@ function codeToKey(code: string): string | null {
   return map[code] ?? null;
 }
 
-// The OS global-shortcut layer matches letters by character (virtual key), not by
-// physical position, so we capture the produced char — otherwise AZERTY/non-US
-// layouts register a different physical key than the one shown (e.g. A vs Q).
 function eventToKey(e: KeyboardEvent): string | null {
   if (/^[a-z]$/i.test(e.key)) return e.key.toUpperCase();
   if (/^[0-9]$/.test(e.key)) return e.key;

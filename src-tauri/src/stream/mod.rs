@@ -42,7 +42,7 @@ pub async fn start(
     state: &SharedState,
     live_tx: Option<tokio::sync::oneshot::Sender<()>>,
 ) -> Result<Option<PathBuf>, String> {
-    let (whip_url, session_source, race_type, game_name) = {
+    let (whip_url, session_source, race_type, game_name, category_name, username) = {
         let guard = state.lock().map_err(|e| e.to_string())?;
         if guard.app_state != AppState::StreamSetup {
             return Err("stream can only start from StreamSetup".into());
@@ -59,12 +59,20 @@ pub async fn start(
             guard.capture_source.clone(),
             lobby.race_type,
             lobby.game_name.clone(),
+            lobby.category_name.clone(),
+            guard.user.as_ref().map(|u| u.username.clone()),
         )
     };
     let settings = load_settings(app, session_source);
 
     let ffmpeg_path = ffmpeg::resolve_ffmpeg_path()?;
-    let replay_base = resolve_replay_base(app, race_type, &game_name);
+    let replay_base = resolve_replay_base(
+        app,
+        race_type,
+        &game_name,
+        &category_name,
+        username.as_deref(),
+    );
     let replay_out = replay_base.clone();
 
     let (stop_tx, stop_rx) = watch::channel(false);
@@ -92,6 +100,7 @@ pub async fn start(
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.stream = Some(StreamSession { stop_tx, join });
+        guard.replay_base = replay_out.clone();
     }
 
     emit_status(app, StreamState::Connecting, None);
@@ -135,6 +144,10 @@ async fn publish_fail(
     shutdown(app, state, true).await;
     if let Some(p) = replay {
         let _ = std::fs::remove_file(&p);
+        if let Ok(mut g) = state.lock() {
+            g.replay_base = None;
+            g.replay_started_at_ms = None;
+        }
     }
     let _ = preview::start(app, state).await;
     mlog!(LogCat::Stream, "[publish] failed: {msg}");
@@ -146,11 +159,20 @@ pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
     preview::stop(state).await;
     let session = {
         match state.lock() {
-            Ok(mut g) => g.stream.take(),
+            Ok(mut g) => {
+                let s = g.stream.take();
+                if s.is_some() {
+                    g.stream_finalizing = true;
+                }
+                s
+            }
             Err(_) => return,
         }
     };
-    let Some(session) = session else { return };
+    let Some(session) = session else {
+        await_finalized(state).await;
+        return;
+    };
 
     let _ = session.stop_tx.send(true);
 
@@ -159,11 +181,24 @@ pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
     } else {
         session.join.abort();
     }
+    if let Ok(mut g) = state.lock() {
+        g.stream_finalizing = false;
+    }
     mlog!(
         LogCat::Stream,
         "[stream] shutdown complete (graceful={graceful})"
     );
     let _ = app;
+}
+
+async fn await_finalized(state: &SharedState) {
+    for _ in 0..300 {
+        match state.lock() {
+            Ok(g) if g.stream_finalizing => {}
+            _ => return,
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
 }
 
 pub fn shutdown_spawn(app: &AppHandle, state: &SharedState) {
@@ -172,6 +207,10 @@ pub fn shutdown_spawn(app: &AppHandle, state: &SharedState) {
     tauri::async_runtime::spawn(async move {
         shutdown(&app, &state, true).await;
     });
+}
+
+pub(crate) fn ffmpeg_path() -> Result<PathBuf, String> {
+    ffmpeg::resolve_ffmpeg_path()
 }
 
 fn load_settings(app: &AppHandle, session_source: Option<CaptureSource>) -> StreamSettings {
@@ -185,8 +224,36 @@ fn load_settings(app: &AppHandle, session_source: Option<CaptureSource>) -> Stre
     }
 }
 
-// Ranked race have a VOD automatic
-fn resolve_replay_base(app: &AppHandle, race_type: RaceType, game_name: &str) -> Option<PathBuf> {
+fn sanitize(s: &str) -> String {
+    s.chars()
+        .filter(|c| *c != '\'')
+        .map(|c| {
+            if r#"<>:"/\|?*"#.contains(c) || c.is_control() {
+                '-'
+            } else {
+                c
+            }
+        })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+fn title_category(category_name: &[String]) -> Option<String> {
+    match category_name {
+        [] => None,
+        [only] => Some(only.clone()),
+        [.., parent, leaf] => Some(format!("{parent} ({leaf})")),
+    }
+}
+
+fn resolve_replay_base(
+    app: &AppHandle,
+    race_type: RaceType,
+    game_name: &str,
+    category_name: &[String],
+    username: Option<&str>,
+) -> Option<PathBuf> {
     let settings = crate::settings::load_stream_settings(app);
     if race_type != RaceType::Ranked && !settings.replay_casual {
         return None;
@@ -200,12 +267,15 @@ fn resolve_replay_base(app: &AppHandle, race_type: RaceType, game_name: &str) ->
         );
         return None;
     }
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let game: String = game_name
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect();
-    Some(dir.join(format!("speedrace_{game}_{stamp}.mp4")))
+    let stamp = chrono::Local::now().format("%d-%m-%Y %Hh%Mm%Ss");
+
+    let mut parts = vec![sanitize(game_name)];
+    parts.extend(title_category(category_name).map(|c| sanitize(&c)));
+    parts.extend(username.map(sanitize));
+    parts.retain(|p| !p.is_empty());
+    parts.push(stamp.to_string());
+
+    Some(dir.join(format!("speedrace_{}.mp4", parts.join(" - "))))
 }
 
 // Mid-race restarts cant append a ended MP4

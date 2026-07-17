@@ -2,13 +2,15 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::counter::CounterSample;
+use crate::logging::{mlog, LogCat};
 use crate::models::lobby::{PlayerStatus, RaceType};
 use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
 use super::client::{
     authed_get_json, authed_post_body_json_outcome, authed_post_body_void,
-    authed_post_body_void_outcome, authed_post_returning, authed_post_void, PostOutcome,
+    authed_post_body_void_outcome, authed_post_returning, authed_post_void, ApiError, ApiErrorCode,
+    PostOutcome,
 };
 
 // finish/forfeit
@@ -178,6 +180,116 @@ pub async fn post_player_forfeited(
     authed_post_returning(app, &config::lobby_forfeit_path(lobby_id), "forfeited")
         .await
         .ok_or_else(|| "[api] post_player_forfeited failed".to_string())
+}
+
+#[derive(Serialize)]
+struct VodCompleteBody<'a> {
+    upload_ticket: &'a str,
+    video_id: &'a str,
+    // clock of when started the race on the video to align with other player
+    #[serde(skip_serializing_if = "Option::is_none")]
+    video_started_at_ms: Option<i64>,
+}
+
+pub async fn post_vod_complete(
+    app: &AppHandle,
+    lobby_id: &str,
+    upload_ticket: &str,
+    video_id: &str,
+    video_started_at_ms: Option<i64>,
+) -> Result<(), String> {
+    authed_post_body_void(
+        app,
+        &config::lobby_vod_complete_path(lobby_id),
+        &VodCompleteBody {
+            upload_ticket,
+            video_id,
+            video_started_at_ms,
+        },
+        "vod_complete",
+    )
+    .await
+    .ok_or_else(|| "[api] post_vod_complete failed".to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UploadTicketResponse {
+    pub upload_ticket: String,
+    pub resumable_url: String,
+}
+
+pub async fn post_request_upload_ticket(
+    app: &AppHandle,
+    lobby_id: &str,
+) -> Result<UploadTicketResponse, String> {
+    authed_post_returning(
+        app,
+        &config::lobby_request_upload_ticket_path(lobby_id),
+        "request_upload_ticket",
+    )
+    .await
+    .ok_or_else(|| "[api] post_request_upload_ticket failed".to_string())
+}
+
+pub enum ResumeTicket {
+    Ready(UploadTicketResponse),
+    NotOwed,
+    RetryLater,
+}
+
+fn not_owed(code: &ApiErrorCode) -> bool {
+    matches!(
+        code,
+        ApiErrorCode::UploadNotEligible
+            | ApiErrorCode::RaceHistoryNotFound
+            | ApiErrorCode::LobbyNotFound
+            | ApiErrorCode::PlayerNotInLobby
+    )
+}
+
+pub async fn request_upload_ticket_for_resume(app: &AppHandle, lobby_id: &str) -> ResumeTicket {
+    let Some(authed) = crate::api::client::ApiClient::new(app).authenticated() else {
+        return ResumeTicket::RetryLater;
+    };
+    let resp = match authed
+        .post(&config::lobby_request_upload_ticket_path(lobby_id))
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            mlog!(LogCat::Api, "[resume_upload] fetch error: {e}");
+            return ResumeTicket::RetryLater;
+        }
+    };
+
+    if resp.status().is_success() {
+        return match resp
+            .json::<crate::api::client::ApiResponse<UploadTicketResponse>>()
+            .await
+        {
+            Ok(b) => ResumeTicket::Ready(b.data),
+            Err(e) => {
+                mlog!(LogCat::Api, "[resume_upload] parse error: {e}");
+                ResumeTicket::RetryLater
+            }
+        };
+    }
+
+    let status = resp.status();
+    let not_owed = resp
+        .json::<ApiError>()
+        .await
+        .is_ok_and(|e| not_owed(&e.error_code));
+    mlog!(
+        LogCat::Api,
+        "[resume_upload] rejected: {status} not_owed={not_owed}"
+    );
+    if not_owed {
+        ResumeTicket::NotOwed
+    } else {
+        ResumeTicket::RetryLater
+    }
 }
 
 #[derive(Serialize)]

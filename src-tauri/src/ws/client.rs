@@ -185,8 +185,6 @@ async fn announce_connection(app: &AppHandle, state: &SharedState) {
 
     let current = fetch_current_lobby(app).await;
     if let Some(lobby_resp) = current {
-        // A done player stays on results (an app crash forfeits instantly) — don't resurrect
-        // them to Racing or restart their autosplitter.
         let player_done = matches!(
             lobby_resp.player_status,
             PlayerStatus::Finished | PlayerStatus::Forfeited

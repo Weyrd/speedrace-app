@@ -113,6 +113,18 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
         crate::ws::handler::init_lobby_resources(&app, &shared_state, lobby);
         let _ = app.emit(WS_LOBBY_SETUP, lobby);
         crate::stream::preview::ensure_for_phase(&app, &shared_state);
+    } else if let Some(pending) = crate::settings::load_pending_upload(&app) {
+        // Not racing -> resume a VOD still owed from a previous session
+        mlog!(
+            LogCat::Lifecycle,
+            "[startup] pending upload found for lobby {}",
+            pending.lobby_id
+        );
+        let app_clone = app.clone();
+        let state_clone = shared_state.clone();
+        tauri::async_runtime::spawn(async move {
+            crate::upload::resume_pending(app_clone, state_clone, pending).await;
+        });
     }
 
     start_background_loops(&app, &shared_state);

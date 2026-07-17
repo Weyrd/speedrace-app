@@ -65,7 +65,7 @@ export function LobbyHeader({
           )}
           {autosplit?.splits_match === false && (
             <Tooltip
-              content="LiveSplit splits differ from the race's — splits won't be recorded"
+              content="LiveSplit splits differ from the race's, splits won't be recorded" // todo i18n
               side="top"
             >
               <TriangleAlert className="w-3.5 h-3.5 text-red" />

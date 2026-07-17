@@ -56,6 +56,8 @@ export function useSetStreamSettings() {
         replay_autodelete:
           patch.replay_autodelete ?? cur?.replay_autodelete ?? true,
         replay_casual: patch.replay_casual ?? cur?.replay_casual ?? false,
+        replay_delete_uploaded:
+          patch.replay_delete_uploaded ?? cur?.replay_delete_uploaded ?? false,
       };
       await setStreamSettings(
         merged.bitrate_kbps,
@@ -63,6 +65,7 @@ export function useSetStreamSettings() {
         merged.replay_dir,
         merged.replay_autodelete,
         merged.replay_casual,
+        merged.replay_delete_uploaded,
       );
       return merged;
     },

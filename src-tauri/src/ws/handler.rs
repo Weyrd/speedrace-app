@@ -65,6 +65,8 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.livesplit_splits_match = None;
                 guard.counter_buffers.clear();
                 guard.pending_splits.clear();
+                guard.replay_base = None;
+                guard.replay_started_at_ms = None;
                 crate::state::reset_run_start(&mut guard);
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
@@ -142,6 +144,31 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             }
             crate::stream::shutdown_spawn(app, state);
             let _ = app.emit(WS_PLAYER_RESULT, payload);
+        }
+
+        ServerMessage::UploadReady(payload) => {
+            mlog!(
+                LogCat::Ws,
+                "[ws] UploadReady: lobby_id={}",
+                payload.lobby_id
+            );
+            crate::upload::spawn(
+                app,
+                state,
+                payload.lobby_id,
+                payload.upload_ticket,
+                payload.resumable_url,
+            );
+        }
+
+        ServerMessage::UploadUnavailable(payload) => {
+            mlog!(
+                LogCat::Ws,
+                "[ws] UploadUnavailable: lobby_id={} reason={:?}",
+                payload.lobby_id,
+                payload.reason
+            );
+            crate::upload::emit_unavailable(app, state, &payload.lobby_id, payload.reason);
         }
 
         ServerMessage::EarlyStartWarning { active } => {

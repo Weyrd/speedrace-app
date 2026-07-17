@@ -128,6 +128,11 @@ pub async fn supervise(
                 return;
             }
         };
+        if segment == 0 && replay.is_some() {
+            if let Ok(mut g) = state.lock() {
+                g.replay_started_at_ms = Some(crate::autosplit::now_epoch_ms() + g.clock_offset_ms);
+            }
+        }
 
         let (outcome, went_live) = run_child(&app, child, &mut stop_rx, &mut live_tx).await;
         audio.shutdown().await;
