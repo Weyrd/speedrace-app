@@ -14,6 +14,11 @@ dist
 dist-ssr
 *.local
 
+# Build-time config — CI supplies these from repo secrets/variables (see .env.example)
+.env
+.env.*
+!.env.example
+
 # ffmpeg sidecar fetched by src-tauri/scripts/get-ffmpeg.ps1
 src-tauri/binaries/
 

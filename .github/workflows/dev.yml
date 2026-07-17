@@ -117,7 +117,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_URL: ${{ secrets.BACKEND_URL_DEV }}
           DEEP_LINK_SCHEME: "speedrace-dev"
-          WEB_BASE_URL: ${{ vars.WEB_BASE_URL_DEV }}
+          WEB_BASE_URL: ${{ secrets.WEB_BASE_URL_DEV }}
           WS_DEBUG: "true"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
