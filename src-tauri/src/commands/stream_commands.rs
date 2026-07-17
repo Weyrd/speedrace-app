@@ -55,6 +55,7 @@ pub struct StreamSettingsDto {
     pub replay_dir: String,
     pub replay_autodelete: bool,
     pub replay_casual: bool,
+    pub replay_delete_uploaded: bool,
 }
 
 #[tauri::command]
@@ -66,6 +67,7 @@ pub fn get_stream_settings(app: AppHandle) -> StreamSettingsDto {
         replay_dir: s.replay_dir,
         replay_autodelete: s.replay_autodelete,
         replay_casual: s.replay_casual,
+        replay_delete_uploaded: s.replay_delete_uploaded,
     }
 }
 
@@ -76,6 +78,7 @@ pub fn set_stream_settings(
     replay_dir: String,
     replay_autodelete: bool,
     replay_casual: bool,
+    replay_delete_uploaded: bool,
     app: AppHandle,
 ) -> Result<(), String> {
     let monitor_index = crate::settings::load_stream_settings(&app).monitor_index;
@@ -88,6 +91,7 @@ pub fn set_stream_settings(
             replay_dir,
             replay_autodelete,
             replay_casual,
+            replay_delete_uploaded,
         },
     )
 }

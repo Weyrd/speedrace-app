@@ -67,6 +67,7 @@ export async function setStreamSettings(
   replayDir: string,
   replayAutodelete: boolean,
   replayCasual: boolean,
+  replayDeleteUploaded: boolean,
 ): Promise<void> {
   return invoke("set_stream_settings", {
     bitrateKbps,
@@ -74,6 +75,7 @@ export async function setStreamSettings(
     replayDir,
     replayAutodelete,
     replayCasual,
+    replayDeleteUploaded,
   });
 }
 
@@ -114,6 +116,14 @@ export async function sendPlayerForfeited(lobbyId: string): Promise<void> {
 
 export async function acknowledgeResults(): Promise<void> {
   return invoke("acknowledge_results");
+}
+
+export async function abandonUpload(): Promise<void> {
+  return invoke("abandon_upload");
+}
+
+export async function retryUpload(): Promise<void> {
+  return invoke("retry_upload");
 }
 
 export async function getFinishHotkey(): Promise<string> {

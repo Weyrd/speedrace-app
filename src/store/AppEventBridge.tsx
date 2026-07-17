@@ -25,6 +25,7 @@ import {
   onAutosplitProbe,
   onSplitLoaded,
   onSplitFired,
+  onUploadStatus,
 } from "../lib/listeners";
 
 export function AppEventBridge(): null {
@@ -106,6 +107,10 @@ export function AppEventBridge(): null {
 
       onSplitLoaded(() => {
         void qc.invalidateQueries({ queryKey: ["split-segments"] });
+      }),
+
+      onUploadStatus((status) => {
+        dispatch({ type: ActionType.UploadStatus, status });
       }),
 
       onSplitFired((p) => {

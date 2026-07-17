@@ -10,6 +10,8 @@ import {
   sendPlayerFinished,
   sendPlayerForfeited,
   acknowledgeResults,
+  abandonUpload,
+  retryUpload,
 } from "../lib/commands";
 import { tryCatch } from "../lib/tryCatch";
 
@@ -22,6 +24,8 @@ export interface Actions {
   forfeit(lobbyId: string): Promise<void>;
   newRace(): Promise<void>;
   retryConnection(): Promise<void>;
+  abandonUpload(): Promise<void>;
+  retryUpload(): Promise<void>;
 }
 
 export function useActions(): Actions {
@@ -77,6 +81,16 @@ export function useActions(): Actions {
       async retryConnection() {
         const { error } = await tryCatch(retryConnection());
         if (error) console.error("[ws] retry_connection error", error);
+      },
+
+      async abandonUpload() {
+        const { error } = await tryCatch(abandonUpload());
+        if (error) console.error("[upload] abandon_upload error", error);
+      },
+
+      async retryUpload() {
+        const { error } = await tryCatch(retryUpload());
+        if (error) console.error("[upload] retry_upload error", error);
       },
     }),
     [dispatch],
