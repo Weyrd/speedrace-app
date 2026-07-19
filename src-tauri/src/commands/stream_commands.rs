@@ -53,6 +53,7 @@ pub struct StreamSettingsDto {
     pub bitrate_kbps: u32,
     pub framerate: u32,
     pub resolution: u32,
+    pub encoder: String,
     pub replay_dir: String,
     pub replay_autodelete: bool,
     pub replay_casual: bool,
@@ -66,6 +67,7 @@ pub fn get_stream_settings(app: AppHandle) -> StreamSettingsDto {
         bitrate_kbps: s.bitrate_kbps,
         framerate: s.framerate,
         resolution: s.resolution,
+        encoder: s.encoder,
         replay_dir: s.replay_dir,
         replay_autodelete: s.replay_autodelete,
         replay_casual: s.replay_casual,
@@ -78,6 +80,7 @@ pub fn set_stream_settings(
     bitrate_kbps: u32,
     framerate: u32,
     resolution: u32,
+    encoder: String,
     replay_dir: String,
     replay_autodelete: bool,
     replay_casual: bool,
@@ -92,12 +95,23 @@ pub fn set_stream_settings(
             bitrate_kbps,
             framerate,
             resolution,
+            encoder,
             replay_dir,
             replay_autodelete,
             replay_casual,
             replay_delete_uploaded,
         },
     )
+}
+
+#[tauri::command]
+pub async fn get_detected_encoder() -> String {
+    if stream::encoder::detected().is_none() {
+        stream::encoder::warm(true).await;
+    }
+    stream::encoder::detected()
+        .map(|e| e.name().to_string())
+        .unwrap_or_default()
 }
 
 #[tauri::command]

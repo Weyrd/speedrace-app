@@ -47,6 +47,8 @@ pub struct LobbyStartMsg {
     pub expires_at: i64,
     #[serde(default)]
     pub start_delay_ms: u64,
+    #[serde(default)]
+    pub countdown_start_at: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

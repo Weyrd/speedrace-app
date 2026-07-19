@@ -48,6 +48,12 @@ tauri-plugin-global-shortcut = "2"
 livesplit-core = "0.13.0"
 livesplit-auto-splitting = { git = "https://github.com/LiveSplit/livesplit-core", branch = "master" }
 
+[profile.dev]
+debug = 1
+
+[profile.dev.package."*"]
+debug = false
+
 [target.'cfg(windows)'.dependencies]
 # cpal stays windows-only: pulling it on Linux CI demands ALSA dev libs for code that's #[cfg(windows)] anyway
 cpal = "0.18"

@@ -7,6 +7,7 @@ import type {
   WindowInfo,
   StreamSettings,
   CaptureSource,
+  EncoderPref,
 } from "../types";
 
 import type { Phase } from "../store/types";
@@ -65,6 +66,7 @@ export async function setStreamSettings(
   bitrateKbps: number,
   framerate: number,
   resolution: number,
+  encoder: EncoderPref,
   replayDir: string,
   replayAutodelete: boolean,
   replayCasual: boolean,
@@ -74,11 +76,16 @@ export async function setStreamSettings(
     bitrateKbps,
     framerate,
     resolution,
+    encoder,
     replayDir,
     replayAutodelete,
     replayCasual,
     replayDeleteUploaded,
   });
+}
+
+export async function getDetectedEncoder(): Promise<EncoderPref> {
+  return invoke<EncoderPref>("get_detected_encoder");
 }
 
 export async function getCaptureSource(): Promise<CaptureSource> {
