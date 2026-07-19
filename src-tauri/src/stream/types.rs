@@ -33,6 +33,7 @@ pub struct StreamSettings {
     pub source: CaptureSource,
     pub bitrate_kbps: u32,
     pub framerate: u32,
+    pub resolution: u32,
 }
 
 pub struct LaunchSpec {
