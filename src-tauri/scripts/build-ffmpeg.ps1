@@ -125,23 +125,29 @@ $FfmpegOptions = @"
 --enable-encoder=aac
 --enable-encoder=mjpeg
 
-# Decoders (the app never decodes h264/aac; inputs are raw pipes). The lavfi indev
-# wraps its outputs: ddagrab frames arrive as wrapped_avframe, anullsrc as pcm_u8.
+# Decoders. Capture inputs are raw pipes, but replay assembly re-encodes the head
+# segment to trim it to the countdown, so h264/aac decode is required.
 --enable-decoder=rawvideo
 --enable-decoder=pcm_f32le
 --enable-decoder=wrapped_avframe
 --enable-decoder=pcm_u8
+--enable-decoder=h264
+--enable-decoder=aac
 
-# Muxers
+# Muxers (segment = the replay branch; it also pulls in stream_segment/ssegment)
 --enable-muxer=whip
 --enable-muxer=mp4
 --enable-muxer=mpjpeg
 --enable-muxer=mjpeg
+--enable-muxer=segment
 
-# Input: lavfi indev (ddagrab/anullsrc via -f lavfi) + raw pipes
+# Input: lavfi indev (ddagrab/anullsrc via -f lavfi) + raw pipes.
+# concat+mov read the replay segments back to assemble the VOD.
 --enable-indev=lavfi
 --enable-demuxer=rawvideo
 --enable-demuxer=pcm_f32le
+--enable-demuxer=concat
+--enable-demuxer=mov
 
 # Parsers
 --enable-parser=h264
@@ -168,6 +174,7 @@ $FfmpegOptions = @"
 --enable-filter=scale
 --enable-filter=aresample
 --enable-filter=anullsrc
+--enable-filter=color
 --enable-filter=split
 --enable-filter=asplit
 --enable-filter=null

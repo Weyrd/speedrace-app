@@ -1,14 +1,17 @@
-// ffmpeg streaming sidecar (Windows-only)
-
 mod audio;
+pub mod encoder;
 mod ffmpeg;
 mod monitors;
 mod pipeline;
 pub mod preview;
+pub(crate) mod replay;
 mod thumbs;
 mod types;
 pub(crate) mod wgc;
 mod window_list;
+
+pub(crate) use ffmpeg::{ffmpeg_command, NULL_SINK};
+pub(crate) use pipeline::replay_encoder_args;
 
 pub use monitors::*;
 pub use thumbs::*;
@@ -75,6 +78,10 @@ pub async fn start(
     );
     let replay_out = replay_base.clone();
 
+    let pref = Encoder::parse(&crate::settings::load_stream_settings(app).encoder);
+    let encoder = encoder::select(pref, replay_base.is_some()).await;
+    mlog!(LogCat::Stream, "[stream] encoder: {}", encoder.name());
+
     let (stop_tx, stop_rx) = watch::channel(false);
     let app_c = app.clone();
     let state_c = state.clone();
@@ -90,6 +97,7 @@ pub async fn start(
                 whip_url: whip,
                 settings,
                 replay_base,
+                encoder,
             },
             stop_rx,
             live_tx,
@@ -144,9 +152,12 @@ async fn publish_fail(
     shutdown(app, state, true).await;
     if let Some(p) = replay {
         let _ = std::fs::remove_file(&p);
+        if let Some(a) = replay::ReplayArtifacts::open(&p) {
+            a.discard();
+        }
         if let Ok(mut g) = state.lock() {
             g.replay_base = None;
-            g.replay_started_at_ms = None;
+            g.countdown_start_at_ms = None;
         }
     }
     let _ = preview::start(app, state).await;
@@ -279,17 +290,30 @@ fn resolve_replay_base(
     Some(dir.join(format!("speedrace_{}.mp4", parts.join(" - "))))
 }
 
-// Mid-race restarts cant append a ended MP4
-pub(crate) fn segment_path(base: &std::path::Path, attempt: u32) -> PathBuf {
-    if attempt == 0 {
-        return base.to_path_buf();
+pub(crate) const SEGMENT_SECS: u32 = 5;
+
+#[derive(Clone)]
+pub(crate) struct ReplayRun {
+    pub dir: PathBuf,
+    pub pattern: PathBuf,
+    pub list: PathBuf,
+}
+
+pub(crate) fn replay_run(base: &std::path::Path, run: u32) -> Option<ReplayRun> {
+    let dir = replay::parts_dir(base)?;
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        mlog!(
+            LogCat::Stream,
+            "[replay] cannot create {}: {e}",
+            dir.display()
+        );
+        return None;
     }
-    let stem = base.file_stem().map(|s| s.to_string_lossy().into_owned());
-    let ext = base.extension().map(|s| s.to_string_lossy().into_owned());
-    match (base.parent(), stem, ext) {
-        (Some(dir), Some(stem), Some(ext)) => dir.join(format!("{stem}_pt{}.{ext}", attempt + 1)),
-        _ => base.to_path_buf(),
-    }
+    Some(ReplayRun {
+        pattern: dir.join(replay::segment_pattern(run)),
+        list: dir.join(replay::list_name(run)),
+        dir,
+    })
 }
 
 pub fn sweep_old_replays(app: &AppHandle) {
@@ -306,7 +330,8 @@ pub fn sweep_old_replays(app: &AppHandle) {
     };
     for e in entries.flatten() {
         let p = e.path();
-        if p.extension().and_then(|x| x.to_str()) != Some("mp4") {
+        let is_parts_dir = replay::is_parts_dir(&p);
+        if !is_parts_dir && p.extension().and_then(|x| x.to_str()) != Some("mp4") {
             continue;
         }
         let expired = e
@@ -316,7 +341,12 @@ pub fn sweep_old_replays(app: &AppHandle) {
             .map(|mt| mt < cutoff)
             .unwrap_or(false);
         if expired {
-            match std::fs::remove_file(&p) {
+            let removed = if is_parts_dir {
+                std::fs::remove_dir_all(&p)
+            } else {
+                std::fs::remove_file(&p)
+            };
+            match removed {
                 Ok(()) => mlog!(LogCat::Stream, "[replay] auto-deleted {}", p.display()),
                 Err(err) => mlog!(
                     LogCat::Stream,

@@ -4,7 +4,7 @@ The app streams via ffmpeg's native `-f whip` muxer, which requires **ffmpeg 8.x
 DTLS-SRTP backend** (GnuTLS, OpenSSL, or mbedTLS). We ship our own **minimal from-source
 build** (~10 MB exe, `--enable-gnutls`, GPLv3) as a Tauri sidecar — hosted as a pinned GitHub
 **prerelease** asset on this repo, downloaded by `get-ffmpeg.ps1`, reproduced by
-`build-ffmpeg.ps1`. Current pin: `ffmpeg-min-1` (git master `8bea614d98`), verified against
+`build-ffmpeg.ps1`. Current pin: `ffmpeg-min-2` (git master `9bc73ba344`), verified against
 MediaMTX live.
 
 > **Do not substitute a Windows SChannel build** (BtbN's default `win64-gpl` is SChannel-only).
@@ -123,23 +123,29 @@ handshake is the real gate), ranked MP4 playable, stop → preview restart.
 
 | Category      | Components                                                       | Purpose                                         |
 | ------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
-| **Encoders**  | libx264, libopus, aac, mjpeg (+ h264_nvenc, h264_amf)            | WHIP + MP4 + preview/thumb JPEG (+ future hw)   |
-| **Decoders**  | rawvideo, pcm_f32le, wrapped_avframe, pcm_u8                     | Raw pipes + lavfi wrapping (never h264)         |
-| **Muxers**    | whip, mp4, mpjpeg, mjpeg                                         | Live + replay + preview stream + one-shot thumb |
-| **Inputs**    | lavfi indev, rawvideo + pcm_f32le demuxers                       | ddagrab/anullsrc via `-f lavfi` + raw pipes     |
-| **Filters**   | ddagrab, hwdownload, format, scale, aresample, anullsrc, (a)split | Capture → scale → dual output                  |
+| **Encoders**  | libx264, libopus, aac, mjpeg (+ h264_nvenc, h264_amf)            | WHIP + MP4 + preview/thumb JPEG + hw encode     |
+| **Decoders**  | rawvideo, pcm_f32le, wrapped_avframe, pcm_u8, h264, aac          | Raw pipes + lavfi wrapping + replay head trim   |
+| **Muxers**    | whip, mp4, mpjpeg, mjpeg, segment                                | Live + segmented replay + preview + thumb       |
+| **Inputs**    | lavfi indev, rawvideo/pcm_f32le/concat/mov demuxers              | Capture + raw pipes + replay assembly           |
+| **Filters**   | ddagrab, hwdownload, format, scale, aresample, anullsrc, color, (a)split | Capture → scale → dual output + gap filler |
 | **Protocols** | file, pipe, http(s), tcp, udp, tls, dtls, srtp, rtp, crypto      | Pipes + WHIP POST + WebRTC transport            |
 | **BSFs**      | h264_mp4toannexb, aac_adtstoasc, extract_extradata               | Payload/container conversion                    |
 | **Hw/TLS**    | d3d11va (ddagrab dep), ffnvcodec + amf headers, GnuTLS           | Capture + future hw encode + DTLS               |
 
-Deliberately absent: gdigrab/dshow (dead since the WGC rework), h264/aac **de**coders,
-qsv/libmfx (deprecated upstream, would need libvpl), dxva2, mov/concat demuxers, UPX.
+Deliberately absent: gdigrab/dshow (dead since the WGC rework), qsv/libmfx (deprecated
+upstream, would need libvpl), dxva2, the `null` muxer, UPX. The h264/aac decoders and the
+mov/concat demuxers **are** present — the replay is written as segments and reassembled at
+upload time, which needs to read them back and re-encode the head.
 
-Licensing: `--enable-gpl --enable-version3` + GnuTLS is redistributable as GPLv3 —
-`--enable-nonfree` is never allowed (it would make the binary legally non-redistributable),
-and the suite's GPL license choice disables OpenSSL anyway. HW encoder headers are build-time
-only; at runtime NVENC/AMF use the user's GPU driver, and the app currently only invokes
-libx264 anyway.
+Licensing: `--enable-gpl` + GnuTLS, `--enable-nonfree` is never allowed (it would make the
+binary legally non-redistributable), and the suite's GPL license choice disables OpenSSL anyway.
+HW encoder headers are build-time only; at runtime NVENC/AMF use the user's GPU driver.
+
+> **Known discrepancy.** `build-ffmpeg.ps1` asks for `--enable-version3`, but the suite does not
+> pass it through — shipped binaries report `--enable-gpl` alone (true of `min-1` and `min-2`).
+> `min-1`'s release notes nevertheless claimed GPLv3. Since GnuTLS pulls in gmp (LGPLv3), whether
+> the build *should* be version3 needs a decision; until then release notes must describe what
+> `-buildconf` actually reports, not what the script requests.
 
 ## Fallback: Gyan prebuilt full build
 

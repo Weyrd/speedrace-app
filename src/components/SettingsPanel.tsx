@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActions } from "../store";
+import { EncoderPref, ENCODER_CHOICES } from "../types";
 import { getSoundVolume, setSoundVolume, playSound, Sound } from "../lib/sound";
 import {
   useFinishHotkey,
@@ -22,6 +23,7 @@ import {
 import {
   useStreamSettings,
   useSetStreamSettings,
+  useDetectedEncoder,
 } from "../hooks/useStreamSettings";
 import {
   eventToAccelerator,
@@ -41,6 +43,13 @@ const QUALITY_PRESETS = {
 } as const;
 
 const REPLAY_AUDIO_KBPS = 160;
+
+const ENCODER_LABELS: Record<EncoderPref, string> = {
+  [EncoderPref.Auto]: "Auto",
+  [EncoderPref.Nvenc]: "NVIDIA (NVENC)",
+  [EncoderPref.Amf]: "AMD (AMF)",
+  [EncoderPref.X264]: "CPU (x264)",
+};
 
 // x264 targets the bitrate, so only bitrate moves the file size
 function gbPerHour(bitrateKbps: number): string {
@@ -67,6 +76,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const bitrate = streamSettings?.bitrate_kbps ?? 2000;
   const resolution = streamSettings?.resolution === 1080 ? 1080 : 720;
   const preset = QUALITY_PRESETS[resolution];
+  const encoder = streamSettings?.encoder ?? EncoderPref.Auto;
+  const { data: detected } = useDetectedEncoder();
   const replayDir = streamSettings?.replay_dir ?? "";
   const replayAutodelete = streamSettings?.replay_autodelete ?? true;
   const replayCasual = streamSettings?.replay_casual ?? false;
@@ -314,6 +325,29 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           </p>
           <p className="text-2xs font-mono text-dim leading-relaxed">
             {t("stream_quality_note")}
+          </p>
+          <label className="flex flex-col gap-1 mt-1">
+            <span className="text-2xs font-mono text-dim">
+              {t("encoder_label")}
+            </span>
+            <select
+              value={encoder}
+              onChange={(e) =>
+                saveStreamSettings({ encoder: e.target.value as EncoderPref })
+              }
+              className="bg-black border border-border rounded-sm px-2 py-2 text-xs text-text font-mono"
+            >
+              {ENCODER_CHOICES.map((c) => (
+                <option key={c} value={c}>
+                  {c === EncoderPref.Auto ? t("encoder_auto") : ENCODER_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-2xs font-mono text-dim leading-relaxed">
+            {detected
+              ? t("encoder_detected", { encoder: ENCODER_LABELS[detected] })
+              : t("encoder_detecting")}
           </p>
         </div>
 

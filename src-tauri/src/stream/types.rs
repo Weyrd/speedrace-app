@@ -41,6 +41,7 @@ pub struct LaunchSpec {
     pub whip_url: String,
     pub settings: StreamSettings,
     pub replay_base: Option<PathBuf>,
+    pub encoder: Encoder,
 }
 
 pub(crate) enum Outcome {
@@ -72,6 +73,38 @@ pub struct WindowInfo {
     pub hwnd: u64,
     pub title: String,
     pub process_name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Encoder {
+    X264,
+    Nvenc,
+    Amf,
+}
+
+impl Encoder {
+    pub const ALL: [Encoder; 3] = [Encoder::X264, Encoder::Nvenc, Encoder::Amf];
+
+    fn names(self) -> (&'static str, &'static str) {
+        match self {
+            Encoder::X264 => ("libx264", "x264"),
+            Encoder::Nvenc => ("h264_nvenc", "nvenc"),
+            Encoder::Amf => ("h264_amf", "amf"),
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        self.names().0
+    }
+
+    // None is "auto".
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+        Self::ALL.into_iter().find(|e| {
+            let (a, b) = e.names();
+            a == s || b == s
+        })
+    }
 }
 
 pub enum AudioSource {

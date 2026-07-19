@@ -66,7 +66,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.counter_buffers.clear();
                 guard.pending_splits.clear();
                 guard.replay_base = None;
-                guard.replay_started_at_ms = None;
+                guard.countdown_start_at_ms = None;
                 crate::state::reset_run_start(&mut guard);
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
@@ -78,15 +78,23 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             // start_delay_ms = handicap
             let effective_start = payload.race_start_at + payload.start_delay_ms as i64;
             payload.race_start_at = effective_start;
+            if payload.countdown_start_at.is_none() {
+                mlog!(
+                    LogCat::Ws,
+                    "[ws] LobbyStart without countdown_start_at (old back): replay will not be trimmed"
+                );
+            }
             {
                 let mut guard = state.lock().unwrap();
                 guard.app_state = AppState::RaceInProgress;
                 guard.race_start_at = Some(effective_start);
+                guard.countdown_start_at_ms = payload.countdown_start_at;
                 mlog!(
                     LogCat::Ws,
-                    "[ws] LobbyStart: race_start_at={} start_delay_ms={} wasm_cached={}",
+                    "[ws] LobbyStart: race_start_at={} start_delay_ms={} countdown_start_at={:?} wasm_cached={}",
                     effective_start,
                     payload.start_delay_ms,
+                    payload.countdown_start_at,
                     guard.autosplitter_wasm.is_some()
                 );
             }

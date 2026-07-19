@@ -177,10 +177,26 @@ export type CaptureSource =
   | { kind: typeof CaptureSourceKind.Monitor; index: number }
   | { kind: typeof CaptureSourceKind.Window; hwnd: number; title: string };
 
+export const EncoderPref = {
+  Auto: "auto",
+  Nvenc: "h264_nvenc",
+  Amf: "h264_amf",
+  X264: "libx264",
+} as const;
+export type EncoderPref = (typeof EncoderPref)[keyof typeof EncoderPref];
+
+export const ENCODER_CHOICES = [
+  EncoderPref.Auto,
+  EncoderPref.Nvenc,
+  EncoderPref.Amf,
+  EncoderPref.X264,
+] as const;
+
 export interface StreamSettings {
   bitrate_kbps: number;
   framerate: number;
   resolution: number;
+  encoder: EncoderPref;
   replay_dir: string;
   replay_autodelete: boolean;
   replay_casual: boolean;

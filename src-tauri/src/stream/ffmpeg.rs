@@ -1,10 +1,10 @@
 use super::pipeline;
-use super::{audio, emit_status, LaunchSpec, Outcome, StreamState};
+use super::{audio, emit_status, Encoder, LaunchSpec, Outcome, ReplayRun, StreamState};
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::SharedState;
 use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -16,8 +16,8 @@ use tokio::sync::watch;
 const MAX_RESTARTS: u32 = 3;
 const RESTART_DELAY: Duration = Duration::from_secs(5);
 const PROGRESS_STALL: Duration = Duration::from_secs(10);
-// A WHIP handshake that never yields a progress block must not hang forever
 const PRELIVE_TIMEOUT: Duration = Duration::from_secs(20);
+const PRELIVE_TIMEOUT_HW: Duration = Duration::from_secs(8);
 
 pub fn resolve_ffmpeg_path() -> Result<PathBuf, String> {
     let exe_name = if cfg!(windows) {
@@ -62,14 +62,17 @@ pub async fn supervise(
         whip_url,
         settings,
         replay_base,
+        encoder,
     } = spec;
+    let mut encoder = encoder;
+    let mut downgrades: u32 = 0;
     let mut attempt: u32 = 0;
     let mut segment: u32 = 0;
 
     loop {
         let replay = replay_base
             .as_ref()
-            .map(|b| super::segment_path(b, segment));
+            .and_then(|b| super::replay_run(b, segment));
         // window sources
         let wgc = match &settings.source {
             super::CaptureSource::Window { hwnd, .. } => {
@@ -95,8 +98,9 @@ pub async fn supervise(
             &settings,
             &whip_url,
             &audio.source,
-            replay.as_deref(),
+            replay.as_ref(),
             video_pipe.as_ref(),
+            encoder,
         ) {
             Ok(a) => a,
             Err(e) => {
@@ -110,9 +114,10 @@ pub async fn supervise(
                 return;
             }
         };
-        if let Some(p) = replay.as_ref() {
-            mlog!(LogCat::Stream, "[replay] writing {}", p.display());
+        if let Some(r) = replay.as_ref() {
+            mlog!(LogCat::Stream, "[replay] writing {}", r.pattern.display());
         }
+        record_run_encoder(replay.as_ref(), segment, encoder);
         mlog!(LogCat::Stream, "[ffmpeg] spawn: {}", args.join(" "));
 
         let child = match spawn_ffmpeg(&ffmpeg_path, &args) {
@@ -128,13 +133,28 @@ pub async fn supervise(
                 return;
             }
         };
-        if segment == 0 && replay.is_some() {
-            if let Ok(mut g) = state.lock() {
-                g.replay_started_at_ms = Some(crate::autosplit::now_epoch_ms() + g.clock_offset_ms);
-            }
-        }
+        let replay_watch = replay.as_ref().map(|r| {
+            let (tx, rx) = tokio::sync::watch::channel(false);
+            let handle = tauri::async_runtime::spawn(super::replay::supervise_run(
+                state.clone(),
+                r.clone(),
+                segment,
+                rx,
+            ));
+            (tx, handle)
+        });
 
-        let (outcome, went_live) = run_child(&app, child, &mut stop_rx, &mut live_tx).await;
+        let prelive = if encoder == Encoder::X264 {
+            PRELIVE_TIMEOUT
+        } else {
+            PRELIVE_TIMEOUT_HW
+        };
+        let (outcome, went_live, err_tail) =
+            run_child(&app, child, &mut stop_rx, &mut live_tx, prelive).await;
+        if let Some((tx, handle)) = replay_watch {
+            let _ = tx.send(true);
+            let _ = handle.await;
+        }
         audio.shutdown().await;
         if let Some(w) = wgc {
             w.shutdown().await;
@@ -146,6 +166,24 @@ pub async fn supervise(
                 return;
             }
             Outcome::Died => {
+                if !went_live
+                    && encoder != Encoder::X264
+                    && downgrades == 0
+                    && hw_encoder_failed(&err_tail, encoder)
+                {
+                    mlog!(
+                        LogCat::Stream,
+                        "[ffmpeg] {} failed to start, falling back to libx264: {}",
+                        encoder.name(),
+                        err_tail.last().map(String::as_str).unwrap_or("?")
+                    );
+                    super::encoder::poison(encoder);
+                    mark_mixed_encoders(replay.as_ref());
+                    encoder = Encoder::X264;
+                    downgrades += 1;
+                    segment += 1;
+                    continue;
+                }
                 if went_live {
                     attempt = 0;
                 }
@@ -206,6 +244,30 @@ fn clear_session(state: &SharedState) {
     }
 }
 
+fn hw_encoder_failed(tail: &[String], enc: Encoder) -> bool {
+    tail.iter().any(|l| {
+        l.contains(enc.name())
+            || l.contains("No capable devices found")
+            || l.contains("OpenEncodeSessionEx failed")
+            || l.contains("Cannot load nvcuda")
+            || l.contains("Cannot load nvEncodeAPI")
+            || l.contains("amfrt64.dll")
+            || l.contains("AMFCreateContext")
+    })
+}
+
+fn mark_mixed_encoders(replay: Option<&ReplayRun>) {
+    if let Some(r) = replay {
+        let _ = std::fs::File::create(super::replay::mixed_encoders_path(&r.dir));
+    }
+}
+
+fn record_run_encoder(replay: Option<&ReplayRun>, run: u32, enc: Encoder) {
+    if let Some(r) = replay {
+        let _ = std::fs::write(super::replay::encoder_path(&r.dir, run), enc.name());
+    }
+}
+
 async fn wait_or_stop(stop_rx: &mut watch::Receiver<bool>, dur: Duration) -> bool {
     tokio::select! {
         _ = tokio::time::sleep(dur) => false,
@@ -218,32 +280,45 @@ async fn run_child(
     mut child: Child,
     stop_rx: &mut watch::Receiver<bool>,
     live_tx: &mut Option<tokio::sync::oneshot::Sender<()>>,
-) -> (Outcome, bool) {
+    prelive_timeout: Duration,
+) -> (Outcome, bool, Vec<String>) {
     let spawned = Instant::now();
     let mut stdin = child.stdin.take();
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
     let last_err: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+    let mut reader = None;
     if let Some(err) = stderr {
         let tail = last_err.clone();
-        tauri::async_runtime::spawn(async move {
+        reader = Some(tauri::async_runtime::spawn(async move {
             let mut lines = BufReader::new(err).lines();
             while let Ok(Some(l)) = lines.next_line().await {
                 mlog!(LogCat::Stream, "[ffmpeg] {l}");
                 if let Ok(mut t) = tail.lock() {
                     t.push_back(l);
-                    while t.len() > 20 {
+                    while t.len() > 40 {
                         t.pop_front();
                     }
                 }
             }
-        });
+        }));
     }
+
+    let drain = |reader: Option<tauri::async_runtime::JoinHandle<()>>,
+                 last_err: Arc<Mutex<VecDeque<String>>>| async move {
+        if let Some(r) = reader {
+            let _ = tokio::time::timeout(Duration::from_millis(500), r).await;
+        }
+        last_err
+            .lock()
+            .map(|t| t.iter().cloned().collect::<Vec<_>>())
+            .unwrap_or_default()
+    };
 
     let Some(stdout) = stdout else {
         let _ = child.kill().await;
-        return (Outcome::Died, false);
+        return (Outcome::Died, false, drain(reader, last_err).await);
     };
     let mut lines = BufReader::new(stdout).lines();
     let mut went_live = false;
@@ -255,7 +330,7 @@ async fn run_child(
             changed = stop_rx.changed() => {
                 if changed.is_ok() && *stop_rx.borrow() {
                     graceful_stop(&mut child, &mut stdin).await;
-                    return (Outcome::Stopped, went_live);
+                    return (Outcome::Stopped, went_live, drain(reader, last_err).await);
                 }
             }
             line = lines.next_line() => {
@@ -275,7 +350,7 @@ async fn run_child(
                     // stdout closed => ffmpeg exited.
                     Ok(None) | Err(_) => {
                         let _ = child.wait().await;
-                        return (Outcome::Died, went_live);
+                        return (Outcome::Died, went_live, drain(reader, last_err).await);
                     }
                 }
             }
@@ -283,12 +358,12 @@ async fn run_child(
                 if went_live && last_progress.elapsed() > PROGRESS_STALL {
                     mlog!(LogCat::Stream, "[ffmpeg] progress stalled, killing");
                     let _ = child.kill().await;
-                    return (Outcome::Died, went_live);
+                    return (Outcome::Died, went_live, drain(reader, last_err).await);
                 }
-                if !went_live && spawned.elapsed() > PRELIVE_TIMEOUT {
+                if !went_live && spawned.elapsed() > prelive_timeout {
                     mlog!(LogCat::Stream, "[ffmpeg] never went live, killing");
                     let _ = child.kill().await;
-                    return (Outcome::Died, went_live);
+                    return (Outcome::Died, went_live, drain(reader, last_err).await);
                 }
             }
         }
@@ -309,15 +384,25 @@ async fn graceful_stop(child: &mut Child, stdin: &mut Option<tokio::process::Chi
     }
 }
 
-pub(crate) fn spawn_ffmpeg(path: &PathBuf, args: &[String]) -> Result<Child, String> {
+#[cfg(windows)]
+pub(crate) const NULL_SINK: &str = "NUL";
+#[cfg(not(windows))]
+pub(crate) const NULL_SINK: &str = "/dev/null";
+
+pub(crate) fn ffmpeg_command(path: &Path) -> Command {
     let mut cmd = Command::new(path);
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000);
+    cmd
+}
+
+pub(crate) fn spawn_ffmpeg(path: &Path, args: &[String]) -> Result<Child, String> {
+    let mut cmd = ffmpeg_command(path);
     cmd.args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    #[cfg(windows)]
-    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW (tokio Command inherent on Windows)
     let child = cmd.spawn().map_err(|e| e.to_string())?;
     #[cfg(windows)]
     assign_to_job(&child);

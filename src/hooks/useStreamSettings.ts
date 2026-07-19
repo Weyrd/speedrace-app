@@ -4,16 +4,19 @@ import {
   listWindows,
   getStreamSettings,
   setStreamSettings,
+  getDetectedEncoder,
   getCaptureSource,
   setCaptureSource,
   restartPreview,
 } from "../lib/commands";
+import { EncoderPref } from "../types";
 import type { CaptureSource, StreamSettings } from "../types";
 
 export const monitorsKey = ["monitors"] as const;
 export const windowsKey = ["windows"] as const;
 export const streamSettingsKey = ["streamSettings"] as const;
 export const captureSourceKey = ["captureSource"] as const;
+export const detectedEncoderKey = ["detectedEncoder"] as const;
 
 export function useMonitors() {
   return useQuery({ queryKey: monitorsKey, queryFn: listMonitors });
@@ -25,6 +28,14 @@ export function useWindows() {
 
 export function useStreamSettings() {
   return useQuery({ queryKey: streamSettingsKey, queryFn: getStreamSettings });
+}
+
+export function useDetectedEncoder() {
+  return useQuery({
+    queryKey: detectedEncoderKey,
+    queryFn: getDetectedEncoder,
+    refetchInterval: (q) => (q.state.data ? false : 1000),
+  });
 }
 
 export function useCaptureSource() {
@@ -53,6 +64,7 @@ export function useSetStreamSettings() {
         bitrate_kbps: patch.bitrate_kbps ?? cur?.bitrate_kbps ?? 2000,
         framerate: patch.framerate ?? cur?.framerate ?? 60,
         resolution: patch.resolution ?? cur?.resolution ?? 720,
+        encoder: patch.encoder ?? cur?.encoder ?? EncoderPref.Auto,
         replay_dir: patch.replay_dir ?? cur?.replay_dir ?? "",
         replay_autodelete:
           patch.replay_autodelete ?? cur?.replay_autodelete ?? true,
@@ -64,6 +76,7 @@ export function useSetStreamSettings() {
         merged.bitrate_kbps,
         merged.framerate,
         merged.resolution,
+        merged.encoder,
         merged.replay_dir,
         merged.replay_autodelete,
         merged.replay_casual,

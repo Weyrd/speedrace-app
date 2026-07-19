@@ -1,10 +1,110 @@
-use super::{AudioSource, CaptureSource, StreamSettings};
-use std::path::Path;
+use super::{AudioSource, CaptureSource, Encoder, ReplayRun, StreamSettings};
 
 const AUDIO_FILTER: &str = "aresample=async=1:first_pts=0";
 
+fn owned(v: &[&str]) -> Vec<String> {
+    v.iter().map(|s| s.to_string()).collect()
+}
+
+fn live_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
+    let mut a = vec!["-c:v".into(), enc.name().to_string()];
+    a.extend(match enc {
+        Encoder::X264 => owned(&["-preset", "veryfast", "-tune", "zerolatency"]),
+        Encoder::Nvenc => owned(&[
+            "-preset",
+            "p1",
+            "-tune",
+            "ull",
+            "-rc",
+            "cbr",
+            "-zerolatency",
+            "1",
+            "-delay",
+            "0",
+        ]),
+        Encoder::Amf => owned(&[
+            "-usage",
+            "ultralowlatency",
+            "-quality",
+            "speed",
+            "-rc",
+            "cbr",
+        ]),
+    });
+    a.extend(owned(&[
+        "-profile:v",
+        match enc {
+            Encoder::Amf => "constrained_baseline",
+            _ => "baseline",
+        },
+        "-bf",
+        "0",
+    ]));
+    let (maxrate, bufsize) = match enc {
+        Encoder::X264 => (kbps * 5 / 4, kbps * 2),
+        _ => (kbps, kbps),
+    };
+    a.extend(owned(&[
+        "-g",
+        &(2 * fps).to_string(),
+        "-r",
+        &fps.to_string(),
+        "-b:v",
+        &format!("{kbps}k"),
+        "-maxrate",
+        &format!("{maxrate}k"),
+        "-bufsize",
+        &format!("{bufsize}k"),
+    ]));
+    a
+}
+
+pub(crate) fn replay_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
+    let mut a = vec!["-c:v".into(), enc.name().to_string()];
+    a.extend(match enc {
+        Encoder::X264 => owned(&["-preset", "veryfast"]),
+        Encoder::Nvenc => owned(&[
+            "-preset",
+            "p5",
+            "-tune",
+            "hq",
+            "-rc",
+            "vbr",
+            "-maxrate",
+            &format!("{}k", kbps * 5 / 4),
+            "-bufsize",
+            &format!("{}k", kbps * 2),
+        ]),
+        Encoder::Amf => owned(&[
+            "-usage",
+            "transcoding",
+            "-quality",
+            "quality",
+            "-rc",
+            "vbr_peak",
+            "-maxrate",
+            &format!("{}k", kbps * 5 / 4),
+            "-bufsize",
+            &format!("{}k", kbps * 2),
+        ]),
+    });
+    a.extend(owned(&[
+        "-profile:v",
+        "high",
+        "-pix_fmt",
+        "yuv420p",
+        "-g",
+        &(2 * fps).to_string(),
+        "-r",
+        &fps.to_string(),
+        "-b:v",
+        &format!("{kbps}k"),
+    ]));
+    a
+}
+
 fn scale_tail(resolution: u32) -> String {
-    let width = resolution.max(360) * 16 / 9 & !1;
+    let width = (resolution.max(360) * 16 / 9) & !1;
     format!("scale={width}:-2:flags=bilinear,format=yuv420p")
 }
 
@@ -89,8 +189,9 @@ pub fn build_args(
     settings: &StreamSettings,
     whip_url: &str,
     audio: &AudioSource,
-    replay_path: Option<&Path>,
+    replay: Option<&ReplayRun>,
     video_pipe: Option<&VideoPipe>,
+    encoder: Encoder,
 ) -> Result<Vec<String>, String> {
     let fps = settings.framerate.max(1);
     let kbps = settings.bitrate_kbps.max(500);
@@ -139,7 +240,7 @@ pub fn build_args(
         }
     }
 
-    let (vmap, amap) = if replay_path.is_some() {
+    let (vmap, amap) = if replay.is_some() {
         push("-filter_complex");
         push(&format!(
             "[0:v]{vf},split=2[vw][vr];[1:a]{AUDIO_FILTER},asplit=2[aw][ar]"
@@ -154,32 +255,15 @@ pub fn build_args(
     push(vmap);
     push("-map");
     push(amap);
-    if replay_path.is_none() {
+    if replay.is_none() {
         push("-vf");
         push(&vf);
         push("-af");
         push(AUDIO_FILTER);
     }
-    push("-c:v");
-    push("libx264");
-    push("-preset");
-    push("veryfast");
-    push("-tune");
-    push("zerolatency");
-    push("-profile:v");
-    push("baseline");
-    push("-bf");
-    push("0");
-    push("-g");
-    push(&(2 * fps).to_string());
-    push("-r");
-    push(&fps.to_string());
-    push("-b:v");
-    push(&format!("{kbps}k"));
-    push("-maxrate");
-    push(&format!("{}k", kbps * 5 / 4));
-    push("-bufsize");
-    push(&format!("{}k", kbps * 2));
+    for s in live_encoder_args(encoder, fps, kbps) {
+        push(&s);
+    }
     push("-c:a");
     push("libopus");
     push("-b:a");
@@ -195,25 +279,14 @@ pub fn build_args(
     push(whip_url);
 
     // MP4 replay VOD
-    if let Some(path) = replay_path {
+    if let Some(run) = replay {
         push("-map");
         push("[vr]");
         push("-map");
         push("[ar]");
-        push("-c:v");
-        push("libx264");
-        push("-preset");
-        push("veryfast");
-        push("-profile:v");
-        push("high");
-        push("-pix_fmt");
-        push("yuv420p");
-        push("-g");
-        push(&(2 * fps).to_string());
-        push("-r");
-        push(&fps.to_string());
-        push("-b:v");
-        push(&format!("{kbps}k"));
+        for s in replay_encoder_args(encoder, fps, kbps) {
+            push(&s);
+        }
         push("-c:a");
         push("aac");
         push("-b:a");
@@ -222,9 +295,23 @@ pub fn build_args(
         push("48000");
         push("-ac");
         push("2");
-        push("-movflags");
-        push("+frag_keyframe+empty_moov");
-        push(&path.to_string_lossy());
+        push("-f");
+        push("segment");
+        push("-segment_time");
+        push(&super::SEGMENT_SECS.to_string());
+        push("-segment_format");
+        push("mp4");
+        push("-segment_format_options");
+        push("movflags=+frag_keyframe+empty_moov");
+        push("-reset_timestamps");
+        push("1");
+        push("-segment_list");
+        push(&run.list.to_string_lossy());
+        push("-segment_list_type");
+        push("csv");
+        push("-segment_list_flags");
+        push("+live");
+        push(&run.pattern.to_string_lossy());
     }
 
     Ok(a)
