@@ -53,6 +53,7 @@ pub async fn stop_stream(
 pub struct StreamSettingsDto {
     pub bitrate_kbps: u32,
     pub framerate: u32,
+    pub resolution: u32,
     pub replay_dir: String,
     pub replay_autodelete: bool,
     pub replay_casual: bool,
@@ -65,6 +66,7 @@ pub fn get_stream_settings(app: AppHandle) -> StreamSettingsDto {
     StreamSettingsDto {
         bitrate_kbps: s.bitrate_kbps,
         framerate: s.framerate,
+        resolution: s.resolution,
         replay_dir: s.replay_dir,
         replay_autodelete: s.replay_autodelete,
         replay_casual: s.replay_casual,
@@ -76,6 +78,7 @@ pub fn get_stream_settings(app: AppHandle) -> StreamSettingsDto {
 pub fn set_stream_settings(
     bitrate_kbps: u32,
     framerate: u32,
+    resolution: u32,
     replay_dir: String,
     replay_autodelete: bool,
     replay_casual: bool,
@@ -90,6 +93,7 @@ pub fn set_stream_settings(
             monitor_index,
             bitrate_kbps,
             framerate,
+            resolution,
             replay_dir,
             replay_autodelete,
             replay_casual,

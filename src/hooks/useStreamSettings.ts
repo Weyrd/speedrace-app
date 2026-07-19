@@ -52,6 +52,7 @@ export function useSetStreamSettings() {
       const merged: StreamSettings = {
         bitrate_kbps: patch.bitrate_kbps ?? cur?.bitrate_kbps ?? 2000,
         framerate: patch.framerate ?? cur?.framerate ?? 60,
+        resolution: patch.resolution ?? cur?.resolution ?? 720,
         replay_dir: patch.replay_dir ?? cur?.replay_dir ?? "",
         replay_autodelete:
           patch.replay_autodelete ?? cur?.replay_autodelete ?? true,
@@ -62,6 +63,7 @@ export function useSetStreamSettings() {
       await setStreamSettings(
         merged.bitrate_kbps,
         merged.framerate,
+        merged.resolution,
         merged.replay_dir,
         merged.replay_autodelete,
         merged.replay_casual,

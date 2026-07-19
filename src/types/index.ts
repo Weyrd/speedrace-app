@@ -180,6 +180,7 @@ export type CaptureSource =
 export interface StreamSettings {
   bitrate_kbps: number;
   framerate: number;
+  resolution: number;
   replay_dir: string;
   replay_autodelete: boolean;
   replay_casual: boolean;

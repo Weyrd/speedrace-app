@@ -221,6 +221,7 @@ fn load_settings(app: &AppHandle, session_source: Option<CaptureSource>) -> Stre
         }),
         bitrate_kbps: s.bitrate_kbps,
         framerate: s.framerate,
+        resolution: s.resolution,
     }
 }
 

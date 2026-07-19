@@ -64,6 +64,7 @@ export async function getStreamSettings(): Promise<StreamSettings> {
 export async function setStreamSettings(
   bitrateKbps: number,
   framerate: number,
+  resolution: number,
   replayDir: string,
   replayAutodelete: boolean,
   replayCasual: boolean,
@@ -72,6 +73,7 @@ export async function setStreamSettings(
   return invoke("set_stream_settings", {
     bitrateKbps,
     framerate,
+    resolution,
     replayDir,
     replayAutodelete,
     replayCasual,

@@ -8,6 +8,7 @@ const CLOCK_SYNCED_AT_KEY: &str = "clock_synced_at";
 const STREAM_MONITOR_KEY: &str = "stream_monitor_index";
 const STREAM_BITRATE_KEY: &str = "stream_bitrate_kbps";
 const STREAM_FRAMERATE_KEY: &str = "stream_framerate";
+const STREAM_RESOLUTION_KEY: &str = "stream_resolution";
 const STREAM_REPLAY_DIR_KEY: &str = "stream_replay_dir";
 const STREAM_REPLAY_AUTODELETE_KEY: &str = "stream_replay_autodelete";
 const STREAM_REPLAY_CASUAL_KEY: &str = "stream_replay_casual";
@@ -17,6 +18,7 @@ const PENDING_UPLOAD_KEY: &str = "pending_upload";
 pub const DEFAULT_FINISH_HOTKEY: &str = "CmdOrCtrl+Shift+F";
 pub const DEFAULT_STREAM_BITRATE_KBPS: u32 = 2000;
 pub const DEFAULT_STREAM_FRAMERATE: u32 = 60;
+pub const DEFAULT_STREAM_RESOLUTION: u32 = 720;
 pub const DEFAULT_REPLAY_AUTODELETE: bool = true;
 pub const DEFAULT_REPLAY_CASUAL: bool = false;
 pub const DEFAULT_REPLAY_DELETE_UPLOADED: bool = false;
@@ -27,6 +29,7 @@ pub struct StoredStreamSettings {
     pub monitor_index: u32,
     pub bitrate_kbps: u32,
     pub framerate: u32,
+    pub resolution: u32,
     pub replay_dir: String,
     pub replay_autodelete: bool,
     pub replay_casual: bool,
@@ -160,6 +163,7 @@ pub fn load_stream_settings(app: &AppHandle) -> StoredStreamSettings {
         monitor_index: get_u32(STREAM_MONITOR_KEY, 0),
         bitrate_kbps: get_u32(STREAM_BITRATE_KEY, DEFAULT_STREAM_BITRATE_KBPS),
         framerate: get_u32(STREAM_FRAMERATE_KEY, DEFAULT_STREAM_FRAMERATE),
+        resolution: get_u32(STREAM_RESOLUTION_KEY, DEFAULT_STREAM_RESOLUTION),
         replay_dir,
         replay_autodelete,
         replay_casual,
@@ -172,6 +176,7 @@ pub fn save_stream_settings(app: &AppHandle, s: &StoredStreamSettings) -> Result
     store.set(STREAM_MONITOR_KEY, serde_json::Value::from(s.monitor_index));
     store.set(STREAM_BITRATE_KEY, serde_json::Value::from(s.bitrate_kbps));
     store.set(STREAM_FRAMERATE_KEY, serde_json::Value::from(s.framerate));
+    store.set(STREAM_RESOLUTION_KEY, serde_json::Value::from(s.resolution));
     store.set(
         STREAM_REPLAY_DIR_KEY,
         serde_json::Value::from(s.replay_dir.clone()),

@@ -35,6 +35,19 @@ import { openReplayDir, pickReplayDir } from "../lib/commands";
 
 const DEFAULT_FINISH_HOTKEY = "CmdOrCtrl+Shift+F";
 
+const QUALITY_PRESETS = {
+  720: { bitrates: [1500, 2000, 2500], defaultBitrate: 2000 },
+  1080: { bitrates: [3000, 4500, 6000], defaultBitrate: 4500 },
+} as const;
+
+const REPLAY_AUDIO_KBPS = 160;
+
+// x264 targets the bitrate, so only bitrate moves the file size
+function gbPerHour(bitrateKbps: number): string {
+  const bytes = ((bitrateKbps + REPLAY_AUDIO_KBPS) * 1000 * 3600) / 8;
+  return (bytes / 1024 ** 3).toFixed(1);
+}
+
 interface SettingsPanelProps {
   onClose: () => void;
 }
@@ -52,10 +65,22 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { mutate: saveStreamSettings } = useSetStreamSettings();
   const fps = streamSettings?.framerate ?? 60;
   const bitrate = streamSettings?.bitrate_kbps ?? 2000;
+  const resolution = streamSettings?.resolution === 1080 ? 1080 : 720;
+  const preset = QUALITY_PRESETS[resolution];
   const replayDir = streamSettings?.replay_dir ?? "";
   const replayAutodelete = streamSettings?.replay_autodelete ?? true;
   const replayCasual = streamSettings?.replay_casual ?? false;
   const replayDeleteUploaded = streamSettings?.replay_delete_uploaded ?? false;
+
+  const safeBitrate = (preset.bitrates as readonly number[]).includes(bitrate)
+    ? bitrate
+    : preset.defaultBitrate;
+
+  const handleQualityChange = (next: 720 | 1080) =>
+    saveStreamSettings({
+      resolution: next,
+      bitrate_kbps: QUALITY_PRESETS[next].defaultBitrate,
+    });
 
   const handlePickReplayDir = async () => {
     const dir = await pickReplayDir();
@@ -158,7 +183,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex flex-col gap-4 px-5 py-5">
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 px-5 py-5">
         <div className="flex flex-col gap-2">
           <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
             <Keyboard size={14} className="text-dim" />
@@ -230,7 +255,22 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           <p className="text-2xs font-mono text-dim leading-relaxed">
             {t("stream_description")}
           </p>
-          <div className="flex items-center gap-3 mt-1">
+          <label className="flex flex-col gap-1 mt-1">
+            <span className="text-2xs font-mono text-dim">
+              {t("resolution_label")}
+            </span>
+            <select
+              value={resolution}
+              onChange={(e) =>
+                handleQualityChange(Number(e.target.value) as 720 | 1080)
+              }
+              className="bg-black border border-border rounded-sm px-2 py-2 text-xs text-text font-mono"
+            >
+              <option value={720}>720p</option>
+              <option value={1080}>1080p</option>
+            </select>
+          </label>
+          <div className="flex items-center gap-3">
             <label className="flex-1 flex flex-col gap-1">
               <span className="text-2xs font-mono text-dim">
                 {t("framerate_label")}
@@ -238,12 +278,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               <select
                 value={fps}
                 onChange={(e) =>
-                  saveStreamSettings({
-                    bitrate_kbps: bitrate,
-                    framerate: Number(e.target.value),
-                  })
+                  saveStreamSettings({ framerate: Number(e.target.value) })
                 }
-                className="bg-black border border-border rounded px-2 py-2 text-xs text-text font-mono"
+                className="bg-black border border-border rounded-sm px-2 py-2 text-xs text-text font-mono"
               >
                 <option value={30}>30 fps</option>
                 <option value={60}>60 fps</option>
@@ -254,21 +291,30 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
                 {t("bitrate_label")}
               </span>
               <select
-                value={bitrate}
+                value={safeBitrate}
                 onChange={(e) =>
-                  saveStreamSettings({
-                    bitrate_kbps: Number(e.target.value),
-                    framerate: fps,
-                  })
+                  saveStreamSettings({ bitrate_kbps: Number(e.target.value) })
                 }
-                className="bg-black border border-border rounded px-2 py-2 text-xs text-text font-mono"
+                className="bg-black border border-border rounded-sm px-2 py-2 text-xs text-text font-mono"
               >
-                <option value={1500}>1500 kbps</option>
-                <option value={2000}>2000 kbps</option>
-                <option value={2500}>2500 kbps</option>
+                {preset.bitrates.map((kbps) => (
+                  <option key={kbps} value={kbps}>
+                    {kbps} kbps
+                  </option>
+                ))}
               </select>
             </label>
           </div>
+          <p className="text-2xs font-mono text-dim leading-relaxed">
+            {t("stream_size_hint", {
+              resolution,
+              fps,
+              size: gbPerHour(safeBitrate),
+            })}
+          </p>
+          <p className="text-2xs font-mono text-dim leading-relaxed">
+            {t("stream_quality_note")}
+          </p>
         </div>
 
         <div className="flex flex-col gap-2">

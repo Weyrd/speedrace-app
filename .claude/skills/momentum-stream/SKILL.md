@@ -90,7 +90,9 @@ teardown change: **no orphaned `ffmpeg.exe` in Task Manager** after finish/forfe
 - **Commands** (registered in `lib.rs`, wrapped in `lib/commands.ts`):
   `start_stream()` (no args — reads whip_url + settings from state; the webview never handles the
   URL), `stop_stream(lobbyId)`, `list_monitors()`, `get_stream_settings()`,
-  `set_stream_settings(monitorIndex, bitrateKbps, framerate)`, `send_stream_ready(lobbyId)`.
+  `set_stream_settings(bitrateKbps, framerate, resolution, replayDir, replayAutodelete,
+  replayCasual, replayDeleteUploaded)` (positional; monitor index is owned by
+  `set_capture_source` and preserved on save), `send_stream_ready(lobbyId)`.
 - **FSM**: `StreamSetup`/`WaitingForStart`/`RaceInProgress` carry `streamStatus: StreamStatus`
   (not a `MediaStream`). Types in `src/types/index.ts`: `StreamStatus` (const-object enum) and
   `StreamEventState` (the junction that also includes `Stopped`; the event payload uses it).
@@ -124,7 +126,13 @@ If a build predates the field, the frontend derives it: `whip_url.replace(/\/whi
 ## Settings (tauri_plugin_store + TanStack Query)
 
 Keys in `settings.rs`: `stream_monitor_index`, `stream_bitrate_kbps` (=2000),
-`stream_framerate` (=60), same pattern as `finish_hotkey` — **no settings module, no Zustand**.
+`stream_framerate` (=60), `stream_resolution` (=720), same pattern as `finish_hotkey` —
+**no settings module, no Zustand**. `stream_resolution` is the output height the user picks
+(720/1080); `pipeline::scale_tail` turns it into a **width-locked** `scale={h*16/9}:-2` so
+ultrawide sources keep their aspect. It applies to the live WHIP leg *and* the MP4 replay,
+because the `split=2` happens after the scale filter (see `build_args`). The panel couples it
+to bitrate (720p → 1500/2000/2500, 1080p → 3000/4500/6000) and shows a GB/hour estimate —
+only bitrate moves file size, resolution/framerate only affect sharpness.
 The frontend reads/writes via query hooks in `src/hooks/useStreamSettings.ts` (`useMonitors`,
 `useStreamSettings`, `useSetStreamSettings`) — server state goes through TanStack Query, not a
 mount `useEffect`. `StreamSetup` and `SettingsPanel` persist on change via the mutation.

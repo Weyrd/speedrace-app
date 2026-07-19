@@ -1,8 +1,12 @@
 use super::{AudioSource, CaptureSource, StreamSettings};
 use std::path::Path;
 
-const SCALE_TAIL: &str = "scale=1280:-2:flags=bilinear,format=yuv420p";
 const AUDIO_FILTER: &str = "aresample=async=1:first_pts=0";
+
+fn scale_tail(resolution: u32) -> String {
+    let width = resolution.max(360) * 16 / 9 & !1;
+    format!("scale={width}:-2:flags=bilinear,format=yuv420p")
+}
 
 pub const PREVIEW_FPS: u32 = 15;
 const PREVIEW_TAIL: &str = "scale=640:-2:flags=bilinear,format=yuvj420p";
@@ -107,7 +111,7 @@ pub fn build_args(
 
     push_video_input(&mut a, &settings.source, fps, video_pipe)?;
 
-    let vf = video_filter(&settings.source, SCALE_TAIL);
+    let vf = video_filter(&settings.source, &scale_tail(settings.resolution));
     let mut push = |s: &str| a.push(s.to_string());
 
     // Audio input
