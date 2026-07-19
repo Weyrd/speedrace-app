@@ -183,8 +183,6 @@ pub async fn post_player_forfeited(
 struct VodCompleteBody<'a> {
     upload_ticket: &'a str,
     video_id: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    video_started_at_ms: Option<i64>,
 }
 
 pub async fn post_vod_complete(
@@ -192,7 +190,6 @@ pub async fn post_vod_complete(
     lobby_id: &str,
     upload_ticket: &str,
     video_id: &str,
-    video_started_at_ms: Option<i64>,
 ) -> Result<(), String> {
     authed_post_body_void(
         app,
@@ -200,7 +197,6 @@ pub async fn post_vod_complete(
         &VodCompleteBody {
             upload_ticket,
             video_id,
-            video_started_at_ms,
         },
         "vod_complete",
     )

@@ -73,13 +73,58 @@ without re-checking its reason.
   follow-up). Without a replay, the args stay byte-identical to the proven single-output form.
 - **Fragmented MP4** (`+frag_keyframe+empty_moov`): a hard-killed ffmpeg still leaves a playable
   file — no moov repair, no next-launch recovery code.
-- **The replay spans Publish → stop, not just the race.** Trimming to the race would require
-  restarting ffmpeg at the gun (dropping the live WHIP stream) or rewriting the whole file
-  afterwards (`-c copy` remuxes every byte kept — minutes on a 4 h file). Instead the app
-  records the **server-clock epoch of the recording start** (`replay_started_at_ms`, stamped at
-  segment-0 spawn) and sends it as `video_started_at_ms` with `vod-complete`; alignment to the
-  countdown/gun is a playback **seek** computed from that offset, never a cut. A mid-race
-  reconnect necessarily starts a new file (`…_pt{n}.mp4`) — each restart is a new process.
+- **The replay starts at the countdown, not at Publish.** A racer can idle 30 min in a lobby,
+  and recording all of it wasted disk, upload bandwidth and YouTube storage on footage nobody
+  watches. The two obvious fixes were both rejected: restarting ffmpeg at the gun drops the live
+  WHIP stream at the worst possible moment, and rewriting the finished file remuxes every byte
+  kept. The third way is to **segment the replay branch and throw away the pre-countdown
+  segments**, which does neither.
+
+  The replay output is `-f segment` (`SEGMENT_SECS`, keyframe-aligned), writing
+  `r{run}_s{n}.mp4` plus a live CSV index into a sibling `{stem}.parts/` directory —
+  never loose in `replay_dir`, which holds only the finished VOD. `-segment_list_flags +live`
+  is load-bearing: the default `+cache` withholds the index until the run ends, and both the
+  prune and the anchor read it live.
+
+  `stream/replay.rs` watches that index: while the phase is `StreamSetup`/`WaitingForStart` it
+  keeps only the newest couple of closed segments, so a long lobby wait costs nothing on disk.
+  Pruning is gated on **phase, not on the countdown timestamp** — an older back that sends no
+  `countdown_start_at` must degrade to "keep everything untrimmed", and a timestamp gate would
+  instead have pruned straight through the race.
+
+  The back sends `countdown_start_at` per player on `LobbyStart` (handicap already folded in),
+  so the gun is **exactly `countdown_seconds` into every VOD** and no per-video offset needs
+  storing — `video_started_at_ms` was deleted, replaced by `countdown_seconds` on `RaceHistory`.
+
+  Media time is mapped to wall clock by a **min-estimator over segment-close samples**
+  (`min(wall_now − media_end)`): every sample is late by the muxer flush and never early, so the
+  minimum converges on media t=0. Accuracy is **±50-150 ms with a residual late bias**, not
+  frame-exact — `-progress` is deliberately *not* used as the anchor, because with two outputs
+  its clock is a global aggregate that tracks the low-latency WHIP leg, not the replay leg.
+  Frame-exactness would need wall-clock input timestamps, which ddagrab (a lavfi source
+  generating its own PTS) cannot provide.
+
+  Segment lengths **drift**: the muxer cuts at the first keyframe at or after each boundary and
+  x264's scenecut IDRs shift the GOP phase, so a 5 s setting yields e.g. 6.03 / 4.0 / 2.0 s.
+  All trim math must read the real `start_time` from the index — never `n × segment_time`.
+- **A mid-race reconnect opens a new run, not a new file.** Each restart is a new process with a
+  new media t=0, so it gets its own `r{run}` namespace and its own anchor. Assembly orders by
+  run then index. This is also the boundary an encoder downgrade creates, which is why the
+  encoder is recorded per run (`encoder.txt`) and a mixed-encoder assembly re-encodes instead of
+  `-c copy`.
+
+  **The hole between runs is filled with black**, or the gun would stop sitting
+  `countdown_seconds` into the VOD for everything after the reconnect (`RESTART_DELAY` is 5 s,
+  and the supervisor may take several attempts). Each run persists its resolved anchor to
+  `r{run}.anchor.json` when it ends — the value lives only in the watcher task otherwise — and
+  the uploader sizes a `color`+`anullsrc` clip from
+  `anchor_next − (anchor_prev + last_end_prev)`, encoded with that run's own settings so the
+  join stays a stream copy. Gaps over `MAX_FILLER_MS` are left unfilled: that is not a reconnect.
+
+  Because `-c copy` exits 0 on a bad join, a filled assembly is **checked before upload**: the
+  total must match the segment index (with slack that grows per piece — each joined file rounds
+  up ~0.03 s, so a 30 min race drifts ~11 s) and each splice must decode. On failure the VOD is
+  rebuilt without fillers: short by the gap still plays, broken does not.
 - **Preview is video-only.** Audio capture starts at Publish exactly like before; a pre-publish
   level meter wasn't worth wiring cpal early.
 
@@ -150,8 +195,9 @@ spinner — no new FSM state, no event orchestration:
 5. failure → full `stream::shutdown`, delete the never-went-live MP4 stub, restart the preview,
    `Err(msg)`. No `stream-stopped` POST — ready was never set.
 
-The **recording window is Publish → stop/finish** by construction; the recording-start
-timestamp travels with the upload so VODs can be aligned at playback (see Design decisions).
+ffmpeg runs Publish → stop/finish, but the **kept** recording window is countdown → finish:
+segments written before `countdown_start_at` are pruned live and the head segment is trimmed at
+assembly, so the gun always lands `countdown_seconds` into the VOD (see Design decisions).
 
 ### The supervisor (`ffmpeg::supervise`)
 
@@ -173,8 +219,8 @@ including mid-race restarts:
 - **StreamSetup / WaitingForStart** death: POST `stream-stopped` (resets ready flags), set
   `AppState::StreamSetup`, emit `error` — the preview auto-restarts there.
 - **RaceInProgress**: **never POST stream-stopped** — the back forfeits the runner on it. Emit
-  `reconnecting`, auto-restart (3 attempts, 5 s apart; each restart writes a new `…_pt{n}.mp4`
-  segment); on success emit `live`, on exhaustion emit `error`.
+  `reconnecting`, auto-restart (3 attempts, 5 s apart; each restart opens a new replay run,
+  `r{run}_s{n}.mp4`); on success emit `live`, on exhaustion emit `error`.
 - **Back dies mid-race**: nothing to do — `ServerUnavailable`/WS-drop deliberately does _not_
   touch ffmpeg, so a mid-race server restart never kills the stream.
 
@@ -296,11 +342,13 @@ from the back (LobbySetup / lobby-current), with a `whip→whep` string fallback
 Ranked races always record; casual races record behind the `stream_replay_casual` opt-in
 (default off — recording is driven by the lobby's `race_type`, which the back sends in
 LobbySetup; an old back without it defaults to casual, failing safe). `resolve_replay_base`
-decides at publish time; files land in `stream_replay_dir` (default `Videos\Speedrace`) as
-`speedrace_{game}_{stamp}.mp4`, auto-deleted after `REPLAY_RETENTION_DAYS` (7) by a best-effort
+decides at publish time; the finished VOD lands in `stream_replay_dir` (default
+`Videos\Speedrace`) as `speedrace_{game}_{stamp}.mp4`, with the working segments in a sibling
+`{stem}.parts/` directory that is deleted once the upload completes. Both the file and any
+orphaned `.parts/` dir are auto-deleted after `REPLAY_RETENTION_DAYS` (7) by a best-effort
 startup sweep when `stream_replay_autodelete` is on. The `Finished` screen shows "replay saved /
 show in folder" whenever a replay was actually recorded. A publish that never went live deletes
-its stub file.
+its stub file **and** its segment directory.
 
 ## Verification drills
 
@@ -316,15 +364,52 @@ re-run:
 - Window source: preview shows only that window; Publish → web viewer confirms; resize /
   minimize / close mid-stream (close mid-race takes the no-forfeit reconnect branch); relaunch →
   window choice gone, monitor fallback works.
-- Ranked run → one playable 720p MP4; casual (opt-out) → no file; hard-killed ffmpeg → the
-  fragmented MP4 still plays; mid-race reconnect → `…_pt2.mp4`, both playable; disk-full/bad
-  dir → WHIP survives, replay error logged.
+- Ranked run → one playable MP4 starting at the countdown, gun exactly `countdown_seconds` in;
+  casual (opt-out) → no file; hard-killed ffmpeg → the fragmented segments still play; mid-race
+  reconnect → a second run, assembled into one continuous file; disk-full/bad dir → WHIP
+  survives, replay error logged.
+- Idle 5+ min in a lobby before starting → `{stem}.parts/` stays at ~2 segments and total disk
+  stays flat. This is the whole point of the segmenting; if it grows, the prune is broken.
 - Stop/forfeit/finish/lobby-close/logout/app-quit → no orphaned ffmpeg (preview or live) or WGC
   session.
 
+## Hardware encoding (NVENC/AMF)
+
+Three layers, `stream/encoder.rs` + `pipeline.rs` + the `supervise` downgrade edge:
+
+1. **Probe** (`encoder::warm`, kicked off from `preview::ensure_for_phase`): a *real* trial
+   encode — 4 black BGRA frames on stdin, **two encoder legs** through `split=2`, output
+   discarded. `ffmpeg -encoders` is useless here: it lists what was **compiled**, not what this
+   machine can open, and the sidecar ships nvenc+amf unconditionally. Two legs, not one, because
+   a GPU with no free session passes a 1-leg probe and then fails live.
+2. **Preference** `stream_encoder` (`auto|nvenc|amf|x264`, default `auto`). An explicit pick is
+   still probed — a forced-but-broken encoder would otherwise fail at publish.
+3. **Downgrade** (`ffmpeg.rs`, top of the `Outcome::Died` arm): `!went_live` + a stderr tail
+   matching the encoder → relaunch on x264, once. Placed **before** the `phase` branch so it
+   covers pre-race and mid-race with no POST, leaving the never-POST-stream-stopped rule intact.
+   `PRELIVE_TIMEOUT_HW` (8 s, vs 20 s) is what makes the retry fit the 25 s publish budget.
+
+**The two legs are separate hardware sessions** — "encode once + `-c copy`" stays ruled out for
+the reason above (the VOD must not pay the live leg's latency tradeoffs).
+
+### Driver floor
+
+The sidecar carries **nv-codec-headers 13.1**, which refuses to open below **NVIDIA driver
+610.00**. Drivers older than that fail the probe with:
+
+```
+[h264_nvenc] Driver does not support the required nvenc API version. Required: 13.1 Found: 13.0
+[h264_nvenc] The minimum required Nvidia driver for nvenc is 610.00 or newer
+```
+
+That is handled, not broken: the probe catches it and the machine stays on x264. Verified live on
+driver 610.74 / RTX 3080 — `h264_nvenc` opens in the real two-leg `split=2` shape. Racers on
+pre-610 drivers silently get x264, which is exactly the pre-hardware behaviour.
+
+**AMF is untested** for lack of an AMD box; on this NVIDIA machine it fails the probe cleanly
+(`DLL amfrt64.dll failed to open`), which is the negative case working.
+
 ## Future work (aspirational — NOT built)
 
-- **Hardware encoding (NVENC/AMF).** Probe `ffmpeg -encoders` and prefer
-  `h264_nvenc`/`h264_amf` over software x264 — the replay's second encode doubles
-  CPU, which is exactly what a hardware encoder absorbs. Both encoders are already
-  compiled into the bundled sidecar, so this is purely an app-side arg change.
+- **Intel QuickSync (`h264_qsv`).** Not compiled into the sidecar; Intel-only laptops stay on
+  x264. Needs a sidecar rebuild.

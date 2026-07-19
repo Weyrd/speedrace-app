@@ -16,8 +16,18 @@ fn emit(app: &AppHandle, ev: PreviewEvent) {
 }
 
 pub fn ensure_for_phase(app: &AppHandle, state: &SharedState) {
+    let setup = matches!(
+        state.lock().map(|g| g.app_state.clone()),
+        Ok(AppState::StreamSetup)
+    );
     let app = app.clone();
     let state = state.clone();
+    if setup {
+        tauri::async_runtime::spawn(async {
+            super::encoder::warm(true).await;
+            super::encoder::warm(false).await;
+        });
+    }
     tauri::async_runtime::spawn(async move {
         if let Err(e) = start(&app, &state).await {
             mlog!(LogCat::Stream, "[preview] auto-start failed: {e}");
