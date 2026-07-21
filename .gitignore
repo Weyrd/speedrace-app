@@ -19,8 +19,9 @@ dist-ssr
 .env.*
 !.env.example
 
-# ffmpeg sidecar fetched by src-tauri/scripts/get-ffmpeg.ps1
+# binaries fetched by src-tauri/scripts/get-ffmpeg.ps1 + get-game-capture.ps1
 src-tauri/binaries/
+target-gate/
 
 # Editor directories and files
 .vscode/*

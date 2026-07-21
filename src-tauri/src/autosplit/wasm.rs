@@ -1,7 +1,9 @@
 use crate::autosplit::timer::SpeedraceTimer;
 use crate::logging::{mlog, LogCat};
 use crate::state::SharedState;
-use livesplit_auto_splitting::{settings, AutoSplitter, CompiledAutoSplitter, Config, Runtime};
+use livesplit_auto_splitting::{
+    settings, AutoSplitter, CompiledAutoSplitter, Config, Process, Runtime,
+};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -104,8 +106,30 @@ fn instantiate(
 
 enum Tick {
     Trapped,
-    Ran { attached: bool },
+    Ran { attached: bool, pid: Option<u32> },
     Busy,
+}
+
+#[allow(clippy::unnecessary_cast)]
+#[inline]
+fn attached_pid(p: &Process) -> u32 {
+    p.pid() as u32
+}
+
+fn maybe_switch_source(app: &AppHandle, state: &SharedState, pid: Option<u32>) {
+    #[cfg(windows)]
+    {
+        let Some(pid) = pid else { return };
+        let app = app.clone();
+        let state = state.clone();
+        tauri::async_runtime::spawn(async move {
+            crate::stream::auto_select_game_window(&app, &state, pid).await;
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, state, pid);
+    }
 }
 
 async fn supervise(
@@ -143,8 +167,10 @@ async fn supervise(
                 if exec.update().is_err() {
                     Tick::Trapped
                 } else {
+                    let pid = exec.attached_processes().next().map(attached_pid);
                     Tick::Ran {
-                        attached: exec.attached_processes().next().is_some(),
+                        attached: pid.is_some(),
+                        pid,
                     }
                 }
             }
@@ -152,10 +178,13 @@ async fn supervise(
         };
 
         match tick {
-            Tick::Ran { attached } => {
+            Tick::Ran { attached, pid } => {
                 if last_attached != Some(attached) {
                     last_attached = Some(attached);
                     state.lock().unwrap().wasm_attached = attached;
+                    if attached {
+                        maybe_switch_source(&app, &state, pid);
+                    }
                     crate::ws::handler::report_autosplit_state(&app, &state).await;
                 }
                 sleep(tick_rate).await;

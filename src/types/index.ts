@@ -156,6 +156,7 @@ export interface WindowInfo {
   hwnd: number;
   title: string;
   process_name: string;
+  iconic: boolean;
 }
 
 export const CaptureSourceKind = {

@@ -87,6 +87,9 @@ pub struct GlobalState {
 
     pub capture_source: Option<crate::stream::CaptureSource>,
     pub preview: Option<crate::stream::PreviewSession>,
+
+    pub preview_starting: bool, // during injection
+    pub preview_gen: u64,
     pub preview_last_jpeg: Option<Vec<u8>>,
 }
 
@@ -134,6 +137,8 @@ impl GlobalState {
             upload: None,
             capture_source: None,
             preview: None,
+            preview_starting: false,
+            preview_gen: 0,
             preview_last_jpeg: None,
         }
     }

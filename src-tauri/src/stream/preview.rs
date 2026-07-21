@@ -44,32 +44,42 @@ pub async fn start(app: &AppHandle, state: &SharedState) -> Result<(), String> {
 }
 
 async fn start_inner(app: &AppHandle, state: &SharedState) -> Result<(), String> {
-    {
-        let guard = state.lock().map_err(|e| e.to_string())?;
+    let my_gen = {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
         if guard.app_state != AppState::StreamSetup {
             return Ok(());
         }
-        if guard.preview.is_some() {
+        if guard.preview.is_some() || guard.preview_starting {
             return Ok(());
         }
         if guard.stream.is_some() {
             return Err("cannot preview while the stream is live".into());
         }
-    }
+        guard.preview_starting = true;
+        guard.preview_gen
+    };
 
+    let started = start_capture_and_session(app, state, my_gen).await;
+    if started.is_err() {
+        if let Ok(mut g) = state.lock() {
+            g.preview_starting = false;
+        }
+    }
+    started
+}
+
+async fn start_capture_and_session(
+    app: &AppHandle,
+    state: &SharedState,
+    my_gen: u64,
+) -> Result<(), String> {
     let source = super::current_source(app, state);
     let ffmpeg_path = ffmpeg::resolve_ffmpeg_path()?;
-    let wgc = match &source {
-        super::CaptureSource::Window { hwnd, .. } => Some(super::wgc::start_window_capture(
-            *hwnd,
-            pipeline::PREVIEW_FPS,
-        )?),
-        _ => None,
-    };
+    let wgc = super::capture::start_capture_for(&source, pipeline::PREVIEW_FPS).await?;
     let video_pipe = wgc.as_ref().map(|w| pipeline::VideoPipe {
-        path: &w.pipe_name,
-        width: w.width,
-        height: w.height,
+        path: w.pipe_name(),
+        width: w.width(),
+        height: w.height(),
     });
     let args = match pipeline::build_preview_args(&source, video_pipe.as_ref()) {
         Ok(a) => a,
@@ -93,18 +103,25 @@ async fn start_inner(app: &AppHandle, state: &SharedState) -> Result<(), String>
         }
     });
 
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
-    if guard.preview.is_some() {
-        let _ = stop_tx.send(true);
-        return Ok(());
+    {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.preview_starting = false;
+        if guard.preview.is_none() && guard.preview_gen == my_gen {
+            guard.preview = Some(PreviewSession { id, stop_tx, join });
+            return Ok(());
+        }
     }
-    guard.preview = Some(PreviewSession { id, stop_tx, join });
+    let _ = stop_tx.send(true);
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), join).await;
     Ok(())
 }
 
 pub async fn stop(state: &SharedState) {
     let session = match state.lock() {
-        Ok(mut g) => g.preview.take(),
+        Ok(mut g) => {
+            g.preview_gen = g.preview_gen.wrapping_add(1);
+            g.preview.take()
+        }
         Err(_) => return,
     };
     let Some(session) = session else { return };

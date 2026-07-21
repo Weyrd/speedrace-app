@@ -5,6 +5,7 @@ import { ActionType, Phase } from "./types";
 import { AuthState, PlayerStatus, type WsStatus } from "../types";
 import { ensureClockFresh, resyncClock } from "../hooks/useClockOffset";
 import { getAutosplitState } from "../lib/commands";
+import { captureSourceKey } from "../hooks/useStreamSettings";
 import { playSound, primeCountdown, Sound } from "../lib/sound";
 
 const COUNTDOWN_SOUNDS = [
@@ -18,6 +19,7 @@ import {
   onAppState,
   onWsStatus,
   onStreamStatus,
+  onStreamSource,
   onLobbySetup,
   onLobbyClosed,
   onLobbyStart,
@@ -52,6 +54,10 @@ export function AppEventBridge(): null {
           type: ActionType.StreamStatusChanged,
           status: payload.state,
         });
+      }),
+
+      onStreamSource((source) => {
+        qc.setQueryData(captureSourceKey, source);
       }),
 
       onAppState((phase) => {
