@@ -23,16 +23,20 @@ Nothing leaves the machine until the racer presses **Publish**. Inside a lobby:
 
 ```
 ┌ Tauri app (Rust) ──────────────────────────────────────────────────────────┐
-│ preview:  ffmpeg (ddagrab | WGC pipe) ─ mpjpeg → stdout → base64 frames ───┼─▶ webview <img>
+│ preview:  ffmpeg (WGC pipe) ─ mpjpeg → stdout → base64 frames ─────────────┼─▶ webview <img>
 │                                                                             │
 │ live:     cpal WASAPI loopback ──▶ paced writer ──▶ \\.\pipe\speedrace_audio │
-│           WGC thread (window src) ─▶ letterbox ──▶ \\.\pipe\speedrace_video  │
-│           ddagrab (monitor src, in-ffmpeg)          │                       │
+│           WGC session (window OR monitor) ─▶ letterbox ─▶ \\.\pipe\speedrace_video
+│                                                     │                       │
 │                                                     ▼                       │
 │                                    ffmpeg sidecar ──▶ WHIP ─▶ MediaMTX ─▶ WHEP preview
 │                                          └──▶ MP4 VOD (ranked / casual opt-in)
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+All capture (window *and* monitor) runs in Rust via WGC and feeds ffmpeg a constant-rate
+rawvideo pipe; ffmpeg never touches the display itself. `ddagrab` remains only as an in-ffmpeg
+fallback for monitor sources when WGC can't start (see "Capture").
 
 ## Design decisions and why
 
@@ -155,9 +159,12 @@ non-Windows stubs that return an error.
 | `types.rs`                       | **Every data type of the module** (`StreamState`, `CaptureSource`, `StreamSettings`, `LaunchSpec`, sessions, payloads…). Logic files hold no type defs. |
 | `mod.rs`                         | `start`/`publish`/`shutdown`/`shutdown_spawn`, `current_source`, `emit_status`, replay path helpers.                                                    |
 | `preview.rs`                     | Local preview: preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events. `ensure_for_phase` auto-starts it on StreamSetup.               |
-| `pipeline.rs`                    | `build_args` / `build_preview_args` → the exact ffmpeg CLI, branched on `CaptureSource`.                                                                |
+| `pipeline.rs`                    | `build_args` / `build_preview_args` → the exact ffmpeg CLI; pipe-first video input, ddagrab fallback.                                                   |
 | `ffmpeg.rs`                      | `resolve_ffmpeg_path`, spawn (tokio::process), Job Object, the **supervisor** task, graceful stop.                                                      |
-| `wgc.rs`                         | Window capture: WGC session → fixed-size BGRA letterbox → paced rawvideo named pipe.                                                                    |
+| `capture.rs`                     | Capture **router** + window/monitor geometry: `start_capture_for` (windowed→WGC; fullscreen→WGC-probe-then-escalate-to-injection; monitor→WGC/ddagrab), computes each backend's dims. Returns a `CaptureHandle`. |
+| `capture_pipe.rs`                | Shared `new_video_pipe()` + `spawn_paced_writer()` both backends use (one BGRA rawvideo pipe, black until first frame). |
+| `wgc.rs`                         | WGC **backend** only: `start_capture(target, w, h, fps)` → self-healing WGC session → shared paced pipe. |
+| `gamecapture/`                   | OBS-hook injection for exclusive-fullscreen games (incl. emulators): `protocol`(ABI)/`inject`/`offsets`/`session`(handshake)/`frame`(D3D11 shared texture, **normalizes any format → BGRA**)/`capture`(continuous session → shared pipe). Window-only, never the screen. |
 | `monitors.rs` / `window_list.rs` | `list_monitors` (DXGI, same order as ddagrab `output_idx`) / `list_windows` (filtered, non-cloaked).                                                    |
 | `thumbs.rs`                      | Picker thumbnails: monitor one-shot ffmpeg (or the preview's last frame), window WGC one-shots behind a `Semaphore(2)`.                                 |
 | `audio.rs`                       | cpal WASAPI loopback on a dedicated thread + a paced named-pipe writer.                                                                                 |
@@ -201,10 +208,11 @@ assembly, so the gun always lands `countdown_seconds` into the VOD (see Design d
 
 ### The supervisor (`ffmpeg::supervise`)
 
-One task owns audio, the WGC thread (window sources) **and** ffmpeg for the whole session,
-including mid-race restarts:
+One task owns audio, the WGC capture **and** ffmpeg for the whole session, including mid-race
+restarts:
 
-1. (window source) start WGC → video named pipe; start audio → build args → spawn ffmpeg
+1. start WGC capture (`start_capture_for`, re-resolved every attempt — the picked window may
+   have gone fullscreen since) → video named pipe; start audio → build args → spawn ffmpeg
    (Job Object + `kill_on_drop` + `CREATE_NO_WINDOW`).
 2. `run_child` reads ffmpeg's `-progress` on stdout: **first progress block ⇒ live** (emits
    `stream:status live` + fires the publish oneshot). stderr is tailed and logged. No progress
@@ -234,13 +242,16 @@ auth-lost/banned, and app exit. Orphans: a process-lifetime Job Object with
 
 ## ffmpeg pipeline (`pipeline.rs`)
 
-Video input branches on `CaptureSource`:
+Video input is pipe-first:
 
-- **Monitor** → `-f lavfi -i ddagrab=output_idx={n}:framerate={fps}`; the filter is prefixed
+- **WGC pipe (the normal case, window and monitor)** → `-f rawvideo -pix_fmt bgra
+-video_size {W}x{H} -framerate {fps} -i \\.\pipe\speedrace_video_{nonce}` (CPU BGRA).
+- **ddagrab fallback (monitor sources only, when WGC couldn't start)** →
+  `-f lavfi -i ddagrab=output_idx={n}:framerate={fps}`; the filter is prefixed
   `hwdownload,format=bgra,` because ddagrab emits d3d11 _hardware_ frames — feeding them
   straight to a software encoder fails with "Impossible to convert between formats".
-- **Window** → `-f rawvideo -pix_fmt bgra -video_size {W}x{H} -framerate {fps}
--i \\.\pipe\speedrace_video_{nonce}` (CPU BGRA; no hwdownload).
+  ddagrab must never be the primary path: it dies with `DXGI_ERROR_ACCESS_LOST` (887a0026)
+  when a game enters exclusive fullscreen and has no reinit.
 
 Common live tail: `scale=1280:-2:flags=bilinear,format=yuv420p`, x264 veryfast zerolatency
 baseline, `-g 2*fps`, Opus 96k, `-f whip`. With a replay, video/audio fan out through
@@ -253,20 +264,60 @@ pay — AAC 160k, `-movflags +frag_keyframe+empty_moov`).
 overflow the default ~64 KB socket buffer → `EAGAIN` → "Conversion failed". The 4 MB buffer only
 fills during that transient, so it adds no steady-state latency.
 
-### Window capture (`wgc.rs`)
+### Capture (`capture.rs` router → `wgc.rs` / `gamecapture/`)
 
-ffmpeg has no WGC input, so Rust runs the capture (via the `windows-capture` crate) and feeds a
-rawvideo named pipe. Three constraints shape it:
+ffmpeg has no capture input, so Rust captures and feeds a rawvideo named pipe. `capture.rs` is the
+orchestration layer over two peer backends (WGC and injection) and owns window/monitor geometry;
+`wgc.rs` and `gamecapture/` are just backends, and `capture_pipe.rs` is the pipe/writer both share.
+`start_capture_for(source, fps)` (async) routes to the cheapest backend that works — **and never
+reads the screen for a window pick** (hard privacy rule):
+
+- **Window, genuinely windowed** → WGC window capture of that HWND.
+- **Window, fullscreen** (`IsIconic` — SDL/FNA games minimize on focus loss — or the rect covers
+  its monitor) → try WGC first; if a real frame arrives within 1.5 s it's borderless (composited)
+  and WGC is kept. If WGC stays **black** it's true exclusive fullscreen → **escalate to
+  graphics-hook injection** (`gamecapture::start`), which reads the game's own backbuffer
+  window-only. If injection can't deliver (anti-cheat / not rendering) the call **errors → publish
+  is blocked** — we never fall back to the screen.
+- **Monitor{index}** (explicit Fullscreen-tab pick = screen-share consent) → WGC display capture of
+  the matched HMONITOR; on failure returns `None` → in-ffmpeg ddagrab.
+
+Both backends return a `CaptureHandle` (`Wgc | Game`) exposing the same `pipe_name`/`width`/
+`height`/`shutdown`, so `preview.rs` and `ffmpeg.rs` don't know or care which is running.
+
+**Game-capture (`gamecapture/`)** embeds OBS's `win-capture` binaries (vendored by
+`scripts/get-game-capture.ps1`, GPLv2 — see `scripts/README.md`). `protocol.rs` mirrors the OBS
+`hook_info` ABI (size-guarded `== 648`); `inject.rs` loads `graphics-hook{32,64}.dll` (direct
+`LoadLibraryW` remote thread for same-bitness, else `inject-helper` exe — a 64-bit host captures
+32-bit games like Celeste); `offsets.rs` runs `get-graphics-offsets` and parses its INI;
+`session.rs` does the host handshake (keepalive mutex → poll hook objects → write offsets into the
+hook-info mapping → SetEvent init+restart → wait `HookReady`), then opens the shared texture map
+`CaptureHook_Texture_<hwnd>_<map_id>` for `shtex_data.tex_handle`; `frame.rs::SharedTextureReader`
+opens that D3D11 shared texture (legacy `MISC_SHARED`, no keyed mutex — OBS's shtex path) and
+`CopyResource`s it to a CPU-read staging texture each frame, **normalizing whatever format the game
+presents → BGRA** (passthrough for BGRA, R↔B swizzle for RGBA/Dolphin, unpack for 10-bit) so the
+pipe stays fixed BGRA — the conversion is here, not in ffmpeg, because ffmpeg's `-pix_fmt` is locked
+at launch before the game renders; `gamecapture/capture.rs` runs that read loop on a dedicated
+thread into a shared `latest` buffer feeding the shared paced writer/pipe. Teardown drops the
+keepalive mutex only (**never** the hook's global Stop event — it would kill other live sessions) —
+**never touches the game process**. Limits: anti-cheat games block injection (→ blocked publish, by
+design); the game must be rendering for a frame to arrive (a minimized SDL/FNA game presents nothing
+— OBS/Discord freeze too); an unsupported (64-bit float) backbuffer format is rejected → black.
+
+Constraints that shape the WGC implementation:
 
 - `-f rawvideo` demands **one fixed frame size** (a size change alters the per-frame byte count
-  and kills ffmpeg). The size is locked to the window rect at start (rounded even); later frames
-  are **center-cropped/padded** into that target, so a mid-game resize degrades gracefully. The
-  buffer is wiped once per size change to avoid stale borders.
+  and kills ffmpeg). The size is locked at start — window rect (or the monitor size if the
+  window is iconic), monitor rect for displays — rounded even; later frames are
+  **center-cropped/padded** into that target, so a mid-game resize or display mode change
+  degrades gracefully. The buffer is wiped once per size change to avoid stale borders.
 - WGC only delivers frames **on change** — a static menu screen would starve the encoder until
   the stall killer fired. A **paced writer** re-sends the latest frame at constant fps.
-- Window closed ⇒ writer stops ⇒ pipe EOF ⇒ ffmpeg exits ⇒ the normal death branch handles it
-  (mid-race: reconnect attempts; the restart re-resolves the HWND and fails cleanly if the game
-  is gone).
+- WGC sessions can end or stall on display transitions (a game entering exclusive fullscreen).
+  A **session supervisor** task recreates the session whenever it closes or goes stale (>2 s
+  without a frame, session ≥3 s old); the writer keeps pumping the last frame meanwhile, so
+  ffmpeg (and the WHIP/MP4 outputs) never notice. Staleness re-priming on a static screen is
+  harmless. The writer only stops on shutdown (⇒ pipe EOF ⇒ ffmpeg exits ⇒ normal death branch).
 
 ### Audio (`audio.rs`)
 

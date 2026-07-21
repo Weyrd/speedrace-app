@@ -1,43 +1,64 @@
 ---
 name: speedrace-stream
-description: How the speedrace-app racer client captures and publishes its live video — the Rust-owned ffmpeg sidecar that grabs the monitor (ddagrab) + system audio (cpal WASAPI loopback) and publishes to MediaMTX via ffmpeg's native `-f whip` muxer, plus the webview's self-WHEP preview. Read this BEFORE touching anything stream-related in speedrace-app — `src-tauri/src/stream/` (mod/monitors/audio/pipeline/ffmpeg), the `stream:status` event, `start_stream`/`stop_stream`/`list_monitors`/`get`+`set_stream_settings` commands, `StreamSession` in `SharedState`, the `streamStatus` FSM field, `src/stream/whep.ts`, `WhepPreview`, `StreamSetup.tsx`, or `scripts/get-ffmpeg.ps1` — because two invariants are easy to break and both are costly: mid-race you must NEVER POST stream-stopped (the back forfeits the runner), and the whole thing needs an ffmpeg 8.x sidecar with DTLS that must be fetched once after clone or nothing streams. Phase 1 = WHIP live only; MP4 replay and window capture are future phases. The storage/contract half lives in speedrace-back (`services/lobby/.../stream.rs`), the viewer half in speedrace-web (WHEP playback).
+description: How the speedrace-app racer client captures and publishes its live video — Rust captures the picked window/monitor via WGC (`windows-capture`), or injects the OBS graphics hook into exclusive-fullscreen games (`gamecapture/`), feeds one BGRA rawvideo pipe + system audio (cpal WASAPI loopback) to an ffmpeg sidecar that muxes to MediaMTX via `-f whip` and forks a segmented MP4 VOD, plus the webview's self-WHEP preview. Read this BEFORE touching anything stream-related in speedrace-app — `src-tauri/src/stream/` (mod/monitors/audio/pipeline/ffmpeg/wgc/gamecapture/replay/preview), the `stream:status` event, `start_stream`/`stop_stream`/`list_monitors`/`get`+`set_stream_settings`/`set_capture_source` commands, `StreamSession` in `SharedState`, the `streamStatus` FSM field, `src/stream/whep.ts`, `WhepPreview`, `StreamSetup.tsx`, or `scripts/get-ffmpeg.ps1`/`get-game-capture.ps1` — because the invariants are easy to break and costly: mid-race NEVER POST stream-stopped (the back forfeits the runner); a window pick must NEVER fall back to screen capture (privacy); and it needs an ffmpeg 8.x sidecar with a real DTLS backend + the OBS win-capture binaries, both fetched once after clone or nothing streams. The storage/contract half lives in speedrace-back (`services/lobby/.../stream.rs`), the viewer half in speedrace-web (WHEP playback).
 ---
 
 # Speedrace Stream (ffmpeg WHIP + self-WHEP preview)
 
-**Rust owns the stream.** An ffmpeg sidecar spawned by `src-tauri/src/stream/` captures the
-monitor (`ddagrab`) + system audio (cpal WASAPI loopback) and publishes to MediaMTX using
-ffmpeg's native `-f whip` muxer. The webview captures **nothing** anymore — it only plays the
-racer's own stream back via WHEP for the local preview.
+**Rust owns the stream.** Rust captures the picked source and feeds a single fixed-size **BGRA
+rawvideo named pipe** to the ffmpeg sidecar, which muxes video + system audio to MediaMTX via
+`-f whip` and forks a segmented MP4 VOD. Two capture backends fill that pipe (both behind a
+`CaptureHandle` with `pipe_name`/`width`/`height`/`shutdown`, so ffmpeg is agnostic):
+
+- **WGC** (`wgc.rs`, `windows-capture`) — windowed apps, borderless games, and explicit Monitor
+  picks. Fixed-size letterbox, self-healing session supervisor.
+- **Game-capture injection** (`gamecapture/`) — exclusive-fullscreen games (Celeste etc.) that
+  WGC captures as black. Injects OBS's graphics hook, reads the game's own D3D11 backbuffer.
+
+The webview captures **nothing** — it only plays the racer's own stream back via WHEP.
 
 ```
 cpal WASAPI loopback ─▶ paced writer ─▶ \\.\pipe\speedrace_audio_<nonce> ┐
 (system audio, f32le)   (silence-pads)                                  ▼
-ddagrab (monitor, in-ffmpeg) ─────────────────────▶ ffmpeg sidecar ─▶ WHIP ─▶ MediaMTX
-                                                    (-f whip, h264+opus)      │ WHEP
-GlobalState.stream = Some(StreamSession{ stop_tx, join })                     ▼
-                                    webview ◀── WhepClient (recvonly preview) ┘
+WGC (window/monitor)   ─┐                                                │
+ OR OBS-hook injection ─┴▶ latest BGRA ─▶ paced writer ─▶ \\.\pipe\momentum_video_<nonce>
+ (exclusive fullscreen)                            ──▶ ffmpeg sidecar ─▶ WHIP ─▶ MediaMTX
+                                                   (-f whip, h264+opus) ├▶ MP4 VOD (split=2)
+GlobalState.stream = Some(StreamSession{ stop_tx, join })              │ WHEP
+                                    webview ◀── WhepClient (recvonly) ──┘
 ```
 
-Design doc with the full rationale: `docs/SPEC_FFMPEG.md`. This skill is the fast path;
-the doc is the deep dive. Confirm both against the code — this is an actively evolving feature.
+**Capture routing (`wgc.rs::start_capture_for`, async):** windowed window → WGC window capture;
+**fullscreen window → try WGC ~1.5 s, and if it stays black (exclusive fullscreen) escalate to
+`gamecapture::start` injection**; Monitor pick (explicit screen-share consent) → WGC display, or
+`None` → in-ffmpeg `ddagrab` fallback. `ddagrab` is a *monitor-only* net (it dies with
+`DXGI_ERROR_ACCESS_LOST` on a fullscreen mode flip — never the primary path). **A window pick
+must NEVER read the screen** — if injection can't deliver, publish is blocked with an error. (The
+old window→monitor privacy-gate is gone — injection replaced it.)
 
-## Two invariants you must not break
+Design doc with the full rationale: `docs/SPEC_FFMPEG.md`. This skill is the fast path;
+the doc is the deep dive. Confirm both against the code.
+
+## Invariants you must not break
 
 1. **Mid-race, NEVER POST `stream-stopped`.** The back treats a stream-stopped during
    `RaceInProgress` as a forfeit (speedrace-back `services/lobby/lobby_service/stream.rs`). When
    ffmpeg dies mid-race the supervisor emits `reconnecting` and auto-restarts — it does **not**
    tell the back. Only pre-race (StreamSetup/WaitingForStart) is it safe to POST stream-stopped.
-2. **The ffmpeg sidecar must exist and have a *working* DTLS backend.** `-f whip` shipped in
+2. **A window pick is never the screen.** The racer picked a *window*, not their desktop. WGC
+   window capture and game-capture injection are both window-only; the `ddagrab` fallback is
+   reachable **only** from an explicit Monitor pick. A fullscreen game that can't be injected
+   (anti-cheat) blocks publish — it never falls back to screen capture.
+3. **The ffmpeg sidecar must exist and have a *working* DTLS backend.** `-f whip` shipped in
    ffmpeg 8.0, but "has the whip muxer" is not enough — it needs GnuTLS, OpenSSL, or mbedTLS for
-   the DTLS-SRTP handshake. We bundle **Gyan's GPL `full_build` win64** (8.1.x, `--enable-gnutls`).
-   **Do not swap in a Windows SChannel build** (BtbN's default `win64-gpl` is SChannel): it
-   compiles the whip muxer and even lists `dtls` in `-protocols`, but the handshake dies at
-   runtime with `SEC_E_ALGORITHM_MISMATCH (0x80090331)` / "DTLS session failed" — SChannel's
-   DTLS-SRTP doesn't negotiate with MediaMTX. Verify any build with `ffmpeg -buildconf` (expect
-   `--enable-gnutls`/`--enable-openssl`/`--enable-mbedtls`) and `ffmpeg -protocols` (expect both
-   `dtls` and `srtp`). The sidecar is gitignored — **run `src-tauri/scripts/get-ffmpeg.ps1` once
-   after clone** or `start_stream` fails with "ffmpeg sidecar not found". See "Dev prep" below.
+   the DTLS-SRTP handshake. We ship our own **minimal from-source build** (`--enable-gnutls`,
+   pinned in `get-ffmpeg.ps1`; Gyan's GPL `full_build` is the fallback). **Do not swap in a
+   Windows SChannel build** (BtbN's default `win64-gpl`): it compiles the whip muxer and lists
+   `dtls` in `-protocols`, but the handshake dies at runtime with `SEC_E_ALGORITHM_MISMATCH
+   (0x80090331)` — SChannel's DTLS-SRTP doesn't negotiate with MediaMTX. Verify any build with
+   `ffmpeg -buildconf` (expect `--enable-gnutls`/`--enable-openssl`/`--enable-mbedtls`) and
+   `ffmpeg -protocols` (expect both `dtls` and `srtp`). Sidecar + OBS binaries are gitignored —
+   **run `get-ffmpeg.ps1` AND `get-game-capture.ps1` once after clone** (see "Dev prep").
 
 ## Rust module map (`src-tauri/src/stream/`)
 
@@ -47,8 +68,13 @@ the doc is the deep dive. Confirm both against the code — this is an actively 
 | `monitors.rs` | `list_monitors` command — DXGI `EnumAdapters1`→`EnumOutputs` on adapter 0, the **same order ddagrab's `output_idx` counts**. Returns structured `MonitorInfo` (no baked English; the frontend composes the label via i18n). |
 | `audio.rs` | cpal WASAPI loopback on a dedicated `!Send` thread + a paced named-pipe writer. Falls back to a silent track if loopback can't init. |
 | `encoder.rs` | Hardware-encoder probe (`warm`/`select`/`poison`/`detected`). A **real** 2-leg trial encode — `ffmpeg -encoders` lists compiled, not usable. **The pinned sidecar's nvenc needs driver 610+ (nv-codec-headers 13.1), verified working on 610.74; below that the probe falls back to x264. AMF untested (no AMD box).** See `docs/SPEC_FFMPEG.md`. |
-| `pipeline.rs` | `build_args(settings, whip_url, audio)` → the exact ffmpeg CLI. `AudioSource::Pipe \| Silent`. Carries `-ts_buffer_size 4194304`: the ~1.3s DTLS handshake backlogs frames that flush at once when the muxer opens, overflowing the default ~64 KB UDP send buffer → `EAGAIN` (`ret=-11`, "UDP send blocked") → the muxer dies. A busy monitor bursts more, which looks like "stream works on one screen, black on another." Don't drop this arg. |
+| `capture.rs` | **Capture router + window/monitor geometry** (the orchestration layer; the two backends are peers). `start_capture_for(source, fps)` (async) → `CaptureHandle`: windowed→WGC window capture; **fullscreen window→ try WGC ~1.5s, and if it stays black (exclusive fullscreen) escalate to `gamecapture::start` injection** — never the screen; Monitor{index}→ WGC display / `None`=ddagrab. Owns `covers_monitor`/`target_size_even`/`monitor_size_even`/`hmonitor_for_index` and computes the dims each backend needs. |
+| `capture_pipe.rs` | Shared plumbing both backends call: `new_video_pipe()` (the `\\.\pipe\momentum_video_*` server) + `spawn_paced_writer()` (drains a fixed-size BGRA `latest` to the pipe at fps, black until the first frame). One implementation — do **not** re-duplicate it per backend. |
+| `wgc.rs` | **WGC backend only** (no routing). `start_capture(target, w, h, fps)` locks a fixed BGRA size, letterboxes, and a **session supervisor** recreates the WGC session on close/stall while the shared writer keeps pumping the last frame. |
+| `gamecapture/` | OBS-hook injection so exclusive-fullscreen games (Celeste, emulators) are captured **window-only**. `protocol.rs` (OBS `hook_info` ABI, `const`-guarded `sizeof==648`), `inject.rs` (direct `LoadLibraryW` remote thread same-bitness / `inject-helper` exe cross-bitness — a 64-bit host captures 32-bit games), `offsets.rs` (runs `get-graphics-offsets`, caches **only on success**), `session.rs` (`inject_and_arm` + `ArmedSession::try_texture`), `frame.rs` (`SharedTextureReader` — one D3D11 device, re-openable shared texture, **normalizes any source format → BGRA**: BGRA passthrough / RGBA swizzle / 10-bit unpack), `capture.rs` (`GameCaptureHandle`: dedicated thread reads the shared texture → `latest` → shared paced pipe). Binaries vendored by `scripts/get-game-capture.ps1` (OBS GPLv2). See the game-capture section below. |
+| `pipeline.rs` | `build_args(settings, whip_url, audio)` → the exact ffmpeg CLI. Pipe-first video input (rawvideo BGRA from either backend), in-ffmpeg ddagrab only when no pipe. `AudioSource::Pipe \| Silent`. Carries `-ts_buffer_size 4194304`: the ~1.3s DTLS handshake backlogs frames that flush at once when the muxer opens, overflowing the default ~64 KB UDP send buffer → `EAGAIN` (`ret=-11`, "UDP send blocked") → the muxer dies. A busy monitor bursts more, which looks like "stream works on one screen, black on another." Don't drop this arg. |
 | `ffmpeg.rs` | `resolve_ffmpeg_path`, `spawn_ffmpeg`, the **supervisor** task, Job Object, graceful stop. Also writes the per-run `encoder.txt` / `mixed_encoders.flag` markers the VOD assembly reads. |
+| `preview.rs` | Local mpjpeg preview (own ffmpeg → base64 `stream:preview` frames). `ensure_for_phase` auto-starts it in StreamSetup. Startup **reserves** `GlobalState.preview_starting` before the slow (injecting) capture start so a second concurrent start can't double-inject, and checks `preview_gen` (bumped by `stop`) so a preview mid-startup when publish stops it cancels itself instead of running alongside the live stream. |
 | `replay.rs` | Prunes and anchors the segmented MP4 branch. Reads the live `-segment_list` CSV, keeps only the newest ~2 closed segments **while the phase is StreamSetup/WaitingForStart**, and freezes a `trimplan.json` once `countdown_start_at` lands inside a closed segment. **Prune is gated on phase, not on the countdown timestamp** — an old back sends no `countdown_start_at`, and a timestamp gate would prune straight through the race. On exit it writes `r{run}.anchor.json` so the uploader can size the black filler over a reconnect gap. |
 
 `GlobalState.stream: Option<StreamSession>` where `StreamSession { stop_tx: watch::Sender<bool>,
@@ -77,6 +103,49 @@ and **pads zeros on underrun** — WASAPI loopback delivers no callbacks during 
 without padding ffmpeg stalls. Audio rides a **named pipe, not stdin**: stdin is reserved for the
 `q` quit that triggers the WHIP DELETE (without it MediaMTX holds the session until ICE timeout).
 
+### Game-capture injection (`gamecapture/`) — the exclusive-fullscreen path
+
+Exclusive-fullscreen games bypass the DWM compositor, so WGC window capture returns black and
+`ddagrab` dies on the mode flip. The only window-only capture is **graphics-hook injection** (the
+OBS Game Capture model). We embed OBS's `win-capture` binaries and drive them from Rust over the
+documented shared-memory/event protocol (`protocol.rs` mirrors `graphics-hook-info.h`). Ground
+truth: obsproject/obs-studio `shared/obs-hook-config/` + `plugins/win-capture/game-capture.c`.
+
+Host flow (`session.rs`): create the `CaptureHook_KeepAlive<pid>` mutex → inject
+`graphics-hook{32,64}.dll` (direct `LoadLibraryW` for a same-bitness target, else `inject-helper`
+exe) → open the hook-created `CaptureHook_HookInfo<pid>` mapping → write graphics offsets +
+`allow_srgb_alias` + `frame_interval` → `SetEvent(init)`+`restart`. Then, per frame, resolve the
+shared texture `CaptureHook_Texture_<hwnd>_<map_id>` → `shtex_data.tex_handle` → D3D11
+`OpenSharedResource` (legacy `MISC_SHARED`, no keyed mutex — just `CopyResource` to a staging
+texture) → **normalize `desc.Format` → BGRA** into `latest`.
+
+Five subtleties that took a live-debug to find — **don't regress them**:
+
+1. **Arm, don't wait for a frame.** `inject_and_arm` returns as soon as injection succeeds; it
+   does **not** wait for `HookReady`. At publish time the app has focus, so an exclusive-fullscreen
+   game is minimized and presents nothing — the game only renders once the racer alt-tabs in
+   (after publish). So the pipe is sized to the game's **monitor** up front and carries black
+   until frames arrive. Injection *failing* (anti-cheat) blocks publish; "not rendering yet" does
+   not. Matches OBS/Discord (black/last-frame until the game presents).
+2. **Re-resolve the texture handle.** An exclusive-fullscreen game **recreates its swapchain when
+   the racer alt-tabs in** → a new shared texture with a new handle; the first one goes stale and
+   the stream freezes. `capture.rs` re-checks `try_texture` every 250 ms and re-opens when the
+   handle changes (`SharedTextureReader` keeps one device, just re-opens the texture — no churn).
+3. **Teardown = drop keepalive only, never `EVENT_CAPTURE_STOP`.** That event is *global* — it
+   would stop capture for any other live session (preview + stream run concurrently). The keepalive
+   named mutex ref-counts across sessions; the hook self-stops when the last handle closes.
+   `release_session` closes only the keepalive. **Never kill the game process** (the Job Object
+   must not cover it — only our own ffmpeg/threads).
+4. **Normalize the texture format — don't assume BGRA.** The hook shares the game's backbuffer in
+   whatever format it presents: BGRA (most DXGI games), **RGBA** (Dolphin, many D3D/GL games), or
+   10-bit. `frame.rs::read_into` branches on `desc.Format` (passthrough / R↔B swizzle / 10-bit
+   unpack) so the pipe stays fixed BGRA and every speedrun target works. `ffmpeg`'s `-pix_fmt` is
+   locked at launch (before the game renders), which is *why* the conversion must happen here, not
+   in ffmpeg. An unsupported (e.g. 64-bit float) format is rejected and streams black rather than
+   garbage.
+5. **Injection cannot be unit-tested here** (needs a real game + GPU); validate live against a
+   fullscreen game. Anti-cheat games block injection by design.
+
 ### Orphan prevention
 
 `tokio::process` (not tauri-plugin-shell — Rust needs direct stdio + the raw HANDLE). A
@@ -89,6 +158,10 @@ teardown change: **no orphaned `ffmpeg.exe` in Task Manager** after finish/forfe
 - **Event** `stream:status` (constant in both `src-tauri/src/events.rs` and `src/lib/events.ts`),
   payload `{ state: "connecting"|"live"|"reconnecting"|"error"|"stopped", message? }` →
   `onStreamStatus` (`lib/listeners.ts`) → `StreamStatusChanged` (`appReducer.ts`).
+- **Event** `stream:source` (both-sides constant), payload `CaptureSource` → `onStreamSource` →
+  `AppEventBridge` `qc.setQueryData(captureSourceKey, …)`. Emitted by
+  `stream::auto_select_game_window` when the autosplitter attaches pre-publish (see the
+  `speedrace-autosplitter` skill) so the source picker/label follow the backend's auto-selection.
 - **Commands** (registered in `lib.rs`, wrapped in `lib/commands.ts`):
   `start_stream()` (no args — reads whip_url + settings from state; the webview never handles the
   URL), `stop_stream(lobbyId)`, `list_monitors()`, `get_stream_settings()`,
@@ -163,14 +236,17 @@ mount `useEffect`. `StreamSetup` and `SettingsPanel` persist on change via the m
 
 ## Dev prep (do before `pnpm tauri dev`)
 
-1. `src-tauri/scripts/get-ffmpeg.ps1` once (installs the gitignored sidecar — pinned Gyan
-   `full_build`, GnuTLS). `-Force` re-downloads. The SHA check fails loud if the pin ever drifts.
-   If you bump the pin, re-verify the DTLS backend (`-buildconf` + `-protocols`, see invariant 2).
-2. `externalBin: ["binaries/ffmpeg"]` in `tauri.conf.json` bundles it next to the exe. In dev it
-   may not be copied next to the debug binary — `resolve_ffmpeg_path` has a `#[cfg(debug_assertions)]`
-   fallback to `CARGO_MANIFEST_DIR/binaries/ffmpeg-*.exe`, so dev works either way.
-3. Gate Rust with `CARGO_TARGET_DIR=target-gate cargo check` when a dev server is running (it locks
-   the normal `target/` exe).
+1. `src-tauri/scripts/get-ffmpeg.ps1` once (installs the gitignored sidecar — pinned minimal
+   from-source build, GnuTLS). `-Force` re-downloads. The SHA check fails loud if the pin drifts.
+   Bumping the pin ⇒ re-verify the DTLS backend (`-buildconf` + `-protocols`, see invariant 3).
+2. `src-tauri/scripts/get-game-capture.ps1` once (installs the six OBS `win-capture` binaries into
+   `binaries/gamecapture/`, SHA-verified; bundled via `tauri.conf.json` → `bundle.resources`).
+   Needed for fullscreen-game capture; see `scripts/README.md` for the OBS pin + GPLv2 note. When
+   you bump the OBS pin, re-verify `gamecapture/protocol.rs` against that tag's `hook_info` ABI.
+3. Both `binaries/` sets are gitignored and resolved next to the exe (with a
+   `#[cfg(debug_assertions)]` `CARGO_MANIFEST_DIR/binaries/…` fallback so dev works either way).
+4. Gate Rust with `CARGO_TARGET_DIR=target-gate rtk proxy cargo check` when a dev server is running
+   (it locks the normal `target/` exe; `rtk proxy` because `rtk cargo` can hide build errors).
 
 ### Manual ffmpeg smoke test (validate before trusting the pipeline)
 
@@ -189,13 +265,23 @@ that an instant re-publish to the same path works (this underpins the mid-race a
 
 - Kill `ffmpeg.exe` mid-race → expect `reconnecting`→`live`, **no forfeit**.
 - Stop the back mid-race → stream stays live on MediaMTX; app WS retries.
-- Forfeit / finish / lobby-close / logout / app quit → **no orphaned `ffmpeg.exe`**.
+- Forfeit / finish / lobby-close / logout / app quit → **no orphaned `ffmpeg.exe`**, and the
+  **captured game process is untouched** (inject-helper is short-lived; we never kill the game).
 - Stop stream from WaitingForStart → host sees ready reset; app returns to StreamSetup (both sides).
+- Publish a fullscreen game → `injecting game-capture` → `[gc] armed … awaiting game frames`
+  (black); alt-tab into the game → `[gc] texture … (handle …)` and the picture tracks live, the
+  handle re-resolving on subsequent alt-tabs. One `[gc] texture` per handle, not two.
 
 ## Anti-patterns (never)
 
 - POST `stream-stopped` while `RaceInProgress` (forfeits the runner).
-- Hold the `SharedState` mutex across an `.await` or `app.emit`.
+- Hold the `SharedState` mutex across an `.await` or `app.emit` (incl. the `preview_starting`/
+  `preview_gen` guards — scope the guard, then await).
+- Letting a **window** pick reach `ddagrab` / any screen capture (privacy — invariant 2).
+- Signalling `EVENT_CAPTURE_STOP` on per-session game-capture teardown (it's global — drop the
+  keepalive only), or killing / Job-Object-covering the captured game process.
+- Blocking on `HookReady` at capture start (an exclusive-fullscreen game isn't rendering yet — arm
+  and stream black until frames arrive), or latching one shared-texture handle forever (re-resolve).
 - Audio over stdin (steals the `q` quit → dangling MediaMTX session).
 - tauri-plugin-shell for ffmpeg (need raw HANDLE for the Job Object + direct stdio).
 - Tearing the stream down on `ServerUnavailable` / WS drop (it must survive a back outage).
@@ -203,6 +289,7 @@ that an instant re-publish to the same path works (this underpins the mid-race a
 
 ## Maintaining this skill
 
-This feature is being built out — **update this file in the same change** when you touch the
-stream code. Keep the module map, command list, the two invariants, and the implemented vs
-future split accurate, and keep `docs/SPEC_FFMPEG.md` in sync with the pipe/output topology.
+**Update this file in the same change** when you touch the stream code. Keep the module map,
+command list, invariants, and the capture-routing rules accurate, and keep `docs/SPEC_FFMPEG.md`
+in sync with the pipe/output topology. Core capture (WGC window/monitor + game-capture injection +
+segmented MP4) is implemented and validated live; note any new backend or lifecycle path here.

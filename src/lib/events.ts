@@ -11,6 +11,7 @@ export const WS_STATUS = "ws:status";
 export const STREAM_STATUS = "stream:status";
 export const UPLOAD_STATUS = "upload:status";
 export const STREAM_PREVIEW = "stream:preview";
+export const STREAM_SOURCE = "stream:source";
 export const SPLIT_LOADED = "split:loaded";
 export const SPLIT_FIRED = "split:fired";
 export const AUTOSPLIT_PROBE = "autosplit:probe";

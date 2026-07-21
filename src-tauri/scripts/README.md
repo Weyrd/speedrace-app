@@ -153,3 +153,34 @@ If the minimal pin is ever broken, the previously shipped Gyan GPL `full_build` 
 same GnuTLS backend, proven against MediaMTX) can be re-pinned in `get-ffmpeg.ps1`:
 `https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-full_build.zip`
 (sha256 `b8cdefab5f50590a076c27c2b56b0294a0e6154faded28ba1ba05ebc4f801f57`).
+
+---
+
+# OBS game-capture helpers
+
+Exclusive-fullscreen games (Celeste etc.) are not DWM-composited, so WGC window capture returns
+black and ddagrab loses the display at the mode flip. The only way to grab such a game's pixels
+**without reading the whole screen** is graphics-API hook injection — the OBS Game Capture model.
+We reuse OBS Studio's proven `win-capture` binaries; our own Rust client
+(`src/stream/gamecapture/`) drives them over the documented shared-memory/event protocol.
+
+`get-game-capture.ps1` (run once after clone, like `get-ffmpeg.ps1`) downloads the pinned OBS
+portable zip, SHA256-verifies it, and extracts six files into `binaries/gamecapture/`
+(shipped via `tauri.conf.json` → `bundle.resources`):
+`graphics-hook{32,64}.dll`, `inject-helper{32,64}.exe`, `get-graphics-offsets{32,64}.exe`.
+Both bitnesses ship — a 64-bit host must still capture 32-bit games.
+
+**Current pin:** OBS **32.1.2** (hook ABI `HOOK_VER 1.8`). The `struct hook_info` layout mirrored
+in `gamecapture/protocol.rs` is the OBS win-capture ABI (`sizeof == 648`, guarded by a
+compile-time assert). It is stable across OBS releases but not guaranteed forever — **when you
+bump the pin, re-verify `protocol.rs` against `shared/obs-hook-config/graphics-hook-info.h` at
+the new tag.** Asset digests: `gh api repos/obsproject/obs-studio/releases/tags/<tag>
+--jq '.assets[] | "\(.name) \(.digest)"'`.
+
+**Licensing (GPLv2).** These are unmodified OBS Studio binaries redistributed as separate helper
+executables + an injected DLL — mere aggregation; our app links none of their code. Corresponding
+source is OBS's own public tag, which is also where `get-game-capture.ps1` downloads from:
+`https://github.com/obsproject/obs-studio/tree/32.1.2` (this pointer is the written source offer).
+Keep this reference and the pin in sync. Note: a **user-facing** third-party-notices surface for
+the shipped app (covering both this and the GPLv3 ffmpeg sidecar) is a separate, broader
+compliance task not specific to this feature.

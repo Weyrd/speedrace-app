@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, X, Monitor, AppWindow } from "lucide-react";
+import { Loader2, X, Monitor, AppWindow, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   useMonitors,
@@ -18,7 +18,12 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("app");
   const [tab, setTab] = useState<CaptureSourceKind>(CaptureSourceKind.Window);
   const { data: monitors = [] } = useMonitors();
-  const { data: windows = [], isLoading: windowsLoading } = useWindows();
+  const {
+    data: windows = [],
+    isLoading: windowsLoading,
+    isFetching: windowsFetching,
+    refetch: refetchWindows,
+  } = useWindows();
   const { data: captureSource } = useCaptureSource();
   const { mutate: saveCaptureSource } = useSetCaptureSource();
 
@@ -66,6 +71,21 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
           <Monitor size={13} />
           {t("stream.tab_fullscreen")}
         </Button>
+        {tab === CaptureSourceKind.Window && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetchWindows()}
+            disabled={windowsFetching}
+            aria-label={t("stream.refresh_windows")}
+            title={t("stream.refresh_windows")}
+          >
+            <RefreshCw
+              size={13}
+              className={windowsFetching ? "animate-spin" : undefined}
+            />
+          </Button>
+        )}
       </div>
 
       {/* Grid */}
@@ -97,7 +117,9 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
               </SourceCard>
             ))}
           </div>
-        ) : windowsLoading ? (
+        ) : (
+          <>
+            {windowsLoading ? (
           <div className="h-full flex items-center justify-center">
             <Loader2 size={18} className="animate-spin text-dim" />
           </div>
@@ -124,13 +146,31 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
                   })
                 }
               >
-                <Thumb
-                  queryKey={["windowThumb", w.hwnd]}
-                  fetcher={() => captureWindowThumb(w.hwnd)}
-                />
+                {w.iconic ? (
+                  <div className="w-full h-full flex items-center justify-center p-2">
+                    <span className="text-2xs text-dim font-mono tracking-wide text-center leading-snug">
+                      {t("stream.minimized_thumb")}
+                    </span>
+                  </div>
+                ) : (
+                  <Thumb
+                    queryKey={["windowThumb", w.hwnd]}
+                    fetcher={() => captureWindowThumb(w.hwnd)}
+                  />
+                )}
               </SourceCard>
             ))}
           </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTab(CaptureSourceKind.Monitor)}
+              className="mt-3 w-full"
+            >
+              {t("stream.fullscreen_hint")}
+            </Button>
+          </>
         )}
       </div>
     </div>,

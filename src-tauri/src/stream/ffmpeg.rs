@@ -73,26 +73,23 @@ pub async fn supervise(
         let replay = replay_base
             .as_ref()
             .and_then(|b| super::replay_run(b, segment));
-        // window sources
-        let wgc = match &settings.source {
-            super::CaptureSource::Window { hwnd, .. } => {
-                match super::wgc::start_window_capture(*hwnd, settings.framerate.max(1)) {
-                    Ok(h) => Some(h),
-                    Err(e) => {
-                        mlog!(LogCat::Stream, "[ffmpeg] window capture failed: {e}");
-                        emit_status(&app, StreamState::Error, Some(e));
-                        clear_session(&state);
-                        return;
-                    }
+        let wgc =
+            match super::capture::start_capture_for(&settings.source, settings.framerate.max(1))
+                .await
+            {
+                Ok(h) => h,
+                Err(e) => {
+                    mlog!(LogCat::Stream, "[ffmpeg] capture failed: {e}");
+                    emit_status(&app, StreamState::Error, Some(e));
+                    clear_session(&state);
+                    return;
                 }
-            }
-            _ => None,
-        };
+            };
         let audio = audio::start_audio();
         let video_pipe = wgc.as_ref().map(|w| pipeline::VideoPipe {
-            path: &w.pipe_name,
-            width: w.width,
-            height: w.height,
+            path: w.pipe_name(),
+            width: w.width(),
+            height: w.height(),
         });
         let args = match pipeline::build_args(
             &settings,

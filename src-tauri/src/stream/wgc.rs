@@ -4,6 +4,11 @@ use super::{WgcCapture, WgcError, WgcFlags};
 #[cfg(windows)]
 use crate::logging::{mlog, LogCat};
 
+#[cfg(windows)]
+const FRAME_STALE: std::time::Duration = std::time::Duration::from_secs(2);
+#[cfg(windows)]
+const SESSION_MIN_AGE: std::time::Duration = std::time::Duration::from_secs(3);
+
 impl WgcHandle {
     pub async fn shutdown(self) {
         #[cfg(windows)]
@@ -13,12 +18,20 @@ impl WgcHandle {
                 w.abort();
                 let _ = w.await;
             }
-            if let Some(c) = self.control {
-                let _ = tokio::task::spawn_blocking(move || c.stop()).await;
+            if let Some(s) = self.session {
+                let _ = tokio::time::timeout(std::time::Duration::from_secs(2), s).await;
             }
             mlog!(LogCat::Stream, "[wgc] capture stopped");
         }
     }
+}
+
+#[cfg(windows)]
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[cfg(windows)]
@@ -33,6 +46,8 @@ impl windows_capture::capture::GraphicsCaptureApiHandler for WgcCapture {
             target_h: f.target_h,
             latest: f.latest,
             closed: f.closed,
+            primed: f.primed,
+            last_frame_ms: f.last_frame_ms,
             last_dims: (0, 0),
         })
     }
@@ -42,6 +57,8 @@ impl windows_capture::capture::GraphicsCaptureApiHandler for WgcCapture {
         frame: &mut windows_capture::frame::Frame,
         _capture_control: windows_capture::graphics_capture_api::InternalCaptureControl,
     ) -> Result<(), Self::Error> {
+        self.last_frame_ms
+            .store(now_ms(), std::sync::atomic::Ordering::SeqCst);
         let mut buf = frame.buffer()?;
         let (fw, fh, pitch) = (buf.width(), buf.height(), buf.row_pitch());
         let src = buf.as_raw_buffer();
@@ -74,6 +91,7 @@ impl windows_capture::capture::GraphicsCaptureApiHandler for WgcCapture {
             };
             drow.copy_from_slice(srow);
         }
+        self.primed.store(true, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
 
@@ -84,94 +102,158 @@ impl windows_capture::capture::GraphicsCaptureApiHandler for WgcCapture {
 }
 
 #[cfg(windows)]
-pub fn start_window_capture(hwnd: u64, fps: u32) -> Result<WgcHandle, String> {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{Arc, Mutex};
-    use tokio::io::AsyncWriteExt;
-    use tokio::net::windows::named_pipe::ServerOptions;
+#[derive(Clone, Copy)]
+pub(crate) enum CaptureTarget {
+    Window { hwnd: u64 },
+    Monitor { hmonitor: isize },
+}
+
+#[cfg(windows)]
+fn start_session(
+    target: CaptureTarget,
+    flags: WgcFlags,
+) -> Result<windows_capture::capture::CaptureControl<WgcCapture, WgcError>, String> {
     use windows_capture::capture::GraphicsCaptureApiHandler;
     use windows_capture::settings::{
         ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings,
         MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
     };
-    use windows_capture::window::Window;
 
-    let window = Window::from_raw_hwnd(hwnd as *mut std::ffi::c_void);
-    if !window.is_valid() {
-        return Err("window is gone; pick another source".into());
+    macro_rules! start {
+        ($item:expr) => {
+            WgcCapture::start_free_threaded(Settings::new(
+                $item,
+                CursorCaptureSettings::WithCursor,
+                DrawBorderSettings::WithoutBorder,
+                SecondaryWindowSettings::Default,
+                MinimumUpdateIntervalSettings::Default,
+                DirtyRegionSettings::Default,
+                ColorFormat::Bgra8,
+                flags,
+            ))
+            .map_err(|e| e.to_string())
+        };
     }
-    // rawvideo needs one fixed size: lock it to the window rect at start (even dims)
-    let w = window.width().map_err(|e| e.to_string())?.max(2) as u32 & !1;
-    let h = window.height().map_err(|e| e.to_string())?.max(2) as u32 & !1;
 
-    let pipe_name = format!(r"\\.\pipe\momentum_video_{:016x}", rand::random::<u64>());
-    let server = ServerOptions::new()
-        .first_pipe_instance(true)
-        .create(&pipe_name)
-        .map_err(|e| format!("video pipe create failed: {e}"))?;
+    match target {
+        CaptureTarget::Window { hwnd } => {
+            let window =
+                windows_capture::window::Window::from_raw_hwnd(hwnd as *mut std::ffi::c_void);
+            if !window.is_valid() {
+                return Err("window is gone; pick another source".into());
+            }
+            start!(window)
+        }
+        CaptureTarget::Monitor { hmonitor } => start!(
+            windows_capture::monitor::Monitor::from_raw_hmonitor(hmonitor as *mut std::ffi::c_void)
+        ),
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn start_capture(
+    target: CaptureTarget,
+    w: u32,
+    h: u32,
+    fps: u32,
+) -> Result<WgcHandle, String> {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    let (pipe_name, server) = super::capture_pipe::new_video_pipe()?;
 
     let latest: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![0u8; (w * h * 4) as usize]));
-    let closed: super::StopFlag = Arc::new(AtomicBool::new(false));
     let stop: super::StopFlag = Arc::new(AtomicBool::new(false));
+    let primed: super::StopFlag = Arc::new(AtomicBool::new(false));
+    let flags = WgcFlags {
+        target_w: w,
+        target_h: h,
+        latest: latest.clone(),
+        closed: Arc::new(AtomicBool::new(false)),
+        primed: primed.clone(),
+        last_frame_ms: Arc::new(AtomicU64::new(now_ms())),
+    };
 
-    let settings = Settings::new(
-        window,
-        CursorCaptureSettings::WithCursor,
-        DrawBorderSettings::WithoutBorder,
-        SecondaryWindowSettings::Default,
-        MinimumUpdateIntervalSettings::Default,
-        DirtyRegionSettings::Default,
-        ColorFormat::Bgra8,
-        WgcFlags {
-            target_w: w,
-            target_h: h,
-            latest: latest.clone(),
-            closed: closed.clone(),
-        },
-    );
-    let control = WgcCapture::start_free_threaded(settings).map_err(|e| e.to_string())?;
+    let first_closed = flags.closed.clone();
+    let control = start_session(target, flags.clone())?;
 
-    let frame_bytes = (w * h * 4) as usize;
-    let period = std::time::Duration::from_millis((1000 / fps.max(1)).max(1) as u64);
-    let stop_w = stop.clone();
-    let writer = tauri::async_runtime::spawn(async move {
-        // wait for ffmpeg
-        if server.connect().await.is_err() {
-            return;
-        }
-        let mut server = server;
-        let mut ticker = tokio::time::interval(period);
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        let mut out = vec![0u8; frame_bytes];
+    let stop_s = stop.clone();
+    let flags_s = flags.clone();
+    let session = tauri::async_runtime::spawn(async move {
+        let mut control = Some(control);
+        let mut closed = first_closed;
+        let mut started = tokio::time::Instant::now();
         loop {
-            ticker.tick().await;
-            if stop_w.load(Ordering::SeqCst) || closed.load(Ordering::SeqCst) {
-                return; // dropping  EOFs ffmpeg video input
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            if stop_s.load(Ordering::SeqCst) {
+                break;
             }
-            if let Ok(l) = latest.lock() {
-                out.copy_from_slice(&l);
+            let stale = now_ms().saturating_sub(flags_s.last_frame_ms.load(Ordering::SeqCst))
+                > FRAME_STALE.as_millis() as u64;
+            let dead = closed.load(Ordering::SeqCst) || control.is_none();
+            if !(dead || (stale && started.elapsed() > SESSION_MIN_AGE)) {
+                continue;
             }
-            if server.write_all(&out).await.is_err() {
-                return;
+            if let Some(c) = control.take() {
+                let _ = tokio::task::spawn_blocking(move || c.stop()).await;
             }
+            if stop_s.load(Ordering::SeqCst) {
+                break;
+            }
+            mlog!(
+                LogCat::Stream,
+                "[wgc] session {}; recreating",
+                if dead { "closed" } else { "stale" }
+            );
+            closed = Arc::new(AtomicBool::new(false));
+            flags_s.last_frame_ms.store(now_ms(), Ordering::SeqCst);
+            match start_session(
+                target,
+                WgcFlags {
+                    closed: closed.clone(),
+                    ..flags_s.clone()
+                },
+            ) {
+                Ok(c) => {
+                    control = Some(c);
+                    started = tokio::time::Instant::now();
+                }
+                Err(e) => {
+                    mlog!(LogCat::Stream, "[wgc] recreate failed: {e}");
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
+        if let Some(c) = control.take() {
+            let _ = tokio::task::spawn_blocking(move || c.stop()).await;
         }
     });
 
+    let frame_bytes = (w * h * 4) as usize;
+    let writer = super::capture_pipe::spawn_paced_writer(
+        server,
+        latest,
+        stop.clone(),
+        primed.clone(),
+        fps,
+        frame_bytes,
+    );
+
+    let label = match target {
+        CaptureTarget::Window { hwnd } => format!("hwnd={hwnd:#x}"),
+        CaptureTarget::Monitor { hmonitor } => format!("hmonitor={hmonitor:#x}"),
+    };
     mlog!(
         LogCat::Stream,
-        "[wgc] capturing hwnd={hwnd:#x} {w}x{h} @ {fps}fps, pipe {pipe_name}"
+        "[wgc] capturing {label} {w}x{h} @ {fps}fps, pipe {pipe_name}"
     );
     Ok(WgcHandle {
         pipe_name,
         width: w,
         height: h,
-        control: Some(control),
+        session: Some(session),
         writer: Some(writer),
         stop,
+        primed,
     })
-}
-
-#[cfg(not(windows))]
-pub fn start_window_capture(_hwnd: u64, _fps: u32) -> Result<WgcHandle, String> {
-    Err("window capture is only supported on Windows".into())
 }
