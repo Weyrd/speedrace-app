@@ -9,6 +9,7 @@ pub const WS_STATUS: &str = "ws:status";
 pub const STREAM_STATUS: &str = "stream:status";
 pub const UPLOAD_STATUS: &str = "upload:status";
 pub const STREAM_PREVIEW: &str = "stream:preview";
+pub const STREAM_SOURCE: &str = "stream:source";
 pub const SPLIT_LOADED: &str = "split:loaded";
 pub const SPLIT_FIRED: &str = "split:fired";
 pub const AUTOSPLIT_PROBE: &str = "autosplit:probe";

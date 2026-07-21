@@ -1,6 +1,10 @@
 mod audio;
+pub(crate) mod capture;
+#[cfg(windows)]
+pub(crate) mod capture_pipe;
 pub mod encoder;
 mod ffmpeg;
+pub(crate) mod gamecapture;
 mod monitors;
 mod pipeline;
 pub mod preview;
@@ -38,6 +42,42 @@ pub fn current_source(app: &AppHandle, state: &SharedState) -> CaptureSource {
     session.unwrap_or(CaptureSource::Monitor {
         index: crate::settings::load_stream_settings(app).monitor_index,
     })
+}
+
+// try to preselect windows based on wasm process attached
+#[cfg(windows)]
+pub(crate) async fn auto_select_game_window(app: &AppHandle, state: &SharedState, pid: u32) {
+    let current = {
+        let Ok(g) = state.lock() else { return };
+        if g.stream.is_some() {
+            return;
+        }
+        g.capture_source.clone()
+    };
+    let Some((hwnd, title)) = window_list::game_window_for_pid(pid) else {
+        return;
+    };
+    if let Some(CaptureSource::Window { hwnd: cur, .. }) = current {
+        if cur == hwnd {
+            return;
+        }
+    }
+    let source = CaptureSource::Window { hwnd, title };
+    {
+        let Ok(mut g) = state.lock() else { return };
+        if g.stream.is_some() {
+            return;
+        }
+        g.capture_source = Some(source.clone());
+    }
+    mlog!(
+        LogCat::Stream,
+        "[source] auto-selected game window {hwnd:#x} for pid {pid}"
+    );
+    let _ = app.emit(crate::events::STREAM_SOURCE, &source);
+    if let Err(e) = preview::restart(app, state).await {
+        mlog!(LogCat::Stream, "[source] preview restart: {e}");
+    }
 }
 
 pub async fn start(

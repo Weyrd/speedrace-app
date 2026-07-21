@@ -117,10 +117,11 @@ pub struct VideoPipe<'a> {
     pub height: u32,
 }
 
-fn video_filter(source: &CaptureSource, tail: &str) -> String {
-    match source {
-        CaptureSource::Monitor { .. } => format!("hwdownload,format=bgra,{tail}"),
-        CaptureSource::Window { .. } => tail.to_string(),
+fn video_filter(piped: bool, tail: &str) -> String {
+    if piped {
+        tail.to_string()
+    } else {
+        format!("hwdownload,format=bgra,{tail}")
     }
 }
 
@@ -131,30 +132,31 @@ fn push_video_input(
     video_pipe: Option<&VideoPipe>,
 ) -> Result<(), String> {
     let mut push = |s: &str| a.push(s.to_string());
+    if let Some(pipe) = video_pipe {
+        push("-f");
+        push("rawvideo");
+        push("-pix_fmt");
+        push("bgra");
+        push("-video_size");
+        push(&format!("{}x{}", pipe.width, pipe.height));
+        push("-framerate");
+        push(&fps.to_string());
+        push("-thread_queue_size");
+        push("64");
+        push("-i");
+        push(pipe.path);
+        return Ok(());
+    }
     match source {
         CaptureSource::Monitor { index } => {
             push("-f");
             push("lavfi");
             push("-i");
             push(&format!("ddagrab=output_idx={index}:framerate={fps}"));
+            Ok(())
         }
-        CaptureSource::Window { .. } => {
-            let pipe = video_pipe.ok_or("window capture needs a video pipe")?;
-            push("-f");
-            push("rawvideo");
-            push("-pix_fmt");
-            push("bgra");
-            push("-video_size");
-            push(&format!("{}x{}", pipe.width, pipe.height));
-            push("-framerate");
-            push(&fps.to_string());
-            push("-thread_queue_size");
-            push("64");
-            push("-i");
-            push(pipe.path);
-        }
+        CaptureSource::Window { .. } => Err("window capture needs a video pipe".into()),
     }
-    Ok(())
 }
 
 pub fn build_preview_args(
@@ -169,7 +171,7 @@ pub fn build_preview_args(
 
     push_video_input(&mut a, source, PREVIEW_FPS, video_pipe)?;
 
-    let vf = video_filter(source, PREVIEW_TAIL);
+    let vf = video_filter(video_pipe.is_some(), PREVIEW_TAIL);
     let mut push = |s: &str| a.push(s.to_string());
     push("-vf");
     push(&vf);
@@ -211,7 +213,7 @@ pub fn build_args(
 
     push_video_input(&mut a, &settings.source, fps, video_pipe)?;
 
-    let vf = video_filter(&settings.source, &scale_tail(settings.resolution));
+    let vf = video_filter(video_pipe.is_some(), &scale_tail(settings.resolution));
     let mut push = |s: &str| a.push(s.to_string());
 
     match audio {
