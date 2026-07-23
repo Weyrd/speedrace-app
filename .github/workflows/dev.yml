@@ -111,6 +111,11 @@ jobs:
         shell: pwsh
         run: ./src-tauri/scripts/get-ffmpeg.ps1
 
+      - name: Fetch game-capture binaries
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: ./src-tauri/scripts/get-game-capture.ps1
+
       - name: Build and upload
         uses: tauri-apps/tauri-action@v0.5
         env:

@@ -43,7 +43,6 @@ $ErrorActionPreference = 'Stop'
 $ObsVersion     = '32.1.2'
 $Url            = "https://github.com/obsproject/obs-studio/releases/download/$ObsVersion/OBS-Studio-$ObsVersion-Windows-x64.zip"
 $ExpectedSha256 = '8d97e4563bd8d22d03e63042aa7dccede1d555c9bd35ce8a9e5019b0d0201bf6'
-# ---------------------------------------------------------------------------
 
 $wanted = @(
     'graphics-hook32.dll',
