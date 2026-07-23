@@ -77,6 +77,7 @@ pub fn get_stream_settings(app: AppHandle) -> StreamSettingsDto {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn set_stream_settings(
     bitrate_kbps: u32,
     framerate: u32,
