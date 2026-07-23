@@ -119,6 +119,7 @@ pub enum AudioSource {
 pub(crate) type StopFlag = Arc<AtomicBool>;
 
 pub enum CaptureHandle {
+    #[cfg_attr(not(windows), allow(dead_code))]
     Wgc(WgcHandle),
     #[cfg(windows)]
     Game(super::gamecapture::GameCaptureHandle),

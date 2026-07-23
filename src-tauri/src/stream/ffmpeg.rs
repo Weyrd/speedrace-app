@@ -387,6 +387,7 @@ pub(crate) const NULL_SINK: &str = "NUL";
 pub(crate) const NULL_SINK: &str = "/dev/null";
 
 pub(crate) fn ffmpeg_command(path: &Path) -> Command {
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut cmd = Command::new(path);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000);
