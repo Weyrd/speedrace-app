@@ -4,7 +4,9 @@ mod capture;
 mod frame;
 #[cfg(windows)]
 mod inject;
+#[cfg(windows)]
 mod offsets;
+#[cfg(windows)]
 mod protocol;
 #[cfg(windows)]
 mod session;
@@ -12,8 +14,10 @@ mod session;
 #[cfg(windows)]
 pub(crate) use capture::{start, GameCaptureHandle};
 
+#[cfg(windows)]
 use std::path::PathBuf;
 
+#[cfg(windows)]
 pub(crate) fn resolve_binary(name: &str) -> Result<PathBuf, String> {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
