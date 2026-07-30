@@ -4,8 +4,10 @@ The app streams via ffmpeg's native `-f whip` muxer, which requires **ffmpeg 8.x
 DTLS-SRTP backend** (GnuTLS, OpenSSL, or mbedTLS). We ship our own **minimal from-source
 build** (~10 MB exe, `--enable-gnutls`, GPLv3) as a Tauri sidecar — hosted as a pinned GitHub
 **prerelease** asset on this repo, downloaded by `get-ffmpeg.ps1`, reproduced by
-`build-ffmpeg.ps1`. Current pin: `ffmpeg-min-2` (git master `9bc73ba344`), verified against
-MediaMTX live.
+`build-ffmpeg.ps1`. Current pin: `ffmpeg-min-3` (git master `86940d45af`, built from the
+GitHub mirror), adds libfreetype/libharfbuzz + drawtext/drawbox for the live replay overlay
+(`stream/overlay_live.rs`). `min-2` (git master `9bc73ba344`) was the last pin without them —
+on it the app probes `-filters`, logs a skip, and records the replay without the overlay.
 
 > **Do not substitute a Windows SChannel build** (BtbN's default `win64-gpl` is SChannel-only).
 > SChannel compiles the whip muxer but its DTLS handshake fails against MediaMTX at runtime
@@ -127,10 +129,11 @@ handshake is the real gate), ranked MP4 playable, stop → preview restart.
 | **Decoders**  | rawvideo, pcm_f32le, wrapped_avframe, pcm_u8, h264, aac          | Raw pipes + lavfi wrapping + replay head trim   |
 | **Muxers**    | whip, mp4, mpjpeg, mjpeg, segment                                | Live + segmented replay + preview + thumb       |
 | **Inputs**    | lavfi indev, rawvideo/pcm_f32le/concat/mov demuxers              | Capture + raw pipes + replay assembly           |
-| **Filters**   | ddagrab, hwdownload, format, scale, aresample, anullsrc, color, (a)split | Capture → scale → dual output + gap filler |
+| **Filters**   | ddagrab, hwdownload, format, scale, aresample, anullsrc, color, (a)split, drawtext, drawbox | Capture → scale → dual output + gap filler + VOD overlay burn |
 | **Protocols** | file, pipe, http(s), tcp, udp, tls, dtls, srtp, rtp, crypto      | Pipes + WHIP POST + WebRTC transport            |
 | **BSFs**      | h264_mp4toannexb, aac_adtstoasc, extract_extradata               | Payload/container conversion                    |
 | **Hw/TLS**    | d3d11va (ddagrab dep), ffnvcodec + amf headers, GnuTLS           | Capture + future hw encode + DTLS               |
+| **Text**      | libfreetype + libharfbuzz (drawtext deps)                        | Timer/splits card burned into the uploaded VOD  |
 
 Deliberately absent: gdigrab/dshow (dead since the WGC rework), qsv/libmfx (deprecated
 upstream, would need libvpl), dxva2, the `null` muxer, UPX. The h264/aac decoders and the

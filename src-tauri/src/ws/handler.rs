@@ -65,6 +65,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.livesplit_splits_match = None;
                 guard.counter_buffers.clear();
                 guard.pending_splits.clear();
+                guard.overlay_recent_splits.clear();
                 guard.replay_base = None;
                 guard.countdown_start_at_ms = None;
                 crate::state::reset_run_start(&mut guard);
@@ -137,6 +138,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.counter_config = None;
                 guard.counter_buffers.clear();
                 guard.pending_splits.clear();
+                guard.overlay_recent_splits.clear();
                 guard.pending_early_splits.clear();
             }
             crate::stream::shutdown_spawn(app, state);

@@ -401,6 +401,31 @@ startup sweep when `stream_replay_autodelete` is on. The `Finished` screen shows
 show in folder" whenever a replay was actually recorded. A publish that never went live deletes
 its stub file **and** its segment directory.
 
+### Replay overlay (timer + last splits, burned live)
+
+The replay leg carries a burned-in race timer and the last 3 split rows; the live WHIP leg,
+preview, and nothing else get it. Implementation (`stream/overlay_live.rs`, knobs in
+`stream/overlay_style.rs`): when recording, `pipeline.rs` splits the video into
+`[vw]` (live, clean) and `[vt]→drawtext…→[vr]` (replay), where each `drawtext` reads a small
+text file with `reload=1` — `overlay_timer.txt` plus `overlay_row{0..2}.txt` in the parts
+dir. A 30 Hz Rust ticker writes the gun-relative clock (negative during the countdown,
+frozen after the finish because writes stop when `race_start_at` clears); split rows are
+rewritten by `record_split` when a split fires.
+
+**Why live and not post-hoc:** the text and the frame meet inside the same ffmpeg at the same
+wall moment, so overlay-vs-content skew is just capture→filter transit (~ms). A post-hoc burn
+was tried first and inherited the wall-clock↔pts anchor bias of the segment CSV (~seconds
+late: encoder lookahead + keyframe-gated segment close + poll), painting correct split times
+at wrong video positions. Live burn also adds zero post-race encode time — the replay leg
+already encodes in real time — so upload starts immediately even for multi-hour runs.
+
+Failure modes all degrade to a clean replay, never a broken stream: missing font, a path the
+graph can't quote, or a sidecar without `drawtext` (pre-`ffmpeg-min-3`, probed once via
+`-filters`) simply skip the chain; the text files are created before every spawn because a
+missing `textfile` fails graph init and would kill the live leg with it. The overlay adds
+zero anti-cheat value (the client owns the pipeline) — it exists so a reviewer can eyeball a
+run against the race clock.
+
 ## Verification drills
 
 The compile gates prove none of this; these are the runtime drills a streaming change should
