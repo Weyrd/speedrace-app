@@ -156,6 +156,7 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
             }
 
             if !skip {
+                crate::stream::record_split(state, &segment_name, end_ms);
                 enqueue_split(
                     app,
                     state,
@@ -298,6 +299,7 @@ fn emit_prestart_split(
             new_start_ms: 0,
         },
     );
+    crate::stream::record_split(state, &segment_name, 0);
     enqueue_split(
         app,
         state,
