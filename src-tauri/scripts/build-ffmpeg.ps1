@@ -109,6 +109,10 @@ $FfmpegOptions = @"
 --enable-libopus
 --enable-gnutls
 
+# drawtext deps for the VOD overlay burn (configure requires BOTH since ffmpeg 6.1)
+--enable-libfreetype
+--enable-libharfbuzz
+
 # Hardware (d3d11va is a ddagrab dependency; nvenc/amf are header-only, compiled in
 # for the planned hw-encode follow-up). ffnvcodec is explicit because --disable-autodetect
 # also stops the suite from installing the nv-codec-headers nvenc needs.
@@ -179,6 +183,9 @@ $FfmpegOptions = @"
 --enable-filter=asplit
 --enable-filter=null
 --enable-filter=anull
+# VOD overlay burn (timer + splits card on the uploaded replay)
+--enable-filter=drawtext
+--enable-filter=drawbox
 
 # Bitstream filters
 --enable-bsf=h264_mp4toannexb
@@ -287,7 +294,8 @@ Write-Host "  & `"$TargetBinary`" -hide_banner -buildconf   # expect --enable-gn
 Write-Host "  & `"$TargetBinary`" -hide_banner -protocols   # expect BOTH dtls and srtp"
 Write-Host "  & `"$TargetBinary`" -hide_banner -muxers 2>&1    | Select-String 'whip|mp4|mpjpeg'"
 Write-Host "  & `"$TargetBinary`" -hide_banner -encoders 2>&1  | Select-String 'libx264|libopus|aac|mjpeg|nvenc|amf'"
-Write-Host "  & `"$TargetBinary`" -hide_banner -filters 2>&1   | Select-String 'ddagrab|hwdownload|split|aresample'"
+Write-Host "  & `"$TargetBinary`" -hide_banner -filters 2>&1   | Select-String 'ddagrab|hwdownload|split|aresample|drawtext|drawbox'"
+Write-Host "  & `"$TargetBinary`" -hide_banner -buildconf 2>&1  | Select-String 'libfreetype|libharfbuzz'"
 Write-Host ""
 Write-Host "Then run the runtime drills in docs/SPEC_FFMPEG.md (preview, Publish, MP4 replay)."
 Write-Host "Once verified, zip + upload as the pinned release asset and re-pin get-ffmpeg.ps1."

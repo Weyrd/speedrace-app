@@ -6,6 +6,8 @@ pub mod encoder;
 mod ffmpeg;
 pub(crate) mod gamecapture;
 mod monitors;
+mod overlay_live;
+mod overlay_style;
 mod pipeline;
 pub mod preview;
 pub(crate) mod replay;
@@ -15,6 +17,7 @@ pub(crate) mod wgc;
 mod window_list;
 
 pub(crate) use ffmpeg::{ffmpeg_command, NULL_SINK};
+pub(crate) use overlay_live::record_split;
 pub(crate) use pipeline::replay_encoder_args;
 
 pub use monitors::*;
@@ -123,6 +126,9 @@ pub async fn start(
     mlog!(LogCat::Stream, "[stream] encoder: {}", encoder.name());
 
     let (stop_tx, stop_rx) = watch::channel(false);
+    if replay_base.is_some() {
+        overlay_live::spawn_ticker(state.clone(), stop_tx.subscribe());
+    }
     let app_c = app.clone();
     let state_c = state.clone();
     let whip = whip_url.clone();

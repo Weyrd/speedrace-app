@@ -86,6 +86,7 @@ pub struct GlobalState {
 
     pub replay_base: Option<std::path::PathBuf>,
     pub countdown_start_at_ms: Option<i64>,
+    pub overlay_recent_splits: Vec<String>,
     pub stream_finalizing: bool,
     pub upload: Option<crate::upload::UploadSession>,
 
@@ -137,6 +138,7 @@ impl GlobalState {
             stream: None,
             replay_base: None,
             countdown_start_at_ms: None,
+            overlay_recent_splits: Vec::new(),
             stream_finalizing: false,
             upload: None,
             capture_source: None,

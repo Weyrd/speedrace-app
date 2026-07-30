@@ -39,8 +39,8 @@ param([switch]$Force)
 $ErrorActionPreference = 'Stop'
 
 # --- Pin -------------------------------------------------------------------
-$Url           = 'https://github.com/Weyrd/speedrace-app/releases/download/ffmpeg-min-2/ffmpeg-min-win64.zip'
-$ExpectedSha256 = 'a45d8070f269045ed52f14c1f81d1d00c21877f1dfd2ba6ff711ba964abfa7df'
+$Url           = 'https://github.com/Weyrd/speedrace-app/releases/download/ffmpeg-min-3/ffmpeg-min-win64.zip'
+$ExpectedSha256 = '49229197bb26705ed600a022f53eb45dd5a1f5dfd922bc90c6969c3439129734'
 # ---------------------------------------------------------------------------
 
 # Tauri sidecar naming: binaries/<name>-<target-triple>.exe

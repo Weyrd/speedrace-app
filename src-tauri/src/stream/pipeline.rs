@@ -242,11 +242,19 @@ pub fn build_args(
         }
     }
 
+    // timer/splits overlay burns into the replay leg only
+    let overlay =
+        replay.and_then(|r| super::overlay_live::filter_chain(&r.dir, settings.resolution));
     let (vmap, amap) = if replay.is_some() {
         push("-filter_complex");
-        push(&format!(
-            "[0:v]{vf},split=2[vw][vr];[1:a]{AUDIO_FILTER},asplit=2[aw][ar]"
-        ));
+        match overlay {
+            Some(chain) => push(&format!(
+                "[0:v]{vf},split=2[vw][vt];[vt]{chain}[vr];[1:a]{AUDIO_FILTER},asplit=2[aw][ar]"
+            )),
+            None => push(&format!(
+                "[0:v]{vf},split=2[vw][vr];[1:a]{AUDIO_FILTER},asplit=2[aw][ar]"
+            )),
+        }
         ("[vw]", "[aw]")
     } else {
         ("0:v", "1:a")
