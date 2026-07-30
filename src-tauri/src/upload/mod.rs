@@ -200,7 +200,7 @@ async fn run(
         a.discard();
     }
     if crate::settings::load_stream_settings(app).replay_delete_uploaded {
-        let _ = std::fs::remove_file(&file);
+        let _ = std::fs::remove_file(&base);
     }
 
     crate::settings::clear_pending_upload(app);

@@ -6,7 +6,7 @@ use tauri::AppHandle;
 
 const MAX_FILLER_MS: i64 = 120_000;
 
-async fn video_size(ffmpeg: &Path, seg: &Path) -> Option<(u32, u32)> {
+pub(super) async fn video_size(ffmpeg: &Path, seg: &Path) -> Option<(u32, u32)> {
     let out = ffmpeg_command(ffmpeg)
         .args(["-hide_banner", "-i"])
         .arg(seg)

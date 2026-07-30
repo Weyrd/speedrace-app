@@ -3,7 +3,8 @@
   "bundle": {
     "externalBin": ["binaries/ffmpeg"],
     "resources": {
-      "binaries/gamecapture/*": "gamecapture/"
+      "binaries/gamecapture/*": "gamecapture/",
+      "resources/fonts/*": "fonts/"
     }
   }
 }
