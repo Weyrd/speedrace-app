@@ -11,7 +11,7 @@ use crate::logging::{mlog, LogCat};
 const PRIME_DEADLINE: Duration = Duration::from_secs(2);
 
 pub(crate) fn new_video_pipe() -> Result<(String, NamedPipeServer), String> {
-    let name = format!(r"\\.\pipe\momentum_video_{:016x}", rand::random::<u64>());
+    let name = format!(r"\\.\pipe\speedrace_video_{:016x}", rand::random::<u64>());
     let server = ServerOptions::new()
         .first_pipe_instance(true)
         .create(&name)
