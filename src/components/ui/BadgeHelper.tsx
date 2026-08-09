@@ -45,12 +45,12 @@ export function LobbyHeader({
 
         <div className="flex items-center gap-2">
           {autosplit?.wasm && (
-            <Tooltip content="WASM autosplitter connected" side="top">
+            <Tooltip content={t("autosplit.wasm_connected_tooltip")} side="top">
               <MonitorCheck className="w-3.5 h-3.5 text-green" />
             </Tooltip>
           )}
           {autosplit?.livesplit && (
-            <Tooltip content="LiveSplit connected" side="top">
+            <Tooltip content={t("autosplit.livesplit_connected_tooltip")} side="top">
               <img
                 src={livesplitIcon}
                 alt="LiveSplit"
@@ -65,7 +65,7 @@ export function LobbyHeader({
           )}
           {autosplit?.splits_match === false && (
             <Tooltip
-              content="LiveSplit splits differ from the race's, splits won't be recorded" // todo i18n
+              content={t("autosplit.splits_mismatch_tooltip")}
               side="top"
             >
               <TriangleAlert className="w-3.5 h-3.5 text-red" />
