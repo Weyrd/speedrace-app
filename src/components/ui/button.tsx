@@ -12,6 +12,7 @@ const buttonVariants = cva(
         ghost: "text-dim hover:text-muted bg-transparent",
         outline:
           "border border-border text-muted bg-transparent hover:border-muted hover:text-text",
+        primary: "bg-orange text-white hover:opacity-90",
         success: "bg-green text-white hover:opacity-90",
         destructive: "bg-red text-white hover:opacity-90",
         danger:
