@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { onStreamPreview } from "../../lib/listeners";
 import { PreviewState } from "../../types";
+import { Button } from "./button";
 
 export function PreviewCanvas({ onClick }: { onClick?: () => void }) {
   const { t } = useTranslation("app");
@@ -27,9 +28,13 @@ export function PreviewCanvas({ onClick }: { onClick?: () => void }) {
   }, []);
 
   return (
-    <div
+    <Button
+      type="button"
+      variant="ghost"
       onClick={onClick}
-      className={`bg-black border border-border rounded aspect-1920/1080 w-full overflow-hidden relative ${onClick ? "cursor-pointer" : ""}`}
+      disabled={!onClick}
+      aria-label={t("stream.change_source_hint")}
+      className="relative aspect-video w-full overflow-hidden rounded-sm border border-border bg-black p-0"
     >
       <img
         ref={attachImg}
@@ -47,6 +52,6 @@ export function PreviewCanvas({ onClick }: { onClick?: () => void }) {
           </span>
         </div>
       )}
-    </div>
+    </Button>
   );
 }

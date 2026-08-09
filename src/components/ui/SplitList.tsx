@@ -89,7 +89,7 @@ export function SplitList({
         <div key={si} className="flex flex-col">
           {grouped && section.name && (
             <div className="px-3 py-1 bg-bg2/60 border-b border-border">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-dim">
+              <span className="text-2xs font-mono uppercase tracking-wider text-dim">
                 {section.name}
               </span>
             </div>

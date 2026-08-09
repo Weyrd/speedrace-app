@@ -31,7 +31,7 @@ export function WhepPreview({
   }, [whepUrl, live]);
 
   return (
-    <div className="bg-black border border-border rounded aspect-1920/1080 w-full overflow-hidden relative">
+    <div className="bg-black border border-border rounded-sm aspect-video w-full overflow-hidden relative">
       <video
         ref={videoRef}
         autoPlay
@@ -39,7 +39,7 @@ export function WhepPreview({
         playsInline
         className="w-full h-full object-cover"
       />
-      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/70 rounded px-2 py-1">
+      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/70 rounded-sm px-2 py-1">
         {live ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-green shrink-0 animate-pulse" />
