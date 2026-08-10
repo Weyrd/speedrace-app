@@ -31,6 +31,10 @@ import {
   formatAccelerator,
 } from "../lib/hotkey";
 import { Button } from "./ui/button";
+import { SectionHeader } from "./ui/SectionHeader";
+import { Field, Description } from "./ui/Field";
+import { Select } from "./ui/Select";
+import { Checkbox } from "./ui/Checkbox";
 import { cn } from "../lib/utils";
 import { tryCatch } from "../lib/tryCatch";
 import { openReplayDir, pickReplayDir } from "../lib/commands";
@@ -51,7 +55,6 @@ const ENCODER_LABELS: Record<EncoderPref, string> = {
   [EncoderPref.X264]: "CPU (x264)",
 };
 
-// x264 targets the bitrate, so only bitrate moves the file size
 function gbPerHour(bitrateKbps: number): string {
   const bytes = ((bitrateKbps + REPLAY_AUDIO_KBPS) * 1000 * 3600) / 8;
   return (bytes / 1024 ** 3).toFixed(1);
@@ -173,16 +176,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   };
 
   return createPortal(
-    <div
-      style={{ backgroundColor: "#252320" }}
-      className="fixed inset-0 z-100 flex flex-col"
-    >
-      {/* Header */}
+    <div className="fixed inset-0 z-panel flex flex-col bg-bg0">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
-          <Settings size={14} className="text-dim" />
-          {t("tooltip")}
-        </span>
+        <SectionHeader icon={Settings} label={t("tooltip")} />
         <Button
           variant="ghost"
           size="icon"
@@ -193,16 +189,10 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </Button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 px-5 py-5">
         <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
-            <Keyboard size={14} className="text-dim" />
-            {t("finish_hotkey_title")}
-          </span>
-          <p className="text-2xs font-mono text-dim leading-relaxed">
-            {t("finish_hotkey_description")}
-          </p>
+          <SectionHeader icon={Keyboard} label={t("finish_hotkey_title")} />
+          <Description>{t("finish_hotkey_description")}</Description>
 
           <div className="flex items-center gap-2 mt-1">
             <Button
@@ -235,13 +225,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
-            <Volume2 size={14} className="text-dim" />
-            {t("sound_title")}
-          </span>
-          <p className="text-2xs font-mono text-dim leading-relaxed">
-            {t("sound_description")}
-          </p>
+          <SectionHeader icon={Volume2} label={t("sound_title")} />
+          <Description>{t("sound_description")}</Description>
           <div className="flex items-center gap-3 mt-1">
             <input
               type="range"
@@ -259,109 +244,81 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
-            <MonitorPlay size={14} className="text-dim" />
-            {t("stream_title")}
-          </span>
-          <p className="text-2xs font-mono text-dim leading-relaxed">
-            {t("stream_description")}
-          </p>
-          <label className="flex flex-col gap-1 mt-1">
-            <span className="text-2xs font-mono text-dim">
-              {t("resolution_label")}
-            </span>
-            <select
+          <SectionHeader icon={MonitorPlay} label={t("stream_title")} />
+          <Description>{t("stream_description")}</Description>
+          <Field label={t("resolution_label")} className="mt-1">
+            <Select
               value={resolution}
               onChange={(e) =>
                 handleQualityChange(Number(e.target.value) as 720 | 1080)
               }
-              className="bg-black border border-border rounded-sm px-2 py-2 text-xs text-text font-mono"
             >
               <option value={720}>720p</option>
               <option value={1080}>1080p</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
           <div className="flex items-center gap-3">
-            <label className="flex-1 flex flex-col gap-1">
-              <span className="text-2xs font-mono text-dim">
-                {t("framerate_label")}
-              </span>
-              <select
+            <Field label={t("framerate_label")} className="flex-1">
+              <Select
                 value={fps}
                 onChange={(e) =>
                   saveStreamSettings({ framerate: Number(e.target.value) })
                 }
-                className="bg-black border border-border rounded-sm px-2 py-2 text-xs text-text font-mono"
               >
                 <option value={30}>30 fps</option>
                 <option value={60}>60 fps</option>
-              </select>
-            </label>
-            <label className="flex-1 flex flex-col gap-1">
-              <span className="text-2xs font-mono text-dim">
-                {t("bitrate_label")}
-              </span>
-              <select
+              </Select>
+            </Field>
+            <Field label={t("bitrate_label")} className="flex-1">
+              <Select
                 value={safeBitrate}
                 onChange={(e) =>
                   saveStreamSettings({ bitrate_kbps: Number(e.target.value) })
                 }
-                className="bg-black border border-border rounded-sm px-2 py-2 text-xs text-text font-mono"
               >
                 {preset.bitrates.map((kbps) => (
                   <option key={kbps} value={kbps}>
                     {kbps} kbps
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           </div>
-          <p className="text-2xs font-mono text-dim leading-relaxed">
+          <Description>
             {t("stream_size_hint", {
               resolution,
               fps,
               size: gbPerHour(safeBitrate),
             })}
-          </p>
-          <p className="text-2xs font-mono text-dim leading-relaxed">
-            {t("stream_quality_note")}
-          </p>
-          <label className="flex flex-col gap-1 mt-1">
-            <span className="text-2xs font-mono text-dim">
-              {t("encoder_label")}
-            </span>
-            <select
+          </Description>
+          <Description>{t("stream_quality_note")}</Description>
+          <Field label={t("encoder_label")} className="mt-1">
+            <Select
               value={encoder}
               onChange={(e) =>
                 saveStreamSettings({ encoder: e.target.value as EncoderPref })
               }
-              className="bg-black border border-border rounded-sm px-2 py-2 text-xs text-text font-mono"
             >
               {ENCODER_CHOICES.map((c) => (
                 <option key={c} value={c}>
                   {c === EncoderPref.Auto ? t("encoder_auto") : ENCODER_LABELS[c]}
                 </option>
               ))}
-            </select>
-          </label>
-          <p className="text-2xs font-mono text-dim leading-relaxed">
+            </Select>
+          </Field>
+          <Description>
             {detected
               ? t("encoder_detected", { encoder: ENCODER_LABELS[detected] })
               : t("encoder_detecting")}
-          </p>
+          </Description>
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
-            <Clapperboard size={14} className="text-dim" />
-            {t("replay_title")}
-          </span>
-          <p className="text-2xs font-mono text-dim leading-relaxed">
-            {t("replay_description")}
-          </p>
+          <SectionHeader icon={Clapperboard} label={t("replay_title")} />
+          <Description>{t("replay_description")}</Description>
           <div className="flex items-center gap-2 mt-1">
             <span
-              className="flex-1 truncate rounded-sm border border-border bg-black px-2 py-2 text-2xs font-mono text-text"
+              className="flex-1 truncate rounded-sm border border-border bg-bg2 px-2 py-2 text-2xs font-mono text-text"
               title={replayDir}
             >
               {replayDir || t("replay_folder_unset")}
@@ -382,49 +339,31 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               {t("replay_open_folder")}
             </Button>
           </div>
-          <label className="flex items-center gap-2 mt-1 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={replayCasual}
-              onChange={(e) =>
-                saveStreamSettings({ replay_casual: e.target.checked })
-              }
-              className="accent-orange"
-            />
-            <span className="text-2xs font-mono text-dim">
-              {t("replay_casual_label")}
-            </span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={replayAutodelete}
-              onChange={(e) =>
-                saveStreamSettings({ replay_autodelete: e.target.checked })
-              }
-              className="accent-orange"
-            />
-            <span className="text-2xs font-mono text-dim">
-              {t("replay_autodelete_label")}
-            </span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={replayDeleteUploaded}
-              onChange={(e) =>
-                saveStreamSettings({ replay_delete_uploaded: e.target.checked })
-              }
-              className="accent-orange"
-            />
-            <span className="text-2xs font-mono text-dim">
-              {t("replay_delete_uploaded_label")}
-            </span>
-          </label>
+          <Checkbox
+            checked={replayCasual}
+            onChange={(checked) =>
+              saveStreamSettings({ replay_casual: checked })
+            }
+            label={t("replay_casual_label")}
+            className="mt-1"
+          />
+          <Checkbox
+            checked={replayAutodelete}
+            onChange={(checked) =>
+              saveStreamSettings({ replay_autodelete: checked })
+            }
+            label={t("replay_autodelete_label")}
+          />
+          <Checkbox
+            checked={replayDeleteUploaded}
+            onChange={(checked) =>
+              saveStreamSettings({ replay_delete_uploaded: checked })
+            }
+            label={t("replay_delete_uploaded_label")}
+          />
         </div>
       </div>
 
-      {/* Footer */}
       <div className="px-5 py-4 border-t border-border">
         <Button variant="danger" onClick={handleLogout} className="w-full h-10">
           <LogOut size={14} />
