@@ -111,7 +111,6 @@ fn scale_tail(resolution: u32) -> String {
 pub const PREVIEW_FPS: u32 = 15;
 const PREVIEW_TAIL: &str = "scale=640:-2:flags=bilinear,format=yuvj420p";
 
-// Rust WGC capture (window or monitor)
 pub struct VideoPipe<'a> {
     pub path: &'a str,
     pub width: u32,
@@ -217,7 +216,6 @@ pub fn build_args(
     let vf = video_filter(video_pipe.is_some(), &scale_tail(settings.resolution));
     let mut push = |s: &str| a.push(s.to_string());
 
-    // Audio input
     match audio {
         #[cfg(windows)]
         AudioSource::Pipe(path) => {
@@ -242,7 +240,6 @@ pub fn build_args(
         }
     }
 
-    // timer/splits overlay burns into the replay leg only
     let overlay =
         replay.and_then(|r| super::overlay_live::filter_chain(&r.dir, settings.resolution));
     let (vmap, amap) = if replay.is_some() {
@@ -260,7 +257,6 @@ pub fn build_args(
         ("0:v", "1:a")
     };
 
-    // Output 1 - WHIP (live)
     push("-map");
     push(vmap);
     push("-map");
@@ -288,7 +284,6 @@ pub fn build_args(
     push("whip");
     push(whip_url);
 
-    // MP4 replay VOD
     if let Some(run) = replay {
         push("-map");
         push("[vr]");

@@ -59,7 +59,6 @@ export default function Header() {
 
   return (
     <div className="px-4 py-3 flex items-center justify-between border-b border-border">
-      {/* Left: connection status */}
       <span className="flex items-center gap-1.5">
         <span className={`w-2 h-2 rounded-full ${dotColor}`} />
         <span className="text-xs font-mono tracking-wide text-muted">
@@ -67,7 +66,6 @@ export default function Header() {
         </span>
       </span>
 
-      {/* Right: action buttons */}
       <span className="flex items-center gap-1">
         <Tooltip
           content={
@@ -131,7 +129,6 @@ export default function Header() {
         </Tooltip>
       </span>
 
-      {/* Settings panel overlay */}
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   );

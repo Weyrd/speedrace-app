@@ -48,7 +48,6 @@ fn minimize_to_tray(window: &tauri::Window) {
     }
 }
 
-// Dismissing the first-time tray hint sends the window to the tray
 #[tauri::command]
 fn hide_to_tray(window: tauri::Window) {
     let _ = window.hide();
@@ -79,12 +78,11 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
             .unwrap_or(0);
         let elapsed = (now + guard.clock_offset_ms) - start;
         if elapsed < 0 {
-            return; // still counting down
+            return;
         }
         (lobby_id, elapsed as u64)
     };
 
-    // Surface the window so the runner sees their result.
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
@@ -134,7 +132,6 @@ pub fn run() {
             tauri::WindowEvent::CloseRequested { .. } => {
                 window.app_handle().exit(0);
             }
-            // Minimize (-) sends Speedrace to the tray instead of the taskbar/Dock
             tauri::WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
                 minimize_to_tray(window);
             }
@@ -226,11 +223,9 @@ pub fn run() {
                     .build(app)?;
             }
 
-            // Register deep link in DEV
             #[cfg(debug_assertions)]
             app.deep_link().register("speedrace").ok();
 
-            // Deep-link handler
             {
                 let app_for_link = app_handle.clone();
                 let state_for_link = shared_state.clone();
@@ -257,7 +252,6 @@ pub fn run() {
                 });
             }
 
-            // Seed last-known offset so the hotkey is fair before the frontend re-syncs.
             if let Some((offset, _)) = settings::load_clock_offset(&app_handle) {
                 if let Ok(mut guard) = shared_state.lock() {
                     guard.clock_offset_ms = offset;
@@ -278,7 +272,6 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            // macOS: clicking the Dock icon while the window is hidden reopens it.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = event {
                 if let Some(w) = app_handle.get_webview_window("main") {

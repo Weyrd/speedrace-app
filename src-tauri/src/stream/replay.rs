@@ -163,7 +163,6 @@ fn read_appended(path: &Path, from: u64) -> (Vec<SegmentLine>, u64) {
     if f.read_to_string(&mut text).is_err() {
         return (Vec::new(), from);
     }
-    // A trailing partial line is left for the next poll.
     let complete = text.rfind('\n').map_or(0, |i| i + 1);
     let lines = text[..complete].lines().filter_map(parse_line).collect();
     (lines, from + complete as u64)
@@ -223,7 +222,6 @@ pub(crate) async fn supervise_run(
         if !fresh.is_empty() {
             let (now_server, _) = match state.lock() {
                 Ok(g) => (crate::autosplit::now_epoch_ms() + g.clock_offset_ms, ()),
-                // Leave read_pos where it is so these lines are re-read next tick.
                 Err(_) => continue,
             };
             for l in &fresh {

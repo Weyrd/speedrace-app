@@ -19,9 +19,9 @@ use crate::logging::{mlog, LogCat};
 
 #[derive(Clone, Copy)]
 enum PixelConv {
-    Bgra,    // passthrough
-    Rgba,    // swap R<->B
-    Rgb10a2, // unpack 10-bit -> 8-bit BGRA
+    Bgra,
+    Rgba,
+    Rgb10a2,
 }
 
 fn resolve_format(fmt: DXGI_FORMAT) -> Option<(DXGI_FORMAT, PixelConv)> {
@@ -176,7 +176,7 @@ impl SharedTextureReader {
                 .Map(&tex.staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))
                 .map_err(|e| format!("Map(staging): {e}"))?;
             if tw != dw || th != dh {
-                out.iter_mut().for_each(|b| *b = 0); // letterbox bars
+                out.iter_mut().for_each(|b| *b = 0);
             }
             let src = mapped.pData as *const u8;
             let src_pitch = mapped.RowPitch as usize;
@@ -190,20 +190,20 @@ impl SharedTextureReader {
                         for px in 0..copy_w {
                             let sp = s.add(px * 4);
                             let dp = d.add(px * 4);
-                            *dp = *sp.add(2); // B <- R
-                            *dp.add(1) = *sp.add(1); // G
-                            *dp.add(2) = *sp; // R <- B
-                            *dp.add(3) = *sp.add(3); // A
+                            *dp = *sp.add(2);
+                            *dp.add(1) = *sp.add(1);
+                            *dp.add(2) = *sp;
+                            *dp.add(3) = *sp.add(3);
                         }
                     }
                     PixelConv::Rgb10a2 => {
                         for px in 0..copy_w {
                             let v = (s.add(px * 4) as *const u32).read_unaligned();
                             let dp = d.add(px * 4);
-                            *dp = ((v >> 22) & 0xFF) as u8; // B (top 8 of 10)
-                            *dp.add(1) = ((v >> 12) & 0xFF) as u8; // G
-                            *dp.add(2) = ((v >> 2) & 0xFF) as u8; // R
-                            *dp.add(3) = 0xFF; // A (2-bit alpha -> opaque)
+                            *dp = ((v >> 22) & 0xFF) as u8;
+                            *dp.add(1) = ((v >> 12) & 0xFF) as u8;
+                            *dp.add(2) = ((v >> 2) & 0xFF) as u8;
+                            *dp.add(3) = 0xFF;
                         }
                     }
                 }

@@ -37,7 +37,6 @@ impl LobbyStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbySetup {
-    // One struct shared by AppEvent::LobbySetup and the lobby/current response.
     pub lobby_id: String,
     pub code: String,
     pub lobby_status: LobbyStatus,

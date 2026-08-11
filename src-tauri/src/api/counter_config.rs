@@ -7,7 +7,6 @@ use crate::logging::{mlog, LogCat};
 use super::cache::{cache_paths, CacheKind};
 use super::client::authed_get_json;
 
-// Plain serde enums (no rename_all) to match the back's PascalCase wire format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CounterMode {
     Total,

@@ -192,7 +192,6 @@ fn sanitize_name(name: &str, max: usize) -> String {
         .collect()
 }
 
-// Called from the split paths; newest split lands in row 0.
 pub(crate) fn record_split(state: &SharedState, name: &str, end_ms: u64) {
     let style = &DEFAULT_STYLE;
     let row = format!(
@@ -219,7 +218,6 @@ pub(crate) fn record_split(state: &SharedState, name: &str, end_ms: u64) {
     }
 }
 
-// 30Hz timer
 pub(super) fn spawn_ticker(state: SharedState, mut stop_rx: tokio::sync::watch::Receiver<bool>) {
     tauri::async_runtime::spawn(async move {
         let mut last = String::new();

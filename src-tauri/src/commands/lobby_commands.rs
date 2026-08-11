@@ -49,7 +49,6 @@ pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String>
     })
 }
 
-// retry/queue if backend not availiable
 pub fn start_durable_finish(
     app: &AppHandle,
     state: &SharedState,
@@ -67,7 +66,7 @@ pub fn start_durable_finish(
             run_started_at_ms: guard.run_start_instant,
         });
         if guard.finish_retry_running {
-            return; // an existing task will pick up the pending finish
+            return;
         }
         guard.finish_retry_running = true;
     }
@@ -84,7 +83,6 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
         let g = state.lock().unwrap();
         g.pending_finish.clone()
     } {
-        // Ship buffered counters first so the acked attempt also archives them
         crate::counter::flush_all_counter_buffers(&app, &state, &pending.lobby_id).await;
 
         match api::lobby::submit_finish(
@@ -100,7 +98,6 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
                 break;
             }
             PostOutcome::Rejected => {
-                // Already recorded on the back
                 let result = PlayerResult {
                     player_status: PlayerStatus::Finished,
                     finishing_time_ms: Some(pending.finishing_time_ms),
@@ -132,7 +129,6 @@ fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result:
             Ok(g) => g,
             Err(_) => return,
         };
-        // Bail if a newer finish or a race-ending event superseded this one.
         match &guard.pending_finish {
             Some(p) if p.lobby_id == lobby_id => {}
             _ => return,
@@ -144,7 +140,6 @@ fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result:
         guard.autosplitter_cancel.store(true, Ordering::SeqCst);
         username = guard.user.as_ref().map(|u| u.username.clone());
     }
-    // If a long outage bounced us to the maintenance screen got o idle before sending to keep reesult
     if let Some(username) = username {
         crate::auth::oauth::emit_auth_state(
             app,
@@ -225,7 +220,6 @@ pub fn abandon_upload(state: State<SharedState>) -> Result<(), String> {
     Ok(())
 }
 
-// Failed/expired/quota path ask the back for a fresh ticket and re-run
 #[tauri::command]
 pub async fn retry_upload(app: AppHandle, state: State<'_, SharedState>) -> Result<(), String> {
     let lobby_id = {

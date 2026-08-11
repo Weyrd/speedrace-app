@@ -73,10 +73,11 @@ export default function StreamSetup() {
       )}
 
       <Button
-        variant="destructive"
+        variant="primary"
+        size="lg"
         onClick={() => handlePublish(lobby.lobby_id)}
         disabled={publishing}
-        className="w-full py-3.5 mt-auto"
+        className="w-full mt-auto"
       >
         {publishing && <Loader2 size={14} className="animate-spin" />}
         {publishing ? t("stream.publishing") : t("stream.publish")}

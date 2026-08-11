@@ -169,7 +169,6 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
     }
 }
 
-// Helper
 fn clear_pending_verifier() {
     if let Ok(mut pending) = PENDING_PKCE_VERIFIER.lock() {
         *pending = None;

@@ -58,7 +58,6 @@ fn compute() -> [bool; ALL.len()] {
                 }
             }
         }
-        // No explicit filter: everything in dev, nothing in release.
         Err(_) => {
             if cfg!(debug_assertions) {
                 on = [true; ALL.len()];
@@ -76,8 +75,6 @@ pub fn enabled(cat: LogCat) -> bool {
     FILTER.get_or_init(compute)[cat as usize]
 }
 
-// Gate a log line on its category. Keeps each call site's own `[tag]` prefix; the
-// category only decides whether the line prints. Zero output in release by default.
 macro_rules! mlog {
     ($cat:expr, $($arg:tt)*) => {
         if $crate::logging::enabled($cat) {

@@ -65,8 +65,6 @@ async fn make_filler(
     Ok(out)
 }
 
-// `parts` stays keyed by the ORIGINAL segment: the trimmed head is a different file, so its
-// run/index can no longer be recovered from the path once it has been substituted.
 pub(super) async fn with_fillers(
     app: &AppHandle,
     art: &ReplayArtifacts,
@@ -164,8 +162,6 @@ pub(super) async fn validate(
                 Some(h * 3600.0 + m * 60.0 + s)
             });
 
-        // Each joined file rounds up by ~0.03s, so the slack has to grow with the piece
-        // count: a 30 min race is ~360 segments and drifts ~11s off the index total.
         let tol = 2.0 + 0.05 * pieces as f64;
         if let Some(actual) = actual {
             if (actual - expected_secs).abs() > tol {

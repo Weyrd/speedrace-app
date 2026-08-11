@@ -136,17 +136,19 @@ export default function Racing() {
         {!autosplitDrivesFinish && (
           <Button
             variant="finish"
+            size="lg"
             onClick={() => actions.finish(lobby.lobby_id, elapsed)}
             disabled={negative}
-            className="flex-1 py-3.5"
+            className="flex-1"
           >
             {t("race.finish")}
           </Button>
         )}
         <Button
           variant="forfeit"
+          size="lg"
           onClick={() => setShowModal(true)}
-          className="flex-1 py-3.5"
+          className="flex-1"
         >
           {t("race.forfeit")}
         </Button>

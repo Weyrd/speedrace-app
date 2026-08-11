@@ -22,7 +22,6 @@ pub fn list_windows() -> Result<Vec<WindowInfo>, String> {
         if !iconic && (width < 200 || height < 150) {
             continue;
         }
-        // DWM cloaked = invisible UWP/ghost windows
         let mut cloaked: u32 = 0;
         unsafe {
             let _ = DwmGetWindowAttribute(

@@ -33,7 +33,6 @@ pub fn resolve_ffmpeg_path() -> Result<PathBuf, String> {
             }
         }
     }
-    // Dev => externalBin may not be copied next to the debug exe
     #[cfg(debug_assertions)]
     {
         let bin = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries");
@@ -202,7 +201,6 @@ pub async fn supervise(
                         "[ffmpeg] mid-race death, restart {attempt}/{MAX_RESTARTS}"
                     );
                     emit_status(&app, StreamState::Reconnecting, None);
-                    // Never POST stream-stopped mid-race: the back would forfeit the runner.
                     if wait_or_stop(&mut stop_rx, RESTART_DELAY).await {
                         emit_status(&app, StreamState::Stopped, None);
                         return;
@@ -211,7 +209,6 @@ pub async fn supervise(
                     continue;
                 }
 
-                // Pre race death is safe to surface reset ready flags and return to setup
                 mlog!(LogCat::Stream, "[ffmpeg] pre-race death");
                 if matches!(phase, AppState::StreamSetup | AppState::WaitingForStart) {
                     let lobby_id = state
@@ -344,7 +341,6 @@ async fn run_child(
                             }
                         }
                     }
-                    // stdout closed => ffmpeg exited.
                     Ok(None) | Err(_) => {
                         let _ = child.wait().await;
                         return (Outcome::Died, went_live, drain(reader, last_err).await);
@@ -372,7 +368,7 @@ async fn graceful_stop(child: &mut Child, stdin: &mut Option<tokio::process::Chi
         let _ = si.write_all(b"q\n").await;
         let _ = si.flush().await;
     }
-    *stdin = None; // drop to signal EOF
+    *stdin = None;
     if tokio::time::timeout(Duration::from_secs(3), child.wait())
         .await
         .is_err()
@@ -407,7 +403,6 @@ pub(crate) fn spawn_ffmpeg(path: &Path, args: &[String]) -> Result<Child, String
     Ok(child)
 }
 
-// Process-lifetime Job Object: if our process dies  Windows kills any ffmpeg spawned
 #[cfg(windows)]
 fn assign_to_job(child: &Child) {
     use std::sync::OnceLock;

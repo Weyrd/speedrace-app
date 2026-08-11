@@ -31,7 +31,7 @@ pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) 
     let wasm = {
         let g = state.lock().unwrap();
         if g.autosplitter_runtime.is_some() {
-            return true; // already running
+            return true;
         }
         g.autosplitter_wasm.clone()
     };
@@ -82,7 +82,6 @@ fn build_settings_map(state: &SharedState) -> Option<settings::Map> {
     Some(map)
 }
 
-// A fresh instance clears the permanent trap flag
 fn instantiate(
     compiled: &CompiledAutoSplitter,
     app: &AppHandle,
@@ -140,9 +139,7 @@ async fn supervise(
     state: SharedState,
     cancel: Arc<AtomicBool>,
 ) {
-    // "connected" = attached to the game process; report only on change.
     let mut last_attached: Option<bool> = None;
-    // The .lss loads in parallel with startup; push settings once it lands
     let mut settings_pushed = false;
 
     loop {
@@ -160,14 +157,11 @@ async fn supervise(
             break;
         }
 
-        // Commit before update() so a split fired this tick goes to the chosen source
         crate::ws::handler::maybe_commit_source(&state);
-        // Once committed to WASM at the gun, flush any pre-gun (early-start)
         crate::autosplit::split::flush_early_splits(&app, &state);
 
         let tick_rate = splitter.tick_rate();
 
-        // ExecutionGuard is !Send, so drop it before any await
         let tick = match splitter.try_lock() {
             Some(mut exec) => {
                 if exec.update().is_err() {
@@ -196,7 +190,6 @@ async fn supervise(
                 sleep(tick_rate).await;
             }
             Tick::Trapped => {
-                // Trap is permanent for this instance, usually because the game is not running yet
                 mlog!(LogCat::Wasm, "[wasm] update trapped, re-instantiating");
                 if last_attached != Some(false) {
                     last_attached = Some(false);
@@ -212,8 +205,6 @@ async fn supervise(
         }
     }
 
-    // Leaving (lobby ended or LiveSplit won): mark detached, unregister so the
-    // next lobby's start() doesn't see a stale "already running" handle.
     {
         let mut guard = state.lock().unwrap();
         guard.wasm_attached = false;

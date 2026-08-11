@@ -39,7 +39,6 @@ pub struct StoredStreamSettings {
     pub replay_delete_uploaded: bool,
 }
 
-// Videos\Speedrace
 pub fn default_replay_dir(app: &AppHandle) -> String {
     let base = app
         .path()
@@ -50,7 +49,6 @@ pub fn default_replay_dir(app: &AppHandle) -> String {
         .unwrap_or_else(|_| "Speedrace".to_string())
 }
 
-// A VOD still need to be uploaded -> auto restart
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct PendingUpload {
     pub lobby_id: String,
@@ -103,7 +101,6 @@ pub fn save_finish_hotkey(app: &AppHandle, accel: &str) -> Result<(), String> {
     Ok(())
 }
 
-// (offset_ms, synced_at_ms); None when never measured
 pub fn load_clock_offset(app: &AppHandle) -> Option<(i64, i64)> {
     let store = app.store(STORE_PATH).ok()?;
     let offset = store.get(CLOCK_OFFSET_KEY)?.as_i64()?;

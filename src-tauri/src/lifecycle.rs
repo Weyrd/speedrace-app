@@ -8,7 +8,6 @@ use crate::state::SharedState;
 use tauri::AppHandle;
 use tauri::Emitter;
 
-// Spawn refresh + WS loops if not already running
 pub fn start_background_loops(app: &AppHandle, state: &SharedState) {
     let should_spawn_refresh = {
         let mut guard = state.lock().unwrap();
@@ -45,7 +44,6 @@ pub fn start_background_loops(app: &AppHandle, state: &SharedState) {
     }
 }
 
-// Try to restore a previous session on startup
 pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
     let store = TokenStore::new(app.clone());
 
@@ -86,7 +84,6 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
         stored.user
     };
 
-    // Check if the user is already in a lobby
     let lobby_response = fetch_current_lobby(&app).await;
 
     {
@@ -114,7 +111,6 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
         let _ = app.emit(WS_LOBBY_SETUP, lobby);
         crate::stream::preview::ensure_for_phase(&app, &shared_state);
     } else if let Some(pending) = crate::settings::load_pending_upload(&app) {
-        // Not racing -> resume a VOD still owed from a previous session
         mlog!(
             LogCat::Lifecycle,
             "[startup] pending upload found for lobby {}",

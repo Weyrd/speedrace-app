@@ -13,7 +13,6 @@ use super::client::{
     PostOutcome,
 };
 
-// finish/forfeit
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PlayerResult {
     pub player_status: PlayerStatus,
@@ -21,7 +20,6 @@ pub struct PlayerResult {
     pub finish_position: Option<u32>,
 }
 
-// lobby/current endpoint
 #[derive(Debug, Deserialize)]
 pub struct LobbyCurrentResponse {
     pub lobby_id: String,
@@ -104,7 +102,6 @@ pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), 
 struct AutosplitStatusBody {
     connected: bool,
     splits_valid: bool,
-    // true = the run already started
     run_in_progress: bool,
 }
 
@@ -156,7 +153,7 @@ pub async fn submit_finish(
 
 #[derive(Serialize)]
 struct RunStartedBody {
-    elapsed_ms: i64, // since when it is started
+    elapsed_ms: i64,
 }
 
 pub async fn submit_run_started(

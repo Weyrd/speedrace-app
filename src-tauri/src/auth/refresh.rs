@@ -44,7 +44,6 @@ pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
         }
     }
 
-    // Reset guard on exit
     if let Ok(mut guard) = shared_state.lock() {
         guard.refresh_loop_running = false;
     }
@@ -62,7 +61,6 @@ fn logout_and_notify(app: &AppHandle, store: &TokenStore) {
     emit_auth_state(app, AuthStatePayload::Unauthenticated);
 }
 
-/// POST /api/v1/auth/desktop/refresh
 async fn refresh_access_token(refresh_token: &str) -> Result<Tokens, String> {
     #[derive(serde::Serialize)]
     struct RefreshRequest<'a> {

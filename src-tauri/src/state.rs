@@ -10,7 +10,6 @@ pub enum AutosplitSource {
     LiveSplit,
 }
 
-// A finish wait the back retried until it work so if mid race outage it finsih still
 #[derive(Debug, Clone)]
 pub struct PendingFinish {
     pub lobby_id: String,
@@ -33,7 +32,6 @@ pub struct PendingSplit {
     pub end_ms: u64,
 }
 
-// A WASM split crossed pre-source-commit -> early start buffered
 #[derive(Debug, Clone)]
 pub struct BufferedEarlySplit {
     pub lobby_id: String,
@@ -49,7 +47,6 @@ pub struct GlobalState {
     pub lobby: Option<LobbySetup>,
     pub race_start_at: Option<i64>,
     pub clock_offset_ms: i64,
-    // penalty
     pub run_start_instant: Option<i64>,
     pub run_active: bool,
 
@@ -79,7 +76,6 @@ pub struct GlobalState {
     pub finish_retry_running: bool,
     pub pending_splits: Vec<PendingSplit>,
     pub split_retry_running: bool,
-    // Last IGT the WASM reported. start is only (re)captured when it advances (rules out stale-menu re-capture)
     pub wasm_last_igt: Option<i64>,
     pub pending_early_splits: Vec<BufferedEarlySplit>,
     pub stream: Option<crate::stream::StreamSession>,
@@ -93,7 +89,7 @@ pub struct GlobalState {
     pub capture_source: Option<crate::stream::CaptureSource>,
     pub preview: Option<crate::stream::PreviewSession>,
 
-    pub preview_starting: bool, // during injection
+    pub preview_starting: bool,
     pub preview_gen: u64,
     pub preview_last_jpeg: Option<Vec<u8>>,
 }
@@ -156,7 +152,6 @@ impl Default for GlobalState {
     }
 }
 
-// Clear all run-start capture so the next race starts fresh.
 pub fn reset_run_start(g: &mut GlobalState) {
     g.run_start_instant = None;
     g.run_active = false;

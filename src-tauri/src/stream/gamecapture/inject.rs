@@ -142,7 +142,6 @@ unsafe fn write_and_run(
     let mut exit = 0u32;
     let _ = GetExitCodeThread(thread, &mut exit);
     let _ = CloseHandle(thread);
-    // exit = low 32 bits of the loaded HMODULE 0 => LoadLibraryW returned NULL
     if exit == 0 {
         return Err("LoadLibraryW returned null in target".into());
     }

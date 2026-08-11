@@ -13,7 +13,6 @@ pub struct SpeedraceTimer {
 
 impl Timer for SpeedraceTimer {
     fn state(&self) -> TimerState {
-        // running -> wasm can call timer.Reset() and check if run is active
         if self.state.lock().unwrap().run_active {
             TimerState::Running
         } else {
@@ -37,13 +36,10 @@ impl Timer for SpeedraceTimer {
             guard.autosplit_source
         };
         match source {
-            // Committed to WASM (gun passed): fire normally
             Some(crate::state::AutosplitSource::Wasm) => {
                 crate::autosplit::split::fire_split(&self.app, &self.state)
             }
-            // LiveSplit won the race: WASM ignore
             Some(crate::state::AutosplitSource::LiveSplit) => {}
-            // Pre-gun crossing (source undecided): treat as an early start
             None => crate::autosplit::split::buffer_early_split(&self.app, &self.state),
         }
     }
@@ -126,11 +122,9 @@ impl Timer for SpeedraceTimer {
         });
     }
     fn set_game_time(&mut self, t: livesplit_auto_splitting::time::Duration) {
-        // Mid-run WASM get run_started_at_ms = now − IGT
         let igt = t.whole_milliseconds() as i64;
         let at = {
             let Ok(mut g) = self.state.lock() else { return };
-            // A live run's IGT climbs a frozen menu IGT does not.
             let advancing = g.wasm_last_igt.is_some_and(|prev| igt > prev);
             g.wasm_last_igt = Some(igt);
             if g.run_start_instant.is_some() {

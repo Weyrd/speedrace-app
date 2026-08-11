@@ -5,7 +5,6 @@ use crate::config;
 use crate::settings;
 use crate::state::SharedState;
 
-// Refresh at most once a day
 const CLOCK_CACHE_TTL_MS: i64 = 24 * 60 * 60 * 1000;
 const SAMPLE_COUNT: usize = 5;
 
@@ -32,12 +31,11 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-// Keep the smallest round-trip sample: its midpoint estimate is most trustworthy
 async fn measure_offset() -> Result<i64, String> {
     let http = reqwest::Client::new();
     let url = config::api_url("/api/v1/time");
 
-    let mut best: Option<(i64, i64)> = None; // (rtt, offset)
+    let mut best: Option<(i64, i64)> = None;
     for _ in 0..SAMPLE_COUNT {
         let t0 = now_ms();
         let envelope = http
@@ -61,7 +59,6 @@ async fn measure_offset() -> Result<i64, String> {
         .ok_or_else(|| "no clock samples".to_string())
 }
 
-// Mirrors the offset into SharedState so the hotkey-finish path stays fair.
 #[tauri::command]
 pub async fn sync_clock(
     app: AppHandle,
