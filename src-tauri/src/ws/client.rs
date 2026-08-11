@@ -62,9 +62,9 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                 );
                 if refresh_or_logout(&app, &state).await {
                     backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
-                    continue; // reconnect immediately with the refreshed token
+                    continue;
                 }
-                break; // refresh failed -> logged out
+                break;
             }
             AttemptResult::Banned => {
                 mlog!(LogCat::Ws, "[ws] connection refused: banned (4003)");
@@ -251,7 +251,7 @@ where
                     _ => AuthOutcome::Transient,
                 };
             }
-            Some(Ok(_)) => continue, // ping/pong/binary before the verdict
+            Some(Ok(_)) => continue,
             Some(Err(_)) | None => return AuthOutcome::Transient,
         }
     }

@@ -31,7 +31,7 @@ pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) 
     let wasm = {
         let g = state.lock().unwrap();
         if g.autosplitter_runtime.is_some() {
-            return true; // already running
+            return true;
         }
         g.autosplitter_wasm.clone()
     };

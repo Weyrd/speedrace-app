@@ -368,7 +368,7 @@ async fn graceful_stop(child: &mut Child, stdin: &mut Option<tokio::process::Chi
         let _ = si.write_all(b"q\n").await;
         let _ = si.flush().await;
     }
-    *stdin = None; // drop to signal EOF
+    *stdin = None;
     if tokio::time::timeout(Duration::from_secs(3), child.wait())
         .await
         .is_err()

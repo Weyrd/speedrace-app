@@ -1,4 +1,3 @@
-
 pub const EVENT_CAPTURE_RESTART: &str = "CaptureHook_Restart";
 pub const EVENT_HOOK_INIT: &str = "CaptureHook_Initialize";
 pub const WINDOW_HOOK_KEEPALIVE: &str = "CaptureHook_KeepAlive";

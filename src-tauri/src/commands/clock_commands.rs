@@ -35,7 +35,7 @@ async fn measure_offset() -> Result<i64, String> {
     let http = reqwest::Client::new();
     let url = config::api_url("/api/v1/time");
 
-    let mut best: Option<(i64, i64)> = None; // (rtt, offset)
+    let mut best: Option<(i64, i64)> = None;
     for _ in 0..SAMPLE_COUNT {
         let t0 = now_ms();
         let envelope = http

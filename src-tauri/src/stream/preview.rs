@@ -220,7 +220,7 @@ async fn read_mpjpeg_frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -
         let mut line = String::new();
         let n = reader.read_line(&mut line).await.ok()?;
         if n == 0 {
-            return None; // EOF
+            return None;
         }
         let line = line.trim();
         if let Some(v) = line
