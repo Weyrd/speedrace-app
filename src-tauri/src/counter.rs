@@ -46,7 +46,6 @@ impl CounterBuffer {
                 Some(idx) => {
                     per_split.insert(idx, sample);
                 }
-                // No split context degrades to latest-wins
                 None => *no_split = Some(sample),
             },
             CounterBuffer::Timeline(events) => events.push(sample),
@@ -76,8 +75,6 @@ pub enum CounterAction {
     Drop,
 }
 
-// Unknown counter = discovered default Total+EndOnly: buffer so it flushes as one POST at finish,
-// not a per-event flood. Disabled = drop; Instant = post now; else buffer (mode-shaped).
 pub fn resolve_action(cfg: Option<&CounterConfig>) -> CounterAction {
     match cfg {
         None => CounterAction::Buffer(CounterMode::Total),

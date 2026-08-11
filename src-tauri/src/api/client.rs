@@ -31,8 +31,8 @@ pub struct ApiError {
 
 pub enum PostOutcome<R> {
     Ok(R),
-    Rejected,  // 4xx: won't change on retry (already done / gone / bad request)
-    Transient, // network error, 5xx, or no token yet: worth retrying
+    Rejected,
+    Transient,
 }
 
 impl<R> PostOutcome<R> {
@@ -45,7 +45,6 @@ impl<R> PostOutcome<R> {
     }
 }
 
-// Sends a request; returns None on 404, non-2xx, or network error.
 async fn send_check(req: reqwest::RequestBuilder, log_tag: &str) -> Option<Response> {
     let resp = req
         .send()
@@ -66,7 +65,6 @@ async fn send_check(req: reqwest::RequestBuilder, log_tag: &str) -> Option<Respo
     Some(resp)
 }
 
-// Sends a POST with body; maps 2xx→Ok(resp), 5xx/network→Transient, 4xx→Rejected.
 async fn send_outcome<B: Serialize>(
     app: &AppHandle,
     path: &str,
@@ -74,7 +72,7 @@ async fn send_outcome<B: Serialize>(
     log_tag: &str,
 ) -> PostOutcome<Response> {
     let Some(authed) = ApiClient::new(app).authenticated() else {
-        return PostOutcome::Transient; // no token yet; a refresh may restore it
+        return PostOutcome::Transient;
     };
     let resp = match authed.post(path).json(body).send().await {
         Ok(r) => r,
@@ -102,8 +100,6 @@ async fn parse_json<T: DeserializeOwned>(resp: Response, log_tag: &str) -> Optio
         .ok()
         .map(|b| b.data)
 }
-
-// --- Public API ---
 
 pub async fn authed_get_json<T: DeserializeOwned>(
     app: &AppHandle,
@@ -177,8 +173,6 @@ pub async fn authed_post_body_json_outcome<B: Serialize, R: DeserializeOwned>(
         PostOutcome::Transient => PostOutcome::Transient,
     }
 }
-
-// --- Client structs ---
 
 pub struct ApiClient {
     http: reqwest::Client,

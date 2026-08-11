@@ -193,7 +193,6 @@ async fn drive_preview(
                         }
                         emit(app, PreviewEvent::Frame { frame: b64 });
                     }
-                    // stdout closed => ffmpeg exited
                     None => {
                         let _ = child.wait().await;
                         mlog!(LogCat::Stream, "[preview] ffmpeg ended unexpectedly");
@@ -221,7 +220,7 @@ async fn read_mpjpeg_frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -
         let mut line = String::new();
         let n = reader.read_line(&mut line).await.ok()?;
         if n == 0 {
-            return None; // EOF
+            return None;
         }
         let line = line.trim();
         if let Some(v) = line
@@ -232,7 +231,6 @@ async fn read_mpjpeg_frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -
             content_length = v.parse().ok();
         } else if line.is_empty() {
             if let Some(len) = content_length.take() {
-                // 8 MB cap
                 if len == 0 || len > 8 * 1024 * 1024 {
                     return None;
                 }

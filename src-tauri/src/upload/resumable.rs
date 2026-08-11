@@ -5,7 +5,6 @@ use std::sync::Arc;
 use tauri::AppHandle;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-// 256 KiB multiple per the resumable protocol
 const CHUNK_SIZE: u64 = 8 * 1024 * 1024;
 const MAX_RETRIES: u32 = 5;
 
@@ -14,7 +13,6 @@ enum ProbeState {
     Complete(String),
 }
 
-// where did Google get to? (used to resume after an error)
 async fn probe(client: &reqwest::Client, url: &str, total: u64) -> Result<ProbeState, String> {
     let resp = client
         .put(url)
@@ -102,7 +100,6 @@ pub(super) async fn put_chunks(
                 emit(app, UploadPhase::Uploading, total, total, None);
                 return parse_video_id(r).await;
             }
-            // Session gone (expired/cancelled): retrying chunks is pointless
             Ok(r) if matches!(r.status().as_u16(), 404 | 410) => {
                 return Err(format!("upload session expired ({})", r.status()));
             }

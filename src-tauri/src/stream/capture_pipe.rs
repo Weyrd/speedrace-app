@@ -29,7 +29,6 @@ pub(crate) fn spawn_paced_writer(
 ) -> tauri::async_runtime::JoinHandle<()> {
     let period = Duration::from_millis((1000 / fps.max(1)).max(1) as u64);
     tauri::async_runtime::spawn(async move {
-        // wait for ffmpeg to open the read end
         if server.connect().await.is_err() {
             return;
         }
@@ -54,7 +53,7 @@ pub(crate) fn spawn_paced_writer(
         loop {
             ticker.tick().await;
             if stop.load(Ordering::SeqCst) {
-                return; // dropping EOFs ffmpeg's video input
+                return;
             }
             if let Ok(l) = latest.lock() {
                 if l.len() == frame_bytes {

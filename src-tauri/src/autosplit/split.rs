@@ -18,7 +18,6 @@ pub fn fire_split(app: &AppHandle, state: &SharedState) {
     fire_split_impl(app, state, false);
 }
 
-// skip split if player started in adavance (before official start) only for livesplit
 pub fn skip_split(app: &AppHandle, state: &SharedState) {
     fire_split_impl(app, state, true);
 }
@@ -33,7 +32,6 @@ enum Outcome {
         is_final: bool,
         skip: bool,
     },
-    // If split without start (only case is wasm dont expose IGT, start game/run THEN app) -> forfeit instant as we cant compute the penalty
     Forfeit {
         lobby_id: String,
     },
@@ -63,8 +61,6 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
         };
         let lobby_id = lobby.lobby_id.clone();
 
-        // if no start recorded (wasm no igt) runner have until he passes the first split to restart the run after -> forfeit
-        // A catch-up skip (force_skip) never forfeits: it only advances the index.
         if guard.run_start_instant.is_none() && !force_skip {
             if guard.run_forfeited {
                 return;
@@ -287,7 +283,6 @@ pub fn fire_prestart_split(app: &AppHandle, state: &SharedState) {
     emit_prestart_split(app, state, lobby_id, split_index, segment_name, is_final);
 }
 
-// Shared 0/0 pre-gun emit path for both sources (WASM flush + LiveSplit catch-up).
 fn emit_prestart_split(
     app: &AppHandle,
     state: &SharedState,
@@ -329,7 +324,7 @@ pub fn enqueue_split(app: &AppHandle, state: &SharedState, split: PendingSplit) 
         };
         guard.pending_splits.push(split);
         if guard.split_retry_running {
-            return; // an existing loop will drain the queue
+            return;
         }
         guard.split_retry_running = true;
     }

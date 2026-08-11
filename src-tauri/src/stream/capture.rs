@@ -2,7 +2,7 @@
 use crate::logging::{mlog, LogCat};
 
 #[cfg(windows)]
-const WGC_FULLSCREEN_PROBE: std::time::Duration = std::time::Duration::from_millis(1500); // after try inject obs dll
+const WGC_FULLSCREEN_PROBE: std::time::Duration = std::time::Duration::from_millis(1500);
 
 #[cfg(windows)]
 pub async fn start_capture_for(

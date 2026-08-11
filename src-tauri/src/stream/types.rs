@@ -47,8 +47,8 @@ pub struct LaunchSpec {
 }
 
 pub(crate) enum Outcome {
-    Stopped, // external graceful stop requested
-    Died,    // ffmpeg exited or stalled unexpectedly
+    Stopped,
+    Died,
 }
 
 pub struct StreamSession {
@@ -62,7 +62,6 @@ pub struct PreviewSession {
     pub(crate) join: tauri::async_runtime::JoinHandle<()>,
 }
 
-// "stream:preview" payload
 #[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub(crate) enum PreviewEvent {
@@ -100,7 +99,6 @@ impl Encoder {
         self.names().0
     }
 
-    // None is "auto".
     pub fn parse(s: &str) -> Option<Self> {
         let s = s.trim();
         Self::ALL.into_iter().find(|e| {
@@ -113,7 +111,7 @@ impl Encoder {
 pub enum AudioSource {
     #[cfg(windows)]
     Pipe(String),
-    Silent, // fallback when WASAPI loopback is unavailable
+    Silent,
 }
 
 pub(crate) type StopFlag = Arc<AtomicBool>;
@@ -156,7 +154,6 @@ impl CaptureHandle {
     }
 }
 
-// WGC capture (window or monitor) -> fixed-size BGRA letterbox
 pub struct WgcHandle {
     pub pipe_name: String,
     pub width: u32,

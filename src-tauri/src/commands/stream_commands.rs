@@ -19,7 +19,6 @@ pub async fn publish_stream(
     stream::publish(&app, &state, &lobby_id).await
 }
 
-// Graceful stop from setup/waiting
 #[tauri::command]
 pub async fn stop_stream(
     lobby_id: String,
@@ -89,7 +88,6 @@ pub fn set_stream_settings(
     replay_delete_uploaded: bool,
     app: AppHandle,
 ) -> Result<(), String> {
-    // Monitor index is owned by set_capture_source; preserve the stored value
     let monitor_index = crate::settings::load_stream_settings(&app).monitor_index;
     crate::settings::save_stream_settings(
         &app,

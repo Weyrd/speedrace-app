@@ -35,8 +35,6 @@ pub async fn connect() -> Option<tokio::net::TcpStream> {
         }
     };
     let _ = stream.set_nodelay(true);
-    // A TCP handshake alone proves nothing: a WebSocket server (or anything else)
-    // can squat on 16834. Require a valid getsplitindex reply before trusting it.
     if !probe_protocol(&mut stream).await {
         mlog!(
             LogCat::LiveSplit,
@@ -110,7 +108,6 @@ pub async fn poll_loop(
             );
             break;
         }
-        // Fire splits only when LiveSplit is the committed source; otherwise just track position.
         let fire = phase == crate::models::AppState::RaceInProgress
             && source == Some(crate::state::AutosplitSource::LiveSplit);
 
@@ -162,7 +159,6 @@ pub async fn poll_loop(
         }
         tick = tick.wrapping_add(1);
 
-        // start : NotRunning→Running.  None if getcurrenttime fails or elapsed
         if index < 0 {
             saw_not_running = true;
             if run_start_captured {
@@ -203,8 +199,6 @@ pub async fn poll_loop(
             }
         }
 
-        // If LiveSplit is our source but the runners timer never started  force
-        // it so getcurrentsplitname becomes readable and we can verify the splits => + 1 attemps on liveeplsit
         if fire && index < 0 && !forced_start {
             mlog!(
                 LogCat::LiveSplit,
@@ -224,7 +218,6 @@ pub async fn poll_loop(
             if last_index < 0 && index >= 0 {
                 if index > 0 {
                     if just_committed {
-                        //  happened before the gun -> emit each as a 0/0 pre-gun
                         mlog!(
                             LogCat::LiveSplit,
                             "[livesplit-tcp] pre-gun early start: {index} completed split(s) -> 0/0"
@@ -233,7 +226,6 @@ pub async fn poll_loop(
                             crate::autosplit::split::fire_prestart_split(&app, &state);
                         }
                     } else {
-                        // Mid-race reconnect (loop re-entered already-committed)
                         mlog!(
                             LogCat::LiveSplit,
                             "[livesplit-tcp] reconnect catch-up {index} split(s), no 0/0"
@@ -257,7 +249,6 @@ pub async fn poll_loop(
                 crate::autosplit::split::fire_split(&app, &state);
                 last_index = index;
             } else if index < last_index {
-                // Runner reset their timer
                 mlog!(
                     LogCat::LiveSplit,
                     "[livesplit-tcp] index reset {last_index} → {index}, re-arming"
@@ -266,7 +257,6 @@ pub async fn poll_loop(
             }
         }
 
-        // check if split match our name
         if index >= 0 && index != name_checked_index {
             let expected = {
                 let g = state.lock().unwrap();
@@ -288,7 +278,6 @@ pub async fn poll_loop(
                     .await;
                     if let Ok(Ok(n)) = name_res {
                         let actual = line.trim();
-                        // "-" LiveSplit has no current split yet check alter
                         if n > 0 && actual != "-" {
                             let matches = actual.eq_ignore_ascii_case(expected.trim());
                             if !matches {

@@ -14,7 +14,6 @@ use crate::logging::{mlog, LogCat};
 use crate::models::{AppState, AuthStatePayload, AuthUser, LobbyStatus, PlayerStatus, WsStatus};
 use crate::state::SharedState;
 
-// Server close codes that distinguish an auth rejection from a transient drop.
 const CLOSE_AUTH_INVALID: u16 = 4001;
 const CLOSE_BANNED: u16 = 4003;
 
@@ -27,7 +26,6 @@ enum AuthOutcome {
     Transient,
 }
 
-// A single connect+auth attempt; on success carries the live authed stream.
 enum AttemptResult {
     Connected(Box<WsStream>),
     Invalid,
@@ -53,7 +51,6 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                 transient_failures = 0;
                 backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
                 serve_connection(&app, &state, *stream).await;
-                // Healthy connection dropped: brief pause, then reconnect.
                 emit_ws_status(&app, &state, WsStatus::Disconnected);
                 tokio::time::sleep(backoff).await;
                 backoff = (backoff * 2).min(Duration::from_secs(config::WS_RECONNECT_MAX_SECS));
@@ -65,9 +62,9 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                 );
                 if refresh_or_logout(&app, &state).await {
                     backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
-                    continue; // reconnect immediately with the refreshed token
+                    continue;
                 }
-                break; // refresh failed -> logged out
+                break;
             }
             AttemptResult::Banned => {
                 mlog!(LogCat::Ws, "[ws] connection refused: banned (4003)");
@@ -204,13 +201,10 @@ async fn announce_connection(app: &AppHandle, state: &SharedState) {
         let _ = app.emit(APP_STATE, &new_app_state);
         let _ = app.emit(WS_LOBBY_SETUP, &lobby_resp);
         crate::stream::preview::ensure_for_phase(app, state);
-        // The app survived the drop, so split position + committed source are intact in
-        // memory; restart only the dead supervisors without rewinding them.
         if !player_done {
             crate::ws::handler::resume_lobby_resources(app, state, &lobby_resp);
         }
     } else {
-        // No active lobby (deleted or expired while disconnected) - reset to Idle
         let mut guard = state.lock().unwrap();
         if guard.app_state != AppState::Unauthenticated {
             guard.app_state = AppState::Idle;
@@ -242,14 +236,12 @@ async fn read_loop(app: &AppHandle, state: &SharedState, mut ws_stream: WsStream
     }
 }
 
-// Reads frames until the server's auth verdict is known.
 async fn read_auth_outcome<S>(ws_stream: &mut S) -> AuthOutcome
 where
     S: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,
 {
     loop {
         match ws_stream.next().await {
-            // Contract: auth_ok is the first server text on success; any text means we're authed.
             Some(Ok(Message::Text(_))) => return AuthOutcome::Ok,
             Some(Ok(Message::Close(frame))) => {
                 let code = frame.map(|f| u16::from(f.code)).unwrap_or(0);
@@ -259,13 +251,12 @@ where
                     _ => AuthOutcome::Transient,
                 };
             }
-            Some(Ok(_)) => continue, // ping/pong/binary before the verdict
+            Some(Ok(_)) => continue,
             Some(Err(_)) | None => return AuthOutcome::Transient,
         }
     }
 }
 
-// Counts a transient failure; returns true once the maintenance threshold is hit.
 async fn register_transient(
     app: &AppHandle,
     state: &SharedState,
@@ -288,7 +279,6 @@ async fn register_transient(
     false
 }
 
-// 4001: try one refresh. Returns true to retry with a new token, false if logged out.
 async fn refresh_or_logout(app: &AppHandle, state: &SharedState) -> bool {
     let store = TokenStore::new(app.clone());
     let refresh_token = match store.load() {

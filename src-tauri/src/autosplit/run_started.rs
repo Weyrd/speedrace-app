@@ -4,7 +4,6 @@ use crate::logging::{mlog, LogCat};
 use crate::state::{PendingRunStarted, SharedState};
 use std::time::Duration;
 
-// Send when race starts to compute penalty or not
 pub fn mark_run_start(app: &tauri::AppHandle, state: &SharedState, instant: i64) {
     let pending = {
         let mut g = match state.lock() {

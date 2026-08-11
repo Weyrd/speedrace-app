@@ -95,7 +95,6 @@ pub(super) async fn assemble(app: &AppHandle, base: &Path) -> Result<PathBuf, St
     }
 }
 
-// Lossless join of restart segments (`-f concat -c copy`, seconds not minutes).
 async fn concat_parts(
     app: &AppHandle,
     art: &ReplayArtifacts,

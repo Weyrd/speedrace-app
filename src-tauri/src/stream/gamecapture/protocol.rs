@@ -1,17 +1,9 @@
-// OBS win-capture shared protocol. Layout mirrors obsproject/obs-studio
-// shared/obs-hook-config/graphics-hook-info.h at the pinned OBS tag (see
-// scripts/get-game-capture.ps1). `HookInfo` is an ABI contract with the vendored hook DLLs:
-// its size MUST stay 648 (const guard below) — re-verify this file on any OBS bump.
-
-// Named kernel objects we use, each suffixed with the target process id (OBS uses L"%s%lu"). We
-// only drive the shared-texture path, so the memory-capture / HookReady / Stop objects are omitted.
 pub const EVENT_CAPTURE_RESTART: &str = "CaptureHook_Restart";
 pub const EVENT_HOOK_INIT: &str = "CaptureHook_Initialize";
 pub const WINDOW_HOOK_KEEPALIVE: &str = "CaptureHook_KeepAlive";
 pub const SHMEM_HOOK_INFO: &str = "CaptureHook_HookInfo";
 pub const SHMEM_TEXTURE: &str = "CaptureHook_Texture";
 
-// enum capture_type (only TEXTURE is handled)
 pub const CAPTURE_TYPE_TEXTURE: u32 = 1;
 
 #[repr(C)]
@@ -74,8 +66,6 @@ pub struct GraphicsOffsets {
     pub d3d12: D3d12Offsets,
 }
 
-// C `bool` fields are kept as u8: this struct is read from hook-written shared memory, where a
-// Rust `bool` holding anything but 0/1 would be UB. Treat != 0 as true.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct HookInfo {
@@ -101,7 +91,6 @@ pub struct HookInfo {
     pub reserved: [u32; 126],
 }
 
-// OBS static_assert(sizeof(struct hook_info) == 648 "ABI compatibility"
 const _: () = assert!(core::mem::size_of::<HookInfo>() == 648);
 
 #[repr(C)]

@@ -11,12 +11,8 @@ const PROBE_H: u32 = 360;
 const PROBE_FRAMES: usize = 4;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(6);
 
-// `ffmpeg -encoders` is useless here: it lists what was COMPILED in, not what this machine can
-// actually open. The sidecar ships nvenc+amf unconditionally, so only a real encode answers.
 static CAPS: OnceLock<Mutex<HashMap<(Encoder, u8), bool>>> = OnceLock::new();
 
-// Only completed probes are cached, so overlapping warms would trial-encode at the same time
-// and starve each other of GPU sessions, caching a working encoder as unusable.
 static PROBE_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
 fn caps() -> &'static Mutex<HashMap<(Encoder, u8), bool>> {
@@ -37,7 +33,6 @@ fn remember(enc: Encoder, legs: u8, ok: bool) {
     }
 }
 
-// A live failure invalidates the cache: the GPU had a session when we probed and lost it since.
 pub fn poison(enc: Encoder) {
     if let Ok(mut m) = caps().lock() {
         for legs in 1..=2u8 {
@@ -47,8 +42,6 @@ pub fn poison(enc: Encoder) {
     mlog!(LogCat::Stream, "[encoder] {} poisoned", enc.name());
 }
 
-// Mirrors the real pipeline shape: a GPU with no free session passes a 1-leg probe and then
-// fails live, because we open two encoder instances (WHIP + replay) in one process.
 fn probe_args(enc: Encoder, legs: u8) -> Vec<String> {
     let mut a: Vec<String> = [
         "-hide_banner",
@@ -140,8 +133,6 @@ async fn probe(enc: Encoder, legs: u8) -> bool {
         if ok { "usable" } else { "unusable" }
     );
     remember(enc, legs, ok);
-    // Two sessions opening means one will too, and one failing means two cannot. Lets a
-    // warm at either leg count answer the other, instead of probing inside the 25s publish.
     match (legs, ok) {
         (2, true) => remember(enc, 1, true),
         (1, false) => remember(enc, 2, false),
@@ -150,7 +141,6 @@ async fn probe(enc: Encoder, legs: u8) -> bool {
     ok
 }
 
-// Runs the probe ahead of time so publish never pays for it.
 pub async fn warm(with_replay: bool) {
     let legs = if with_replay { 2 } else { 1 };
     if probe(Encoder::Nvenc, legs).await {
@@ -163,7 +153,6 @@ pub async fn select(pref: Option<Encoder>, with_replay: bool) -> Encoder {
     let legs = if with_replay { 2 } else { 1 };
     match pref {
         Some(Encoder::X264) => Encoder::X264,
-        // An explicit pick is still verified: a forced-but-broken encoder would fail at publish.
         Some(enc) => pick(enc, legs).await,
         None => {
             if probe(Encoder::Nvenc, legs).await {
@@ -190,7 +179,6 @@ async fn pick(enc: Encoder, legs: u8) -> Encoder {
     }
 }
 
-// What Auto would choose right now, for the settings UI. None while the probe is still cold.
 pub fn detected() -> Option<Encoder> {
     let m = caps().lock().ok()?;
     for enc in [Encoder::Nvenc, Encoder::Amf] {

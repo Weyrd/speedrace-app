@@ -211,7 +211,6 @@ async fn publish_fail(
     Err(msg.to_string())
 }
 
-// Graceful stop; also the single choke point that kills any local preview
 pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
     preview::stop(state).await;
     let session = {
