@@ -33,10 +33,7 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
   };
 
   return createPortal(
-    <div
-      style={{ backgroundColor: "#252320" }}
-      className="fixed inset-0 z-100 flex flex-col"
-    >
+    <div className="fixed inset-0 z-panel flex flex-col bg-bg0">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <span className="flex items-center gap-2 text-xs font-mono tracking-wide text-muted">
           <Monitor size={14} className="text-dim" />
@@ -54,7 +51,7 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
 
       <div className="flex gap-2 px-4 pt-3">
         <Button
-          variant={tab === CaptureSourceKind.Window ? "destructive" : "outline"}
+          variant={tab === CaptureSourceKind.Window ? "primary" : "outline"}
           onClick={() => setTab(CaptureSourceKind.Window)}
           className="flex-1 py-2"
         >
@@ -62,7 +59,7 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
           {t("stream.tab_windows")}
         </Button>
         <Button
-          variant={tab === CaptureSourceKind.Monitor ? "destructive" : "outline"}
+          variant={tab === CaptureSourceKind.Monitor ? "primary" : "outline"}
           onClick={() => setTab(CaptureSourceKind.Monitor)}
           className="flex-1 py-2"
         >

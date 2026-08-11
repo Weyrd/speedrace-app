@@ -47,8 +47,8 @@ pub struct LaunchSpec {
 }
 
 pub(crate) enum Outcome {
-    Stopped, // external graceful stop requested
-    Died,    // ffmpeg exited or stalled unexpectedly
+    Stopped,
+    Died,
 }
 
 pub struct StreamSession {
@@ -111,7 +111,7 @@ impl Encoder {
 pub enum AudioSource {
     #[cfg(windows)]
     Pipe(String),
-    Silent, // fallback when WASAPI loopback is unavailable
+    Silent,
 }
 
 pub(crate) type StopFlag = Arc<AtomicBool>;

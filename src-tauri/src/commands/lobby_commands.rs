@@ -66,7 +66,7 @@ pub fn start_durable_finish(
             run_started_at_ms: guard.run_start_instant,
         });
         if guard.finish_retry_running {
-            return; // an existing task will pick up the pending finish
+            return;
         }
         guard.finish_retry_running = true;
     }

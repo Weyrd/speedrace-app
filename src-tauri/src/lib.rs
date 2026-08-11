@@ -78,7 +78,7 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
             .unwrap_or(0);
         let elapsed = (now + guard.clock_offset_ms) - start;
         if elapsed < 0 {
-            return; // still counting down
+            return;
         }
         (lobby_id, elapsed as u64)
     };

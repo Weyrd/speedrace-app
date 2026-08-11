@@ -24,7 +24,7 @@ fn probe(is64: bool) -> Result<GraphicsOffsets, String> {
     };
     let exe = super::resolve_binary(name)?;
     let out = std::process::Command::new(&exe)
-        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .creation_flags(0x0800_0000)
         .output()
         .map_err(|e| format!("run {name}: {e}"))?;
     if !out.status.success() {

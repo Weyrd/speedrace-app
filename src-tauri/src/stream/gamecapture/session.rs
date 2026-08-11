@@ -13,7 +13,7 @@ use super::protocol::{self, HookInfo};
 
 const SYNCHRONIZE: u32 = 0x0010_0000;
 const EVENT_MODIFY_STATE: u32 = 0x0002;
-const FILE_MAP_RW: u32 = 0x0004 | 0x0002; // FILE_MAP_READ or FILE_MAP_WRITE
+const FILE_MAP_RW: u32 = 0x0004 | 0x0002;
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()

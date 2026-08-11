@@ -8,6 +8,7 @@ pub struct AutosplitProbePayload {
     pub wasm: bool,
     pub livesplit: bool,
     pub splits_match: Option<bool>,
+    // true = run started before the start (early start warning during lobby wait)
     pub run_in_progress: bool,
 }
 use crate::autosplit::now_epoch_ms;

@@ -53,7 +53,7 @@ pub(crate) fn spawn_paced_writer(
         loop {
             ticker.tick().await;
             if stop.load(Ordering::SeqCst) {
-                return; // dropping EOFs ffmpeg's video input
+                return;
             }
             if let Ok(l) = latest.lock() {
                 if l.len() == frame_bytes {

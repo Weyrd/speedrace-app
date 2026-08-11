@@ -324,7 +324,7 @@ pub fn enqueue_split(app: &AppHandle, state: &SharedState, split: PendingSplit) 
         };
         guard.pending_splits.push(split);
         if guard.split_retry_running {
-            return; // an existing loop will drain the queue
+            return;
         }
         guard.split_retry_running = true;
     }
