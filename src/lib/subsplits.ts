@@ -31,7 +31,6 @@ export interface SegmentSection {
   splits: SegmentSplit[];
 }
 
-// A "{Section}" segment is the section's last/major split, so it CLOSES the group.
 export function groupSegments(
   rawNames: ReadonlyArray<string>,
 ): SegmentSection[] {

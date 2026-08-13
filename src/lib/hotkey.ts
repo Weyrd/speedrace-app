@@ -3,9 +3,9 @@ const isMac =
   /Mac|iPhone|iPad/.test(navigator.platform);
 
 function codeToKey(code: string): string | null {
-  if (/^Key[A-Z]$/.test(code)) return code.slice(3); // KeyF -> F
-  if (/^Digit[0-9]$/.test(code)) return code.slice(5); // Digit1 -> 1
-  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code; // F1..F24
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code;
   const map: Record<string, string> = {
     Enter: "Enter",
     NumpadEnter: "Enter",
@@ -45,13 +45,13 @@ function eventToKey(e: KeyboardEvent): string | null {
 
 export function eventToAccelerator(e: KeyboardEvent): string | null {
   const key = eventToKey(e);
-  if (!key) return null; // modifier-only or unsupported key
+  if (!key) return null;
 
   const parts: string[] = [];
   if (e.ctrlKey || e.metaKey) parts.push("CmdOrCtrl");
   if (e.altKey) parts.push("Alt");
   if (e.shiftKey) parts.push("Shift");
-  if (parts.length === 0) return null; // require at least one modifier
+  if (parts.length === 0) return null;
 
   parts.push(key);
   return parts.join("+");

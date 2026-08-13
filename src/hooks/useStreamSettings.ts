@@ -47,7 +47,6 @@ export function useSetCaptureSource() {
   return useMutation({
     mutationFn: async (source: CaptureSource) => {
       await setCaptureSource(source);
-      // reflect the new source immediately in the local preview (if running)
       await restartPreview().catch(() => {});
       return source;
     },

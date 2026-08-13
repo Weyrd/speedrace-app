@@ -40,8 +40,6 @@ import type {
   UploadStatusPayload,
 } from "../types";
 
-// Phase = the React app's current screen/state
-// This mirrors Rust's AppState enum
 export const Phase = {
   Unauthenticated: "Unauthenticated",
   Connecting: "Connecting",
@@ -93,7 +91,6 @@ export type AppState =
       wsStatus: WsStatus;
       result: PlayerResult;
       raceType?: RaceType;
-      // ranked VOD upload progress "upload:status" events
       upload?: UploadStatusPayload;
     }
   | { phase: typeof Phase.ServerUnavailable }
