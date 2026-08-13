@@ -41,7 +41,6 @@ export function AppEventBridge(): null {
         if (payload.state === AuthState.Authenticated) {
           dispatch({ type: ActionType.AuthOk, user: payload.user });
         } else {
-          // Rust owns ffmpeg teardown on logout.
           dispatch({ type: ActionType.Logout });
         }
       }),
@@ -57,14 +56,12 @@ export function AppEventBridge(): null {
         });
       }),
 
-      // try to auto slect the right game
       onStreamSource((source) => {
         qc.setQueryData(captureSourceKey, source);
       }),
 
       onAppState((phase) => {
         if (phase === Phase.ServerUnavailable) {
-          // ffmpeg stays alive across a back outage
           dispatch({ type: ActionType.ServerUnavailable });
         } else if (phase === Phase.Banned) {
           dispatch({ type: ActionType.Banned });
@@ -93,7 +90,6 @@ export function AppEventBridge(): null {
       }),
 
       onLobbyStart((payload) => {
-        // resync the clock
         void resyncClock(qc);
         dispatch({
           type: ActionType.LobbyStart,

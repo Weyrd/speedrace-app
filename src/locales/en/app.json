@@ -50,7 +50,12 @@
     "finish_position": "Finish Position",
     "finish_time": "Finish Time",
     "status_finished": "Finished",
-    "status_forfeited": "Forfeited"
+    "status_forfeited": "Forfeited",
+    "status_dnf": "DNF",
+    "position_ordinal_one": "{{count}}st",
+    "position_ordinal_two": "{{count}}nd",
+    "position_ordinal_few": "{{count}}rd",
+    "position_ordinal_other": "{{count}}th"
   },
   "replay": {
     "saved": "Replay saved to your computer",
@@ -69,7 +74,10 @@
     "blocking": "You can start a new race once the upload finishes"
   },
   "autosplit": {
-    "early_start_tooltip": "Your timer looks already running. Reset before the race starts to avoid a penalty."
+    "early_start_tooltip": "Your timer looks already running. Reset before the race starts to avoid a penalty.",
+    "wasm_connected_tooltip": "WASM autosplitter connected",
+    "livesplit_connected_tooltip": "LiveSplit connected",
+    "splits_mismatch_tooltip": "LiveSplit splits differ from the race's, splits won't be recorded"
   },
   "stop_modal": {
     "title_racing": "Forfeit the race?",

@@ -119,7 +119,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case ActionType.StreamStatusChanged: {
       const s = action.status;
-      // before race failure/stop bounces back to setup
       if (
         (s === StreamEventState.Error || s === StreamEventState.Stopped) &&
         state.phase === Phase.WaitingForStart
@@ -162,8 +161,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case ActionType.PlayerResult: {
-      // Idle is allowed so a durable finish that lands after a maintenance-screen
-      // recovery (ServerUnavailable -> AuthOk -> Idle) still shows the result.
       if (state.phase !== Phase.RaceInProgress && state.phase !== Phase.Idle)
         return state;
       const s = state as Extract<AppState, { user: User; wsStatus: WsStatus }>;
@@ -225,7 +222,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     }
 
-    // Connection-level terminal states from the WS backend, valid from any phase.
     case ActionType.ServerUnavailable: {
       if (state.phase === Phase.ServerUnavailable) return state;
       return { phase: Phase.ServerUnavailable };

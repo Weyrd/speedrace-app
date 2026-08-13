@@ -1,4 +1,3 @@
-// Auth
 export interface User {
   username: string;
 }
@@ -11,7 +10,6 @@ export type AuthStatePayload =
   | { state: typeof AuthState.Authenticated; user: User }
   | { state: typeof AuthState.Unauthenticated };
 
-// WS / connection
 export const WsStatus = {
   Connected: "connected",
   Connecting: "connecting",
@@ -19,7 +17,6 @@ export const WsStatus = {
 } as const;
 export type WsStatus = (typeof WsStatus)[keyof typeof WsStatus];
 
-// Domain enums - values must match Rust serde output exactly
 export const PlayerStatus = {
   Preparing: "preparing",
   InProgress: "in_progress",
@@ -57,7 +54,6 @@ export interface AutosplitState {
   run_in_progress?: boolean;
 }
 
-// Tauri event payloads
 export interface LobbySetup {
   lobby_id: string;
   lobby_status: LobbyStatus;
@@ -97,7 +93,6 @@ export interface LobbyStartPayload {
   expires_at: number;
 }
 
-// ffmpeg stream
 export const StreamStatus = {
   Idle: "idle",
   Connecting: "connecting",
@@ -114,19 +109,16 @@ export const StreamEventState = {
 export type StreamEventState =
   (typeof StreamEventState)[keyof typeof StreamEventState];
 
-// "stream:status" event payload
 export interface StreamStatusPayload {
   state: StreamEventState;
   message?: string;
 }
 
-// "stream:preview" base64 JPEG frame
 export interface StreamPreviewPayload {
   frame?: string;
   error?: string;
 }
 
-// "upload:status" ranked VOD upload
 export const UploadPhase = {
   Preparing: "preparing",
   Uploading: "uploading",

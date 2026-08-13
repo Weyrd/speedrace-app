@@ -28,7 +28,6 @@ export class WhepClient {
     return remote;
   }
 
-  // MediaMTX 404 until ffmpeg connect
   private async negotiate(whepUrl: string, sdp: string): Promise<string> {
     const deadline = Date.now() + 5000;
     for (;;) {
