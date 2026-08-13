@@ -50,7 +50,10 @@
     "finish_position": "Position finale",
     "finish_time": "Temps final",
     "status_finished": "Terminé",
-    "status_forfeited": "Forfait"
+    "status_forfeited": "Forfait",
+    "status_dnf": "DNF",
+    "position_ordinal_one": "{{count}}er",
+    "position_ordinal_other": "{{count}}e"
   },
   "replay": {
     "saved": "Rediffusion enregistrée sur ton ordinateur",
@@ -69,7 +72,10 @@
     "blocking": "Tu pourras lancer une nouvelle course une fois l'upload terminé"
   },
   "autosplit": {
-    "early_start_tooltip": "Ton timer semble déjà lancé. Réinitialise-le avant le départ pour éviter une pénalité."
+    "early_start_tooltip": "Ton timer semble déjà lancé. Réinitialise-le avant le départ pour éviter une pénalité.",
+    "wasm_connected_tooltip": "Autosplitter WASM connecté",
+    "livesplit_connected_tooltip": "LiveSplit connecté",
+    "splits_mismatch_tooltip": "Les splits LiveSplit diffèrent de ceux de la race, ils ne seront pas enregistrés"
   },
   "stop_modal": {
     "title_racing": "Abandonner la race ?",
