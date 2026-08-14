@@ -5,8 +5,7 @@
 # that get-ffmpeg.ps1 downloads; this script is only needed to (re)produce that asset,
 # not by regular clones or CI.
 #
-# The component list below mirrors exactly what the app uses (see docs/SPEC_FFMPEG.md
-# and src-tauri/src/stream/pipeline.rs). WHIP needs ffmpeg 8.x with a real DTLS backend:
+# The component list below mirrors exactly what the app uses. WHIP needs ffmpeg 8.x with a real DTLS backend:
 # we use GnuTLS (the suite's GPL license choice disables OpenSSL; GnuTLS matches the
 # proven Gyan pin). Never --enable-nonfree: the output must stay redistributable.
 # Suite license prompt: answer 2 (GPLv3 - keeps gmp, which GnuTLS needs); 64-bit only.
