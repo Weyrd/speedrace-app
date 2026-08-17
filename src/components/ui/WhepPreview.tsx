@@ -49,8 +49,8 @@ export function WhepPreview({
           </>
         ) : (
           <>
-            <span className="w-1.5 h-1.5 rounded-full bg-orange shrink-0 animate-pulse" />
-            <span className="text-2xs text-orange font-mono tracking-wide">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 animate-pulse" />
+            <span className="text-2xs text-accent font-mono tracking-wide">
               {streamStatus === StreamStatus.Reconnecting
                 ? t("stream.reconnecting")
                 : t("stream.stream_lost")}

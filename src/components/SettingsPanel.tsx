@@ -235,7 +235,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               value={Math.round(volume * 100)}
               onChange={handleVolumeChange}
               onPointerUp={() => playSound(Sound.LobbyEnter)}
-              className="flex-1 accent-orange cursor-pointer"
+              className="flex-1 accent-accent cursor-pointer"
             />
             <span className="w-10 text-right text-xs font-mono tracking-wide tabular-nums text-text">
               {Math.round(volume * 100)}%

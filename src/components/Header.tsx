@@ -45,7 +45,7 @@ export default function Header() {
     wsStatus === WsStatus.Connected
       ? "bg-green"
       : wsStatus === WsStatus.Connecting
-        ? "bg-orange animate-pulse"
+        ? "bg-accent animate-pulse"
         : "bg-red";
 
   const hasLobby = LOBBY_PHASES.has(state.phase);

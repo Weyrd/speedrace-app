@@ -44,7 +44,7 @@ export function PreviewCanvas({ onClick }: { onClick?: () => void }) {
       {status !== PreviewState.Live && (
         <div className="absolute inset-0 flex items-center justify-center">
           <span
-            className={`text-sm font-mono tracking-wide ${status === PreviewState.Error ? "text-red" : "text-orange"}`}
+            className={`text-sm font-mono tracking-wide ${status === PreviewState.Error ? "text-red" : "text-accent"}`}
           >
             {status === PreviewState.Error
               ? t("stream.preview_error")
