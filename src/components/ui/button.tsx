@@ -5,14 +5,14 @@ import type { VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 font-mono tracking-wide rounded-sm transition-colors cursor-pointer whitespace-nowrap outline-none focus-visible:ring-1 focus-visible:ring-orange/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 font-mono tracking-wide rounded-sm transition-colors cursor-pointer whitespace-nowrap outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         ghost: "text-dim hover:text-muted bg-transparent",
         outline:
           "border border-border text-muted bg-transparent hover:border-muted hover:text-text",
-        primary: "bg-orange text-white hover:opacity-90",
+        primary: "bg-accent text-on-accent hover:bg-accent-hover",
         success: "bg-green text-white hover:opacity-90",
         destructive: "bg-red text-white hover:opacity-90",
         danger:
@@ -21,7 +21,7 @@ const buttonVariants = cva(
           "border border-green text-green bg-transparent hover:bg-green-dim",
         forfeit: "border border-red text-red bg-transparent hover:bg-red-dim",
         start:
-          "text-orange border border-orange-dim bg-transparent hover:border-orange hover:bg-orange-dim",
+          "text-accent border border-accent-dim bg-transparent hover:border-accent hover:bg-accent-dim",
       },
       size: {
         default: "px-4 py-2.5 text-xs",
