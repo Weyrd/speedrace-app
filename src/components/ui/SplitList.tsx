@@ -69,7 +69,7 @@ export function SplitList({
         <span
           className={`text-xs font-mono tracking-wide truncate ${
             grouped && split.isSubsplit ? "pl-4" : ""
-          } ${isActive ? "text-orange" : isCompleted ? "text-text" : "text-dim"}`}
+          } ${isActive ? "text-accent" : isCompleted ? "text-text" : "text-dim"}`}
         >
           {isActive ? "> " : "  "}
           {split.label}

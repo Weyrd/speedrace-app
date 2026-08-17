@@ -24,8 +24,8 @@ export default function Login() {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-3 px-6 py-10">
       <span className="text-3xl font-bold tracking-wide text-text font-mono">
-        <span className="text-orange">»</span> {t("common:brand")}
-        <span className="text-orange">.run</span>
+        <span className="text-accent">»</span> {t("common:brand")}
+        <span className="text-accent">.run</span>
       </span>
       <span className="text-xs text-muted tracking-wide font-mono italic">
         {t("common:tagline")}

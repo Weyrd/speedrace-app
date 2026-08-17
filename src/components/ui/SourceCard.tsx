@@ -18,7 +18,7 @@ export function SourceCard({
       variant="outline"
       onClick={onSelect}
       className={`flex w-full flex-col items-stretch gap-1 p-1.5 text-left whitespace-normal ${
-        selected ? "border-orange hover:border-orange" : ""
+        selected ? "border-accent hover:border-accent" : ""
       }`}
     >
       <div className="bg-black rounded-sm aspect-video w-full overflow-hidden">
