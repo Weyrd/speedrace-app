@@ -38,7 +38,7 @@ export function LobbyHeader({
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 text-2xs font-mono tracking-wider uppercase text-dim">
-            <span className="text-orange">»</span>
+            <span className="text-accent">»</span>
             {label}
           </span>
         )}
@@ -73,7 +73,7 @@ export function LobbyHeader({
           )}
           <span className="bg-bg2 border border-border rounded-sm px-2 py-0.5 text-2xs font-mono tracking-wider">
             <span className="text-muted">{codePrefix}</span>
-            <span className="text-orange">{codeSuffix}</span>
+            <span className="text-accent">{codeSuffix}</span>
           </span>
         </div>
       </div>

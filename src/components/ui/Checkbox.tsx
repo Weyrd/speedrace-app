@@ -17,7 +17,7 @@ export function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="accent-orange"
+        className="accent-accent"
       />
       <span className="text-2xs font-mono text-dim">{label}</span>
     </label>

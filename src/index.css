@@ -71,10 +71,12 @@
   --color-bg1: oklch(0.29 0.011 84.6);
   --color-bg2: oklch(0.338 0.011 84.6);
   --color-bg3: oklch(0.396 0.011 78.2);
-  --color-orange: oklch(0.657 0.179 40.9);
-  --color-amber: oklch(0.714 0.121 81);
-  --color-red: oklch(0.623 0.188 24.7);
-  --color-green: oklch(0.704 0.036 125.8);
+  --color-accent: oklch(0.700 0.080 58);
+  --color-accent-hover: oklch(0.750 0.100 58);
+  --color-accent-fill: oklch(0.340 0.030 58);
+  --color-on-accent: oklch(0.257 0.010 70);
+  --color-red: oklch(0.630 0.100 20);
+  --color-green: oklch(0.780 0.075 148);
   --color-text: oklch(0.944 0.012 84.6);
   --color-muted: oklch(0.684 0.015 67.6);
   --color-dim: oklch(0.507 0.01 56.2);
@@ -98,7 +100,7 @@
   body {
     background: transparent;
     font-family: "Fira Mono", monospace;
-    color: oklch(0.944 0.012 84.6);
+    color: var(--color-text);
   }
 
   ::-webkit-scrollbar {
@@ -110,31 +112,31 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: oklch(0.396 0.011 78.2);
+    background: var(--color-bg3);
     border-radius: 2px;
   }
 }
 
-@utility bg-orange-dim {
-  background-color: rgba(232, 98, 42, 0.15);
+@utility bg-accent-dim {
+  background-color: --alpha(var(--color-accent) / 15%);
 }
 
-@utility border-orange-dim {
-  border-color: rgba(232, 98, 42, 0.4);
+@utility border-accent-dim {
+  border-color: --alpha(var(--color-accent) / 40%);
 }
 
 @utility bg-red-dim {
-  background-color: rgba(226, 75, 74, 0.08);
+  background-color: --alpha(var(--color-red) / 8%);
 }
 
 @utility border-red-dim {
-  border-color: rgba(226, 75, 74, 0.25);
+  border-color: --alpha(var(--color-red) / 25%);
 }
 
 @utility bg-green-dim {
-  background-color: rgba(154, 164, 140, 0.1);
+  background-color: --alpha(var(--color-green) / 10%);
 }
 
 @utility border-green-dim {
-  border-color: rgba(154, 164, 140, 0.3);
+  border-color: --alpha(var(--color-green) / 30%);
 }
