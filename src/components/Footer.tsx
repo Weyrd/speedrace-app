@@ -9,7 +9,7 @@ export default function Footer() {
   });
 
   return (
-    <div className="w-full flex justify-center border-t border-border">
+    <div className="w-full flex justify-center">
       <p className="text-2xs text-dim tracking-wide font-mono py-2">
         v{version}
       </p>

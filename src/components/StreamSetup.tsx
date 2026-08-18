@@ -44,7 +44,7 @@ export default function StreamSetup() {
   const { lobby } = state;
 
   return (
-    <div className="h-full flex flex-col gap-3 px-4 py-4">
+    <div className="h-full flex flex-col gap-3 px-4 py-4 overflow-y-auto">
       <LobbyHeader
         gameName={lobby.game_name}
         categories={lobby.category_name}
