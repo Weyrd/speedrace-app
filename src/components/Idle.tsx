@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Hourglass } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAppState, Phase } from "../store";
 import { webUrls } from "../lib/webUrls";
@@ -13,7 +13,7 @@ export default function Idle() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-      <span className="text-5xl text-dim">⏳</span>
+      <Hourglass size={40} className="text-dim" />
       <p className="text-2xl text-text font-mono tracking-wide font-bold">
         {t("idle.title")}
       </p>
@@ -21,7 +21,7 @@ export default function Idle() {
         {t("idle.description")}
       </p>
       <Button
-        variant="start"
+        variant="default"
         onClick={() => openUrl(webUrls.createLobby)}
         className="mt-2 text-sm"
       >

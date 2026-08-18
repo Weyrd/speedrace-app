@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
+import { Check, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
 import StopModal from "./StopModal";
@@ -104,7 +105,7 @@ export default function Racing() {
   const display = (negative ? "-" : "") + formatTime(Math.abs(elapsed));
 
   return (
-    <div className="h-full flex flex-col gap-3 px-4 py-4">
+    <div className="h-full flex flex-col gap-3 px-4 py-4 overflow-y-auto">
       <LobbyHeader
         gameName={lobby.game_name}
         categories={lobby.category_name}
@@ -114,14 +115,11 @@ export default function Racing() {
         earlyStartDetected={state.autosplit?.run_in_progress}
       />
       <WhepPreview whepUrl={whepUrl} streamStatus={state.streamStatus} />
-      <div className="flex flex-col items-center py-2 gap-1">
+      <div className="flex justify-center py-2">
         <span
           className={`text-4xl font-bold font-mono tracking-wide transition-colors ${negative ? "text-muted" : "text-text"}`}
         >
           {display}
-        </span>
-        <span className="text-2xs text-dim font-mono tracking-wide">
-          {negative ? t("race.starting_soon") : t("race.in_race")}
         </span>
       </div>
       {lobby.split_resource_updated_at && (
@@ -141,6 +139,7 @@ export default function Racing() {
             disabled={negative}
             className="flex-1"
           >
+            <Check size={14} />
             {t("race.finish")}
           </Button>
         )}
@@ -150,6 +149,7 @@ export default function Racing() {
           onClick={() => setShowModal(true)}
           className="flex-1"
         >
+          <X size={14} />
           {t("race.forfeit")}
         </Button>
       </div>

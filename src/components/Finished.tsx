@@ -88,22 +88,11 @@ export default function Finished() {
         </div>
       )}
 
-      <div
-        className={`flex items-center gap-1.5 rounded-sm px-2.5 py-2 border ${
-          finished
-            ? "bg-green-dim border-green-dim"
-            : "bg-red-dim border-red-dim"
-        }`}
+      <span
+        className={`text-xs font-mono tracking-wider uppercase ${finished ? "text-green" : "text-red"}`}
       >
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${finished ? "bg-green" : "bg-red"}`}
-        />
-        <span
-          className={`text-2xs font-mono tracking-wide mt-0.5 ${finished ? "text-green" : "text-red"}`}
-        >
-          {finished ? t("race.status_finished") : t("race.status_forfeited")}
-        </span>
-      </div>
+        {finished ? t("race.status_finished") : t("race.status_dnf")}
+      </span>
 
       {upload && (
         <div className="flex w-full flex-col items-center gap-2">

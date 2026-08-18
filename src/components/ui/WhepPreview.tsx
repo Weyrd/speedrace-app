@@ -31,7 +31,7 @@ export function WhepPreview({
   }, [whepUrl, live]);
 
   return (
-    <div className="bg-black border border-border rounded-sm aspect-video w-full overflow-hidden relative">
+    <div className="bg-black border border-border rounded-sm aspect-video w-full shrink-0 overflow-hidden relative">
       <video
         ref={videoRef}
         autoPlay

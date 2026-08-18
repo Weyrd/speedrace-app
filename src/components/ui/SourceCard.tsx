@@ -21,7 +21,7 @@ export function SourceCard({
         selected ? "border-accent hover:border-accent" : ""
       }`}
     >
-      <div className="bg-black rounded-sm aspect-video w-full overflow-hidden">
+      <div className="bg-black rounded-sm aspect-video w-full shrink-0 overflow-hidden">
         {children}
       </div>
       <span className="text-2xs tracking-wide text-text truncate">{label}</span>
