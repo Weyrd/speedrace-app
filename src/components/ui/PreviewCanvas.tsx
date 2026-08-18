@@ -34,7 +34,7 @@ export function PreviewCanvas({ onClick }: { onClick?: () => void }) {
       onClick={onClick}
       disabled={!onClick}
       aria-label={t("stream.change_source_hint")}
-      className="relative aspect-video w-full overflow-hidden rounded-sm border border-border bg-black p-0"
+      className="relative aspect-video w-full shrink-0 overflow-hidden rounded-sm border border-border bg-black p-0"
     >
       <img
         ref={attachImg}
