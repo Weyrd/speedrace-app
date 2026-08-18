@@ -18,7 +18,7 @@ export function Tooltip({ content, children, side = "bottom" }: TooltipProps) {
           side={side}
           sideOffset={6}
           collisionPadding={8}
-          className="z-tooltip pointer-events-none px-2 py-1 rounded-sm bg-bg3 border border-border text-2xs font-mono text-muted whitespace-nowrap shadow-lg"
+          className="z-tooltip pointer-events-none px-2 py-1 rounded-sm bg-bg3 border border-border text-2xs font-mono text-muted whitespace-nowrap"
         >
           {content}
         </RadixTooltip.Content>

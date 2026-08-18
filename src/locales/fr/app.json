@@ -11,7 +11,7 @@
     "create_lobby": "Créer ou rejoindre un lobby"
   },
   "stream": {
-    "lobby": "Dans le lobby",
+    "lobby": "Lobby",
     "preview_starting": "Démarrage de l'aperçu...",
     "preview_error": "Aperçu indisponible. Choisissez une autre source.",
     "monitor_option": "Écran {{index}} ({{width}}×{{height}})",
@@ -26,27 +26,25 @@
     "fullscreen_hint": "Jeu en plein écran absent de la liste ? Utilisez l'onglet Plein écran pour capturer tout son écran.",
     "minimized_thumb": "Réduit : l'image apparaîtra une fois le jeu au premier plan",
     "change_source_hint": "Cliquez sur l'aperçu pour changer de source",
-    "publish": "● Publier",
+    "publish": "Publier",
     "publishing": "Publication...",
     "error_start": "Impossible de démarrer le stream.",
     "error_monitors": "Impossible de lister les écrans.",
     "stream_active": "Stream actif",
     "stream_lost": "Stream perdu",
     "reconnecting": "Reconnexion...",
-    "stop_stream": "▪ Arrêter le stream"
+    "stop_stream": "Arrêter le stream"
   },
   "waiting": {
     "waiting_host": "En attente que l'hôte\nlance la race..."
   },
   "race": {
-    "in_race": "en course",
-    "stop_forfeit": "▪ Arrêter / Forfait",
-    "finish": "✓ Terminer",
-    "forfeit": "✗ Forfait",
+    "stop_forfeit": "Arrêter / Forfait",
+    "finish": "Terminer",
+    "forfeit": "Forfait",
     "finished_title": "Course terminée",
     "finished_subtitle": "Les résultats ont été sauvegardés.",
     "new_race": "Nouvelle course ?",
-    "starting_soon": "La course commence bientôt...",
     "finish_position": "Position finale",
     "finish_time": "Temps final",
     "status_finished": "Terminé",
@@ -80,10 +78,9 @@
   "stop_modal": {
     "title_racing": "Abandonner la race ?",
     "title_idle": "Arrêter le stream ?",
-    "message_racing": "Tu es en pleine race. Arrêter ton stream maintenant compte comme un <red>forfait</red>. Tu ne pourras pas rejoindre cette run.",
+    "message_racing": "Tu es en pleine race. Arrêter maintenant compte comme un <red>forfait</red>.",
     "message_idle": "Le stream sera arrêté.",
-    "keep_racing": "Continuer la race",
-    "confirm_forfeit": "■ Forfait"
+    "confirm_forfeit": "Forfait"
   },
   "update_modal": {
     "title": "Mise à jour {{version}} disponible",

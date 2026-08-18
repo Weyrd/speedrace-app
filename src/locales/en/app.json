@@ -11,7 +11,7 @@
     "create_lobby": "Create or join a lobby"
   },
   "stream": {
-    "lobby": "In lobby",
+    "lobby": "Lobby",
     "preview_starting": "Starting preview...",
     "preview_error": "Preview unavailable. Pick another source.",
     "monitor_option": "Display {{index}} ({{width}}×{{height}})",
@@ -26,27 +26,25 @@
     "fullscreen_hint": "Game in fullscreen and not listed? Use the Fullscreen tab to capture its whole screen.",
     "minimized_thumb": "Minimized: the image will appear once you focus the game",
     "change_source_hint": "Click the preview to change the source",
-    "publish": "● Publish",
+    "publish": "Publish",
     "publishing": "Publishing...",
     "error_start": "Couldn't start the stream.",
     "error_monitors": "Couldn't list monitors.",
     "stream_active": "Stream active",
     "stream_lost": "Stream lost",
     "reconnecting": "Reconnecting...",
-    "stop_stream": "▪ Stop stream"
+    "stop_stream": "Stop stream"
   },
   "waiting": {
     "waiting_host": "Waiting for the host\nto start the race..."
   },
   "race": {
-    "in_race": "racing",
-    "stop_forfeit": "▪ Stop / Forfeit",
-    "finish": "✓ Finish",
-    "forfeit": "✗ Forfeit",
+    "stop_forfeit": "Stop / Forfeit",
+    "finish": "Finish",
+    "forfeit": "Forfeit",
     "finished_title": "Race Complete",
     "finished_subtitle": "Results have been saved.",
     "new_race": "New Race?",
-    "starting_soon": "Race starting soon...",
     "finish_position": "Finish Position",
     "finish_time": "Finish Time",
     "status_finished": "Finished",
@@ -82,10 +80,9 @@
   "stop_modal": {
     "title_racing": "Forfeit the race?",
     "title_idle": "Stop stream?",
-    "message_racing": "You're mid-race. Stopping your stream now counts as a <red>forfeit</red> and you won't be able to rejoin this run.",
+    "message_racing": "You're mid-race. Stopping now counts as a <red>forfeit</red>.",
     "message_idle": "The stream will be stopped.",
-    "keep_racing": "Keep racing",
-    "confirm_forfeit": "■ Forfeit"
+    "confirm_forfeit": "Forfeit"
   },
   "update_modal": {
     "title": "Update {{version}} available",

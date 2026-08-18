@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
-import { TriangleAlert, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/button";
 
@@ -33,18 +33,13 @@ export default function StopModal({
       onOpenChange={(open) => !open && onCancel()}
       className="border-red-dim p-4"
     >
-      <div className="flex items-center gap-3 mb-3">
-        <span className="flex items-center justify-center bg-red-dim border border-red-dim rounded-sm p-2 shrink-0">
-          <TriangleAlert size={18} className="text-red" />
-        </span>
-        <Modal.Title asChild>
-          <p className="text-text font-mono tracking-wide font-bold">
-            {raceInProgress
-              ? t("app:stop_modal.title_racing")
-              : t("app:stop_modal.title_idle")}
-          </p>
-        </Modal.Title>
-      </div>
+      <Modal.Title asChild>
+        <p className="text-text font-mono tracking-wide font-bold mb-3">
+          {raceInProgress
+            ? t("app:stop_modal.title_racing")
+            : t("app:stop_modal.title_idle")}
+        </p>
+      </Modal.Title>
 
       <Modal.Description asChild>
         <p className="text-xs text-muted font-mono tracking-wide leading-relaxed mb-4">
@@ -67,9 +62,7 @@ export default function StopModal({
           disabled={busy}
           className="flex-1 py-3"
         >
-          {raceInProgress
-            ? t("app:stop_modal.keep_racing")
-            : t("common:cancel")}
+          {t("common:cancel")}
         </Button>
         <Button
           variant="destructive"

@@ -15,7 +15,7 @@ export const MOCK_LOBBY: LobbySetup = {
   lobby_id: "MOCK-4821",
   lobby_status: "waiting",
   race_type: RaceType.Casual,
-  code: "MOCK",
+  code: "FM56GE",
   player_status: PlayerStatus.Preparing,
   stream_key: "MOCK-stream-key",
   whip_url: "https://stream.momentum.weyrd.space:8889/MOCK-stream/whip",

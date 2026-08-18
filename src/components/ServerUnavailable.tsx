@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ServerOff } from "lucide-react";
 import { useAppState, useActions, Phase } from "../store";
 import { Button } from "./ui/button";
 
@@ -20,7 +20,7 @@ export default function ServerUnavailable() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-      <span className="text-5xl text-dim">🛠️</span>
+      <ServerOff size={40} className="text-dim" />
       <p className="text-2xl text-text font-mono tracking-wide font-bold">
         {t("server_unavailable.title")}
       </p>
@@ -28,7 +28,7 @@ export default function ServerUnavailable() {
         {t("server_unavailable.description")}
       </p>
       <Button
-        variant="start"
+        variant="default"
         onClick={handleRetry}
         disabled={retrying}
         className="mt-2 text-sm"
