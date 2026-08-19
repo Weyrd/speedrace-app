@@ -169,42 +169,57 @@ for each release it creating a Cahngelog.md automatically
 
 </details>
 
-AI :
-Im trying to list here where i use AI in the project this list is not exhaustive but i try to keep it up to date
-Use of copilot vscode integration suggestion inline (tab tab) a bit everywhere
+## AI
 
-Use of AI generation for:
+Trying to keep a list of where AI was used in the project. Not exhaustive but I try to keep it up to date
 
-in App :
-- alsmot all documentations generation (in skills)
-- all ffmpeg recompile build smaller (script to pull, build src-tauri/scripts/ffmpeg_build.sh etc)
-<img src="docs/screenshots/fmpeg.png" alt="" width="320" />(wth is that)
-- few debug like "keybind matching physical keycode and layout stuff" (azerty, qwerty, mac keyboard..)
-- architecture of how to load autosplitter/livesplit and counter in it (disable via api).. etc but its a mess so was it useful? idk
+Copilot inline suggestions (tab-tab) used pretty much everywhere
 
-In API:
-- global architechture in api design, separation of concern (first time using rust) ((spoiler i should have follow dotnet convention i knew, i feel like its better, if there is a rust dev who want to help me/propose refactor please do but be ready to die))
-- all tests are generated
-- all bruno generated (~docs/test. its a postman but better)
+AI generation used for:
+
+**App:**
+- almost all documentation (in skills)
+- ffmpeg recompile to build it smaller (pull + build script, `src-tauri/scripts/ffmpeg_build.sh`)
+  <img src="docs/screenshots/fmpeg.png" alt="" width="320" />
+  <details><summary>wth is that</summary></details>
+- a few debug sessions, like keybind matching physical keycode + layout stuff (azerty, qwerty, mac keyboard...)
+- the architecture for loading autosplitter/livesplit + counters (disable via api, etc). It's a bit of a mess honestly, not sure it was worth it
+
+**API:**
+- global architecture / separation of concerns (first time using rust)
+  <details><summary>spoiler</summary>I should've just followed the dotnet conventions i already knew, find it cleaner..if a rust dev wants to help or propose refactor yes but be readyn to suffer</details>
+- all tests generated
+- all bruno collections, generated (`~docs/test` postman but better)
 - import route / category editor batch route
-- assisted on event stats trigger (to not miss any places it needed to be called)
-- probably few debug
+- assisted on event stats triggers get called everywhere they need to be
+- probably a few debug sessions too
 
-web:
-- alsmost all stats componentes admin/mod (heatmap, graph etc) generated
-- assisted for category editor batch
-- admin panel user completely (roles & bans, 1 page)
-- debug RaceTimeline result (scale to time debug, bezier lines, ..?)
-- roadmap & leaderboard placeholder
-- cat picker i had two version, ai merged them
+**Web:**
+- almost all admin/mod stats components (heatmap, graphs, etc), generated (disclaimer on the page)
+  <img src="docs/screenshots/admin_stats.png" alt="" width="320" />
+- assisted on category editor batch
+- admin panel for users (roles & bans, only one shortpage)
+- debugged RaceTimeline results (scale-to-time button/limit/readable, bezier lines...)
+- roadmap & leaderboard placeholders
+- cat picker: had two versions, AI merged them
 
+⚠️ Also used for maquettes/mockups on complex layout & UX: timeline results, old lobby creation (redone by hand later, complete rework by hand since then execpt setting row), lobby waiting screen, how to "fold" streams in `/live` view.
 
-/!\ USED IN MAQUETTE, for complex layout display UX/UI. timeline result, old lobby creation (redo by hand later by still "based" on the generated version), lobby waiting, how to "fold" stream in /live view.
+Figma hates me whenever I try to use it, comes out looking horrible. If you want to help with mockups or design ideas, i`d  love that.
 
-Figma hate me when i try to use it, it look horrible, if ever you want to propose help or maquette or idea i would love to as well!
+Web scaffolding was fully automated by the x2pip CLI (vite, tailwind, i18n, react router/query, shadcn primitives, table primitives, zod, navbar...), no AI there
 
+Probably used in a few other spots too. I dont pay for any openai/claude/whatever subscription and try to mostly use it to assist on technical decisions and implementation direction rather than to write code for me. It does write one-off scripts (like the ffmpeg build) or basic components (stat graphs, charts...), and helps with debugging
 
-Web init was fully automated by x2pip CLI (vite, tailwind, i18n, react router/query, shadcn primitive, tables primitive, zod, navbar..) no ai involved
+(Massive use of tab-tab though)
 
-Probably used in some others places, i dont pay any subscription to openai/claude.. or whatever. i mostly use it to assist me in technical stuff and implementation lead rather than writting code. It can happen to do "one off" script like the ffmpeg build or few basic components (stats graphc, chart..) and as well for debugging.
-Massive use of tabtab tho 
+### Ex maquette and generated page
+
+- admin page stats generated
+  <img src="docs/screenshots/admin_stats.png" alt="" width="320" />
+- lobby creation maquette (based on a few screens like the cat picker and time selector)
+  <img src="docs/screenshots/lobby_creation_mockup.png" alt="" width="320" />
+- lobby waiting maquette
+  <img src="docs/screenshots/lobby_waiting_mockup.png" alt="" width="320" />
+- result page maquette
+  <img src="docs/screenshots/result_page_mockup.png" alt="" width="320" />
