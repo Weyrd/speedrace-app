@@ -54,6 +54,11 @@ pub fn list_windows() -> Result<Vec<WindowInfo>, String> {
     Err("window capture is only supported on Windows".into())
 }
 
+#[tauri::command]
+pub fn capture_supported() -> bool {
+    cfg!(windows)
+}
+
 #[cfg(windows)]
 pub(crate) fn game_window_for_pid(pid: u32) -> Option<(u64, String)> {
     use windows::core::BOOL;
