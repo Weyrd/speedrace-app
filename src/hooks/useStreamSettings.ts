@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listMonitors,
   listWindows,
+  captureSupported,
   getStreamSettings,
   setStreamSettings,
   getDetectedEncoder,
@@ -17,13 +18,31 @@ export const windowsKey = ["windows"] as const;
 export const streamSettingsKey = ["streamSettings"] as const;
 export const captureSourceKey = ["captureSource"] as const;
 export const detectedEncoderKey = ["detectedEncoder"] as const;
+export const captureSupportedKey = ["captureSupported"] as const;
 
 export function useMonitors() {
-  return useQuery({ queryKey: monitorsKey, queryFn: listMonitors });
+  return useQuery({
+    queryKey: monitorsKey,
+    queryFn: listMonitors,
+    retry: false,
+  });
 }
 
 export function useWindows() {
-  return useQuery({ queryKey: windowsKey, queryFn: listWindows, staleTime: 0 });
+  return useQuery({
+    queryKey: windowsKey,
+    queryFn: listWindows,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+export function useCaptureSupported() {
+  return useQuery({
+    queryKey: captureSupportedKey,
+    queryFn: captureSupported,
+    staleTime: Infinity,
+  });
 }
 
 export function useStreamSettings() {

@@ -50,6 +50,10 @@ export async function listWindows(): Promise<WindowInfo[]> {
   return invoke<WindowInfo[]>("list_windows");
 }
 
+export async function captureSupported(): Promise<boolean> {
+  return invoke<boolean>("capture_supported");
+}
+
 export async function captureMonitorThumb(index: number): Promise<string> {
   return invoke<string>("capture_monitor_thumb", { index });
 }
