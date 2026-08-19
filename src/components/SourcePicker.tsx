@@ -7,6 +7,7 @@ import {
   useWindows,
   useCaptureSource,
   useSetCaptureSource,
+  useCaptureSupported,
 } from "../hooks/useStreamSettings";
 import { captureMonitorThumb, captureWindowThumb } from "../lib/commands";
 import { CaptureSourceKind, type CaptureSource } from "../types";
@@ -26,6 +27,8 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
   } = useWindows();
   const { data: captureSource } = useCaptureSource();
   const { mutate: saveCaptureSource } = useSetCaptureSource();
+  const { data: captureSupported = true, isLoading: captureSupportedLoading } =
+    useCaptureSupported();
 
   const select = (source: CaptureSource) => {
     saveCaptureSource(source);
@@ -49,124 +52,138 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
 
-      <div className="flex gap-2 px-4 pt-3">
-        <Button
-          variant={tab === CaptureSourceKind.Window ? "primary" : "outline"}
-          onClick={() => setTab(CaptureSourceKind.Window)}
-          className="flex-1 py-2"
-        >
-          <AppWindow size={13} />
-          {t("stream.tab_windows")}
-        </Button>
-        <Button
-          variant={tab === CaptureSourceKind.Monitor ? "primary" : "outline"}
-          onClick={() => setTab(CaptureSourceKind.Monitor)}
-          className="flex-1 py-2"
-        >
-          <Monitor size={13} />
-          {t("stream.tab_fullscreen")}
-        </Button>
-        {tab === CaptureSourceKind.Window && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetchWindows()}
-            disabled={windowsFetching}
-            aria-label={t("stream.refresh_windows")}
-            title={t("stream.refresh_windows")}
-          >
-            <RefreshCw
-              size={13}
-              className={windowsFetching ? "animate-spin" : undefined}
-            />
-          </Button>
-        )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 py-3">
-        {tab === CaptureSourceKind.Monitor ? (
-          <div className="grid grid-cols-2 gap-2">
-            {monitors.map((m) => (
-              <SourceCard
-                key={m.index}
-                selected={
-                  captureSource?.kind === CaptureSourceKind.Monitor &&
-                  captureSource.index === m.index
-                }
-                label={
-                  t("stream.monitor_option", {
-                    index: m.index + 1,
-                    width: m.width,
-                    height: m.height,
-                  }) + (m.primary ? t("stream.monitor_primary") : "")
-                }
-                onSelect={() =>
-                  select({ kind: CaptureSourceKind.Monitor, index: m.index })
-                }
-              >
-                <Thumb
-                  queryKey={["monitorThumb", m.index]}
-                  fetcher={() => captureMonitorThumb(m.index)}
-                />
-              </SourceCard>
-            ))}
-          </div>
-        ) : (
-          <>
-            {windowsLoading ? (
-          <div className="h-full flex items-center justify-center">
-            <Loader2 size={18} className="animate-spin text-dim" />
-          </div>
-        ) : windows.length === 0 ? (
-          <p className="text-2xs text-dim font-mono tracking-wide text-center py-6">
-            {t("stream.no_windows")}
+      {captureSupportedLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 size={18} className="animate-spin text-dim" />
+        </div>
+      ) : !captureSupported ? (
+        <div className="flex-1 flex items-center justify-center px-4">
+          <p className="text-2xs text-dim font-mono tracking-wide text-center">
+            {t("stream.capture_unsupported")}
           </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {windows.map((w) => (
-              <SourceCard
-                key={w.hwnd}
-                selected={
-                  captureSource?.kind === CaptureSourceKind.Window &&
-                  captureSource.hwnd === w.hwnd
-                }
-                label={w.title}
-                sub={w.process_name}
-                onSelect={() =>
-                  select({
-                    kind: CaptureSourceKind.Window,
-                    hwnd: w.hwnd,
-                    title: w.title,
-                  })
-                }
-              >
-                {w.iconic ? (
-                  <div className="w-full h-full flex items-center justify-center p-2">
-                    <span className="text-2xs text-dim font-mono tracking-wide text-center leading-snug">
-                      {t("stream.minimized_thumb")}
-                    </span>
-                  </div>
-                ) : (
-                  <Thumb
-                    queryKey={["windowThumb", w.hwnd]}
-                    fetcher={() => captureWindowThumb(w.hwnd)}
-                  />
-                )}
-              </SourceCard>
-            ))}
-          </div>
-            )}
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-2 px-4 pt-3">
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTab(CaptureSourceKind.Monitor)}
-              className="mt-3 w-full"
+              variant={tab === CaptureSourceKind.Window ? "primary" : "outline"}
+              onClick={() => setTab(CaptureSourceKind.Window)}
+              className="flex-1 py-2"
             >
-              {t("stream.fullscreen_hint")}
+              <AppWindow size={13} />
+              {t("stream.tab_windows")}
             </Button>
-          </>
-        )}
-      </div>
+            <Button
+              variant={tab === CaptureSourceKind.Monitor ? "primary" : "outline"}
+              onClick={() => setTab(CaptureSourceKind.Monitor)}
+              className="flex-1 py-2"
+            >
+              <Monitor size={13} />
+              {t("stream.tab_fullscreen")}
+            </Button>
+            {tab === CaptureSourceKind.Window && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchWindows()}
+                disabled={windowsFetching}
+                aria-label={t("stream.refresh_windows")}
+                title={t("stream.refresh_windows")}
+              >
+                <RefreshCw
+                  size={13}
+                  className={windowsFetching ? "animate-spin" : undefined}
+                />
+              </Button>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            {tab === CaptureSourceKind.Monitor ? (
+              <div className="grid grid-cols-2 gap-2">
+                {monitors.map((m) => (
+                  <SourceCard
+                    key={m.index}
+                    selected={
+                      captureSource?.kind === CaptureSourceKind.Monitor &&
+                      captureSource.index === m.index
+                    }
+                    label={
+                      t("stream.monitor_option", {
+                        index: m.index + 1,
+                        width: m.width,
+                        height: m.height,
+                      }) + (m.primary ? t("stream.monitor_primary") : "")
+                    }
+                    onSelect={() =>
+                      select({ kind: CaptureSourceKind.Monitor, index: m.index })
+                    }
+                  >
+                    <Thumb
+                      queryKey={["monitorThumb", m.index]}
+                      fetcher={() => captureMonitorThumb(m.index)}
+                    />
+                  </SourceCard>
+                ))}
+              </div>
+            ) : (
+              <>
+                {windowsLoading ? (
+                  <div className="h-full flex items-center justify-center">
+                    <Loader2 size={18} className="animate-spin text-dim" />
+                  </div>
+                ) : windows.length === 0 ? (
+                  <p className="text-2xs text-dim font-mono tracking-wide text-center py-6">
+                    {t("stream.no_windows")}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {windows.map((w) => (
+                      <SourceCard
+                        key={w.hwnd}
+                        selected={
+                          captureSource?.kind === CaptureSourceKind.Window &&
+                          captureSource.hwnd === w.hwnd
+                        }
+                        label={w.title}
+                        sub={w.process_name}
+                        onSelect={() =>
+                          select({
+                            kind: CaptureSourceKind.Window,
+                            hwnd: w.hwnd,
+                            title: w.title,
+                          })
+                        }
+                      >
+                        {w.iconic ? (
+                          <div className="w-full h-full flex items-center justify-center p-2">
+                            <span className="text-2xs text-dim font-mono tracking-wide text-center leading-snug">
+                              {t("stream.minimized_thumb")}
+                            </span>
+                          </div>
+                        ) : (
+                          <Thumb
+                            queryKey={["windowThumb", w.hwnd]}
+                            fetcher={() => captureWindowThumb(w.hwnd)}
+                          />
+                        )}
+                      </SourceCard>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTab(CaptureSourceKind.Monitor)}
+                  className="mt-3 w-full whitespace-normal text-center"
+                >
+                  {t("stream.fullscreen_hint")}
+                </Button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>,
     document.body,
   );
