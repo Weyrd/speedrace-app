@@ -157,6 +157,7 @@ pub fn run() {
             stream::list_windows,
             stream::capture_monitor_thumb,
             stream::capture_window_thumb,
+            stream::capture_supported,
             commands::get_lobby_state,
             commands::send_player_finished,
             commands::send_player_forfeited,
