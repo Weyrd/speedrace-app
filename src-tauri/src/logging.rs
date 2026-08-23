@@ -1,4 +1,5 @@
-use std::sync::OnceLock;
+use std::collections::VecDeque;
+use std::sync::{Mutex, OnceLock};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum LogCat {
@@ -75,11 +76,65 @@ pub fn enabled(cat: LogCat) -> bool {
     FILTER.get_or_init(compute)[cat as usize]
 }
 
+const BUFFER_CAP: usize = 1500;
+
+fn buffer() -> &'static Mutex<VecDeque<String>> {
+    static BUFFER: OnceLock<Mutex<VecDeque<String>>> = OnceLock::new();
+    BUFFER.get_or_init(|| Mutex::new(VecDeque::with_capacity(BUFFER_CAP)))
+}
+
+pub fn redact(line: &str) -> String {
+    const URL_END: [char; 6] = [' ', '\t', '\n', '\'', '"', ')'];
+
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(pos) = rest.find("http://").or_else(|| rest.find("https://")) {
+        out.push_str(&rest[..pos]);
+        let scheme_len = if rest[pos..].starts_with("https://") {
+            8
+        } else {
+            7
+        };
+        let after_scheme = &rest[pos + scheme_len..];
+        let url_len = after_scheme.find(URL_END).unwrap_or(after_scheme.len());
+        let url_rest = &after_scheme[..url_len];
+        let host_len = url_rest.find('/').unwrap_or(url_rest.len());
+
+        out.push_str(&rest[pos..pos + scheme_len]);
+        out.push_str(&url_rest[..host_len]);
+        if host_len < url_rest.len() {
+            out.push_str("/...");
+        }
+        rest = &after_scheme[url_len..];
+    }
+    out.push_str(rest);
+    out
+}
+
+pub fn record(cat: LogCat, args: std::fmt::Arguments) {
+    let now = chrono::Local::now().format("%H:%M:%S%.3f");
+    let line = redact(&format!("{now} [{}] {args}", cat.key()));
+    if enabled(cat) {
+        eprintln!("{line}");
+    }
+    if let Ok(mut b) = buffer().lock() {
+        b.push_back(line);
+        while b.len() > BUFFER_CAP {
+            b.pop_front();
+        }
+    }
+}
+
+pub fn snapshot() -> Vec<String> {
+    buffer()
+        .lock()
+        .map(|b| b.iter().cloned().collect())
+        .unwrap_or_default()
+}
+
 macro_rules! mlog {
     ($cat:expr, $($arg:tt)*) => {
-        if $crate::logging::enabled($cat) {
-            eprintln!($($arg)*);
-        }
+        $crate::logging::record($cat, format_args!($($arg)*))
     };
 }
 pub(crate) use mlog;

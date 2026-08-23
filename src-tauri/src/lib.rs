@@ -172,6 +172,7 @@ pub fn run() {
             commands::get_split_segments,
             commands::get_current_split_index,
             commands::get_autosplit_state,
+            commands::collect_debug_report,
             hide_to_tray,
         ])
         .setup(move |app| {

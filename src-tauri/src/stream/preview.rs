@@ -174,6 +174,9 @@ async fn drive_preview(
         return;
     };
     let mut reader = BufReader::new(stdout);
+    let mut stat_since = tokio::time::Instant::now();
+    let mut stat_count: u32 = 0;
+    let mut stat_bytes: u64 = 0;
 
     loop {
         tokio::select! {
@@ -187,6 +190,20 @@ async fn drive_preview(
             frame = read_mpjpeg_frame(&mut reader) => {
                 match frame {
                     Some(jpeg) => {
+                        stat_count += 1;
+                        stat_bytes += jpeg.len() as u64;
+                        let elapsed = stat_since.elapsed();
+                        if elapsed >= std::time::Duration::from_secs(5) {
+                            mlog!(
+                                LogCat::Stream,
+                                "[preview] {stat_count} frames in {:.1}s, avg {:.1} KB/frame",
+                                elapsed.as_secs_f64(),
+                                stat_bytes as f64 / stat_count.max(1) as f64 / 1024.0
+                            );
+                            stat_since = tokio::time::Instant::now();
+                            stat_count = 0;
+                            stat_bytes = 0;
+                        }
                         let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg);
                         if let Ok(mut g) = state.lock() {
                             g.preview_last_jpeg = Some(jpeg);
