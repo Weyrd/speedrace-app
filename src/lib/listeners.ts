@@ -4,6 +4,7 @@ import {
   APP_STATE,
   WS_STATUS,
   STREAM_STATUS,
+  STREAM_ENCODER,
   STREAM_PREVIEW,
   STREAM_SOURCE,
   WS_LOBBY_SETUP,
@@ -26,6 +27,7 @@ import type {
   AutosplitState,
   SplitFiredPayload,
   StreamStatusPayload,
+  EncoderStatusPayload,
   StreamPreviewPayload,
   UploadStatusPayload,
   CaptureSource,
@@ -54,6 +56,8 @@ export const onWsStatus = (cb: (p: WsStatus) => void) =>
   safeListen<WsStatus>(WS_STATUS, cb);
 export const onStreamStatus = (cb: (p: StreamStatusPayload) => void) =>
   safeListen<StreamStatusPayload>(STREAM_STATUS, cb);
+export const onStreamEncoder = (cb: (p: EncoderStatusPayload) => void) =>
+  safeListen<EncoderStatusPayload>(STREAM_ENCODER, cb);
 export const onStreamPreview = (cb: (p: StreamPreviewPayload) => void) =>
   safeListen<StreamPreviewPayload>(STREAM_PREVIEW, cb);
 export const onStreamSource = (cb: (p: CaptureSource) => void) =>

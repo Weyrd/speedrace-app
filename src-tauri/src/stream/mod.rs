@@ -34,7 +34,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::watch;
 
-const PUBLISH_LIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(25);
+const PUBLISH_LIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
 
 pub fn emit_status(app: &AppHandle, state: StreamState, message: Option<String>) {
     let _ = app.emit(STREAM_STATUS, StreamStatusPayload { state, message });
@@ -86,7 +86,7 @@ pub(crate) async fn auto_select_game_window(app: &AppHandle, state: &SharedState
 pub async fn start(
     app: &AppHandle,
     state: &SharedState,
-    live_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    live_tx: Option<tokio::sync::oneshot::Sender<Result<(), String>>>,
 ) -> Result<Option<PathBuf>, String> {
     let (whip_url, session_source, race_type, game_name, category_name, username) = {
         let guard = state.lock().map_err(|e| e.to_string())?;
@@ -121,9 +121,18 @@ pub async fn start(
     );
     let replay_out = replay_base.clone();
 
-    let pref = Encoder::parse(&crate::settings::load_stream_settings(app).encoder);
-    let encoder = encoder::select(pref, replay_base.is_some()).await;
-    mlog!(LogCat::Stream, "[stream] encoder: {}", encoder.name());
+    let pref_raw = crate::settings::load_stream_settings(app).encoder;
+    let pref = Encoder::parse(&pref_raw);
+    let ladder = encoder::build_ladder(pref, &settings, replay_base.is_some()).await;
+    mlog!(
+        LogCat::Stream,
+        "[stream] ladder: {}",
+        ladder
+            .iter()
+            .map(|r| format!("{}@{}p{}", r.encoder.name(), r.resolution, r.framerate))
+            .collect::<Vec<_>>()
+            .join(" -> ")
+    );
 
     let (stop_tx, stop_rx) = watch::channel(false);
     if replay_base.is_some() {
@@ -143,7 +152,8 @@ pub async fn start(
                 whip_url: whip,
                 settings,
                 replay_base,
-                encoder,
+                ladder,
+                preferred: pref_raw,
             },
             stop_rx,
             live_tx,
@@ -164,7 +174,7 @@ pub async fn start(
 pub async fn publish(app: &AppHandle, state: &SharedState, lobby_id: &str) -> Result<(), String> {
     preview::stop(state).await;
 
-    let (live_tx, live_rx) = tokio::sync::oneshot::channel::<()>();
+    let (live_tx, live_rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
     let replay = match start(app, state, Some(live_tx)).await {
         Ok(r) => r,
         Err(e) => {
@@ -173,9 +183,10 @@ pub async fn publish(app: &AppHandle, state: &SharedState, lobby_id: &str) -> Re
         }
     };
 
-    let live = tokio::time::timeout(PUBLISH_LIVE_TIMEOUT, live_rx).await;
-    if !matches!(live, Ok(Ok(()))) {
-        return publish_fail(app, state, replay, "stream did not go live").await;
+    match tokio::time::timeout(PUBLISH_LIVE_TIMEOUT, live_rx).await {
+        Ok(Ok(Ok(()))) => {}
+        Ok(Ok(Err(reason))) => return publish_fail(app, state, replay, &reason).await,
+        _ => return publish_fail(app, state, replay, "stream did not go live").await,
     }
 
     if let Err(e) = crate::api::lobby::post_stream_ready(app, lobby_id).await {

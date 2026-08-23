@@ -26,6 +26,8 @@
     "fullscreen_hint": "Game not listed? Try Fullscreen.",
     "minimized_thumb": "Minimized: the image will appear once you focus the game",
     "change_source_hint": "Click the preview to change the source",
+    "encoder_fallback_hint": "Streaming with {{encoder}} (your preferred encoder wasn't usable)",
+    "trying_encoder": "Trying {{encoder}}…",
     "copy_logs": "Copy debug logs",
     "capture_unsupported": "Screen capture isn't available on macOS yet.",
     "publish": "Publish",
