@@ -148,17 +148,9 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
                 },
             );
 
-            crate::lifecycle::start_background_loops(&app, &shared_state);
-
-            {
-                let mut guard = shared_state.lock().unwrap();
-                if guard.ws_status == crate::models::WsStatus::Connected
-                    && guard.app_state == crate::models::AppState::Connecting
-                {
-                    guard.app_state = crate::models::AppState::Idle;
-                    drop(guard);
-                    let _ = app.emit(crate::events::APP_STATE, crate::models::AppState::Idle);
-                }
+            let spawned_ws = crate::lifecycle::start_background_loops(&app, &shared_state);
+            if !spawned_ws {
+                crate::lifecycle::sync_current_lobby(&app, &shared_state).await;
             }
         }
 

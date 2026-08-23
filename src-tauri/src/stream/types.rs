@@ -23,6 +23,12 @@ pub struct StreamStatusPayload {
     pub message: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct EncoderStatusPayload {
+    pub preferred: String,
+    pub effective: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CaptureSource {

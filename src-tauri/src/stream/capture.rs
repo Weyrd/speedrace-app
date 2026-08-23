@@ -21,6 +21,10 @@ pub async fn start_capture_for(
             if !fullscreen {
                 let target = CaptureTarget::Window { hwnd: *hwnd };
                 let (w, h2) = target_size_even(target)?;
+                mlog!(
+                    LogCat::Stream,
+                    "[capture] windowed WGC hwnd={hwnd:#x} {w}x{h2}"
+                );
                 return Ok(Some(CaptureHandle::Wgc(start_capture(target, w, h2, fps)?)));
             }
             Ok(Some(capture_fullscreen_window(*hwnd, fps).await?))
@@ -29,7 +33,10 @@ pub async fn start_capture_for(
             Some(hmonitor) => {
                 let target = CaptureTarget::Monitor { hmonitor };
                 match target_size_even(target).and_then(|(w, h)| start_capture(target, w, h, fps)) {
-                    Ok(handle) => Ok(Some(CaptureHandle::Wgc(handle))),
+                    Ok(handle) => {
+                        mlog!(LogCat::Stream, "[capture] monitor {index} via WGC");
+                        Ok(Some(CaptureHandle::Wgc(handle)))
+                    }
                     Err(e) => {
                         mlog!(
                             LogCat::Stream,
@@ -98,7 +105,7 @@ fn even(v: i32) -> u32 {
 }
 
 #[cfg(windows)]
-fn hmonitor_for_index(index: u32) -> Option<isize> {
+pub(crate) fn hmonitor_for_index(index: u32) -> Option<isize> {
     let device = super::list_monitors()
         .ok()?
         .into_iter()
@@ -128,7 +135,7 @@ fn hmonitor_size(hmonitor: isize) -> Option<(i32, i32)> {
 }
 
 #[cfg(windows)]
-fn monitor_size(hwnd: windows::Win32::Foundation::HWND) -> Option<(i32, i32)> {
+pub(crate) fn monitor_size(hwnd: windows::Win32::Foundation::HWND) -> Option<(i32, i32)> {
     use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
     let mon = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
     hmonitor_size(mon.0 as isize)
@@ -143,7 +150,7 @@ pub(crate) fn monitor_size_even(hwnd: u64) -> (u32, u32) {
 }
 
 #[cfg(windows)]
-fn covers_monitor(hwnd: windows::Win32::Foundation::HWND) -> bool {
+pub(crate) fn covers_monitor(hwnd: windows::Win32::Foundation::HWND) -> bool {
     use windows::Win32::Foundation::RECT;
     use windows::Win32::Graphics::Gdi::{
         GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
@@ -171,7 +178,7 @@ fn covers_monitor(hwnd: windows::Win32::Foundation::HWND) -> bool {
 }
 
 #[cfg(windows)]
-fn target_size_even(target: super::wgc::CaptureTarget) -> Result<(u32, u32), String> {
+pub(crate) fn target_size_even(target: super::wgc::CaptureTarget) -> Result<(u32, u32), String> {
     use super::wgc::CaptureTarget;
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::IsIconic;

@@ -26,6 +26,7 @@
     "fullscreen_hint": "Jeu absent de la liste ? Essayez Plein écran.",
     "minimized_thumb": "Réduit : l'image apparaîtra une fois le jeu au premier plan",
     "change_source_hint": "Cliquez sur l'aperçu pour changer de source",
+    "copy_logs": "Copier les logs de debug",
     "capture_unsupported": "La capture d'écran n'est pas encore disponible sur macOS.",
     "publish": "Publier",
     "publishing": "Publication...",
