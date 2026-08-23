@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActions } from "../store";
-import { EncoderPref, ENCODER_CHOICES } from "../types";
+import { EncoderPref, ENCODER_CHOICES, ENCODER_LABELS } from "../types";
 import { getSoundVolume, setSoundVolume, playSound, Sound } from "../lib/sound";
 import {
   useFinishHotkey,
@@ -47,13 +47,6 @@ const QUALITY_PRESETS = {
 } as const;
 
 const REPLAY_AUDIO_KBPS = 160;
-
-const ENCODER_LABELS: Record<EncoderPref, string> = {
-  [EncoderPref.Auto]: "Auto",
-  [EncoderPref.Nvenc]: "NVIDIA (NVENC)",
-  [EncoderPref.Amf]: "AMD (AMF)",
-  [EncoderPref.X264]: "CPU (x264)",
-};
 
 function gbPerHour(bitrateKbps: number): string {
   const bytes = ((bitrateKbps + REPLAY_AUDIO_KBPS) * 1000 * 3600) / 8;

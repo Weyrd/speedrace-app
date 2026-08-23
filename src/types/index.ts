@@ -114,6 +114,11 @@ export interface StreamStatusPayload {
   message?: string;
 }
 
+export interface EncoderStatusPayload {
+  preferred: string;
+  effective: string;
+}
+
 export interface StreamPreviewPayload {
   frame?: string;
   error?: string;
@@ -184,6 +189,13 @@ export const ENCODER_CHOICES = [
   EncoderPref.Amf,
   EncoderPref.X264,
 ] as const;
+
+export const ENCODER_LABELS: Record<EncoderPref, string> = {
+  [EncoderPref.Auto]: "Auto",
+  [EncoderPref.Nvenc]: "NVIDIA (NVENC)",
+  [EncoderPref.Amf]: "AMD (AMF)",
+  [EncoderPref.X264]: "CPU (x264)",
+};
 
 export interface StreamSettings {
   bitrate_kbps: number;

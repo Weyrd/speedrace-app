@@ -2,10 +2,14 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch } from "./AppContext";
 import { ActionType, Phase } from "./types";
-import { AuthState, PlayerStatus, type WsStatus } from "../types";
+import { AuthState, PlayerStatus, StreamStatus, type WsStatus } from "../types";
 import { ensureClockFresh, resyncClock } from "../hooks/useClockOffset";
 import { getAutosplitState } from "../lib/commands";
-import { captureSourceKey } from "../hooks/useStreamSettings";
+import {
+  captureSourceKey,
+  effectiveEncoderKey,
+  streamAttemptKey,
+} from "../hooks/useStreamSettings";
 import { playSound, primeCountdown, Sound } from "../lib/sound";
 
 const COUNTDOWN_SOUNDS = [
@@ -19,6 +23,7 @@ import {
   onAppState,
   onWsStatus,
   onStreamStatus,
+  onStreamEncoder,
   onStreamSource,
   onLobbySetup,
   onLobbyClosed,
@@ -54,10 +59,20 @@ export function AppEventBridge(): null {
           type: ActionType.StreamStatusChanged,
           status: payload.state,
         });
+        qc.setQueryData(
+          streamAttemptKey,
+          payload.state === StreamStatus.Connecting
+            ? (payload.message ?? null)
+            : null,
+        );
       }),
 
       onStreamSource((source) => {
         qc.setQueryData(captureSourceKey, source);
+      }),
+
+      onStreamEncoder((payload) => {
+        qc.setQueryData(effectiveEncoderKey, payload);
       }),
 
       onAppState((phase) => {
