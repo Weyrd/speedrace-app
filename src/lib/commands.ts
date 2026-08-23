@@ -179,3 +179,7 @@ export async function getCurrentSplitIndex(): Promise<number> {
 export async function getAutosplitState(): Promise<AutosplitState> {
   return invoke<AutosplitState>("get_autosplit_state");
 }
+
+export async function collectDebugReport(): Promise<string> {
+  return invoke<string>("collect_debug_report");
+}

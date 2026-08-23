@@ -32,7 +32,8 @@ pub(crate) fn spawn_paced_writer(
         if server.connect().await.is_err() {
             return;
         }
-        let deadline = tokio::time::Instant::now() + PRIME_DEADLINE;
+        let wait_start = tokio::time::Instant::now();
+        let deadline = wait_start + PRIME_DEADLINE;
         while !primed.load(Ordering::SeqCst) {
             if stop.load(Ordering::SeqCst) {
                 return;
@@ -45,6 +46,13 @@ pub(crate) fn spawn_paced_writer(
                 break;
             }
             tokio::time::sleep(Duration::from_millis(15)).await;
+        }
+        if primed.load(Ordering::SeqCst) {
+            mlog!(
+                LogCat::Stream,
+                "[capture] first frame after {}ms",
+                wait_start.elapsed().as_millis()
+            );
         }
         let mut server = server;
         let mut ticker = tokio::time::interval(period);
