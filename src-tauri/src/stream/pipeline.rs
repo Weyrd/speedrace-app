@@ -29,6 +29,10 @@ fn live_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
             "speed",
             "-rc",
             "cbr",
+            "-header_spacing",
+            &(2 * fps).to_string(),
+            "-async_depth",
+            "1",
         ]),
     });
     a.extend(owned(&[
@@ -41,7 +45,7 @@ fn live_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
         "0",
     ]));
     let (maxrate, bufsize) = match enc {
-        Encoder::X264 => (kbps * 5 / 4, kbps * 2),
+        Encoder::X264 => (kbps * 5 / 4, kbps),
         _ => (kbps, kbps),
     };
     a.extend(owned(&[
@@ -104,8 +108,11 @@ pub(crate) fn replay_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<Stri
 }
 
 fn scale_tail(resolution: u32) -> String {
-    let width = (resolution.max(360) * 16 / 9) & !1;
-    format!("scale={width}:-2:flags=bilinear,format=yuv420p")
+    let height = resolution.max(360);
+    let width = (height * 16 / 9) & !1;
+    format!(
+        "scale='min(iw,{width})':'min(ih,{height})':force_original_aspect_ratio=decrease:force_divisible_by=2:flags=bilinear,format=yuv420p"
+    )
 }
 
 pub const PREVIEW_FPS: u32 = 15;
@@ -321,3 +328,6 @@ pub fn build_args(
 
     Ok(a)
 }
+
+#[cfg(test)]
+mod tests;

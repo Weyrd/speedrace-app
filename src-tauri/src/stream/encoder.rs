@@ -1,18 +1,18 @@
 use super::ffmpeg::{resolve_ffmpeg_path, spawn_ffmpeg};
-use super::Encoder;
+use super::{Encoder, Rung, StreamSettings};
 use crate::logging::{mlog, LogCat};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const PROBE_W: u32 = 640;
 const PROBE_H: u32 = 360;
-const PROBE_FRAMES: usize = 4;
+const PROBE_FRAMES: u32 = 4;
 const PROBE_TIMEOUT: Duration = Duration::from_secs(6);
+const MIN_PROBE_BYTES: u64 = 512;
 
 static CAPS: OnceLock<Mutex<HashMap<(Encoder, u8), bool>>> = OnceLock::new();
-
 static PROBE_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
 fn caps() -> &'static Mutex<HashMap<(Encoder, u8), bool>> {
@@ -40,6 +40,33 @@ pub fn poison(enc: Encoder) {
         }
     }
     mlog!(LogCat::Stream, "[encoder] {} poisoned", enc.name());
+}
+
+fn synthetic_frame(width: u32, height: u32, seed: u32) -> Vec<u8> {
+    let mut buf = vec![0u8; (width * height * 4) as usize];
+    for (i, px) in buf.chunks_exact_mut(4).enumerate() {
+        let x = i as u32 % width;
+        let y = i as u32 / width;
+        let v = (x ^ y).wrapping_add(seed).wrapping_mul(37) as u8;
+        px[0] = v;
+        px[1] = v.wrapping_add(85);
+        px[2] = v.wrapping_add(170);
+        px[3] = 255;
+    }
+    buf
+}
+
+async fn drain_stdout(stdout: tokio::process::ChildStdout) -> u64 {
+    let mut reader = stdout;
+    let mut buf = [0u8; 8192];
+    let mut total = 0u64;
+    loop {
+        match reader.read(&mut buf).await {
+            Ok(0) | Err(_) => break,
+            Ok(n) => total += n as u64,
+        }
+    }
+    total
 }
 
 fn probe_args(enc: Encoder, legs: u8) -> Vec<String> {
@@ -107,10 +134,15 @@ async fn probe(enc: Encoder, legs: u8) -> bool {
         return false;
     };
 
+    let stdout_task = child
+        .stdout
+        .take()
+        .map(|out| tauri::async_runtime::spawn(drain_stdout(out)));
+
     if let Some(mut stdin) = child.stdin.take() {
-        let frame = vec![0u8; (PROBE_W * PROBE_H * 4) as usize];
         tauri::async_runtime::spawn(async move {
-            for _ in 0..PROBE_FRAMES {
+            for i in 0..PROBE_FRAMES {
+                let frame = synthetic_frame(PROBE_W, PROBE_H, i);
                 if stdin.write_all(&frame).await.is_err() {
                     return;
                 }
@@ -119,16 +151,25 @@ async fn probe(enc: Encoder, legs: u8) -> bool {
         });
     }
 
-    let ok = match tokio::time::timeout(PROBE_TIMEOUT, child.wait()).await {
+    let exited = match tokio::time::timeout(PROBE_TIMEOUT, child.wait()).await {
         Ok(Ok(status)) => status.success(),
         _ => {
             let _ = child.kill().await;
             false
         }
     };
+    let encoded_bytes = match stdout_task {
+        Some(task) => tokio::time::timeout(Duration::from_millis(500), task)
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .unwrap_or(0),
+        None => 0,
+    };
+    let ok = exited && encoded_bytes >= MIN_PROBE_BYTES;
     mlog!(
         LogCat::Stream,
-        "[encoder] probe {} legs={legs} -> {}",
+        "[encoder] probe {} legs={legs} -> {} ({encoded_bytes}B)",
         enc.name(),
         if ok { "usable" } else { "unusable" }
     );
@@ -149,34 +190,54 @@ pub async fn warm(with_replay: bool) {
     probe(Encoder::Amf, legs).await;
 }
 
-pub async fn select(pref: Option<Encoder>, with_replay: bool) -> Encoder {
+pub async fn build_ladder(
+    pref: Option<Encoder>,
+    settings: &StreamSettings,
+    with_replay: bool,
+) -> Vec<Rung> {
     let legs = if with_replay { 2 } else { 1 };
-    match pref {
-        Some(Encoder::X264) => Encoder::X264,
-        Some(enc) => pick(enc, legs).await,
-        None => {
-            if probe(Encoder::Nvenc, legs).await {
-                Encoder::Nvenc
-            } else if probe(Encoder::Amf, legs).await {
-                Encoder::Amf
-            } else {
-                Encoder::X264
+    let mut rungs = Vec::new();
+
+    if pref != Some(Encoder::X264) {
+        let order = if pref == Some(Encoder::Amf) {
+            [Encoder::Amf, Encoder::Nvenc]
+        } else {
+            [Encoder::Nvenc, Encoder::Amf]
+        };
+        for enc in order {
+            if probe(enc, legs).await {
+                rungs.push(Rung {
+                    encoder: enc,
+                    framerate: settings.framerate,
+                    resolution: settings.resolution,
+                });
             }
         }
     }
-}
 
-async fn pick(enc: Encoder, legs: u8) -> Encoder {
-    if probe(enc, legs).await {
-        enc
-    } else {
-        mlog!(
-            LogCat::Stream,
-            "[encoder] {} forced but unusable; using libx264",
-            enc.name()
-        );
-        Encoder::X264
+    let base = Rung {
+        encoder: Encoder::X264,
+        framerate: settings.framerate,
+        resolution: settings.resolution,
+    };
+    rungs.push(base);
+    let half = Rung {
+        encoder: Encoder::X264,
+        framerate: settings.framerate.min(30),
+        resolution: settings.resolution,
+    };
+    if half != base {
+        rungs.push(half);
     }
+    let floor = Rung {
+        encoder: Encoder::X264,
+        framerate: settings.framerate.min(30),
+        resolution: 720,
+    };
+    if floor != half && floor != base {
+        rungs.push(floor);
+    }
+    rungs
 }
 
 pub fn detected() -> Option<Encoder> {
@@ -190,3 +251,6 @@ pub fn detected() -> Option<Encoder> {
     }
     Some(Encoder::X264)
 }
+
+#[cfg(test)]
+mod tests;
