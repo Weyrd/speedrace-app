@@ -11,13 +11,15 @@ import {
   restartPreview,
 } from "../lib/commands";
 import { EncoderPref } from "../types";
-import type { CaptureSource, StreamSettings } from "../types";
+import type { CaptureSource, StreamSettings, EncoderStatusPayload } from "../types";
 
 export const monitorsKey = ["monitors"] as const;
 export const windowsKey = ["windows"] as const;
 export const streamSettingsKey = ["streamSettings"] as const;
 export const captureSourceKey = ["captureSource"] as const;
 export const detectedEncoderKey = ["detectedEncoder"] as const;
+export const effectiveEncoderKey = ["effectiveEncoder"] as const;
+export const streamAttemptKey = ["streamAttempt"] as const;
 export const captureSupportedKey = ["captureSupported"] as const;
 
 export function useMonitors() {
@@ -59,6 +61,24 @@ export function useDetectedEncoder() {
 
 export function useCaptureSource() {
   return useQuery({ queryKey: captureSourceKey, queryFn: getCaptureSource });
+}
+
+export function useEffectiveEncoder() {
+  return useQuery<EncoderStatusPayload | null>({
+    queryKey: effectiveEncoderKey,
+    queryFn: () => null,
+    enabled: false,
+    initialData: null,
+  });
+}
+
+export function useStreamAttempt() {
+  return useQuery<string | null>({
+    queryKey: streamAttemptKey,
+    queryFn: () => null,
+    enabled: false,
+    initialData: null,
+  });
 }
 
 export function useSetCaptureSource() {

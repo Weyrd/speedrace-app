@@ -1,89 +1,106 @@
 use super::pipeline;
-use super::{audio, emit_status, Encoder, LaunchSpec, Outcome, ReplayRun, StreamState};
+use super::{
+    audio, emit_status, EncoderStatusPayload, Encoder, LaunchSpec, Outcome, ReplayRun,
+    StreamState,
+};
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::SharedState;
 use std::collections::VecDeque;
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, Command};
-use tokio::sync::watch;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Child;
+use tokio::sync::{oneshot, watch};
+
+mod process;
+mod progress;
+pub use process::resolve_ffmpeg_path;
+pub(crate) use process::{ffmpeg_command, spawn_ffmpeg, NULL_SINK};
+use process::graceful_stop;
+use progress::{ProgressParser, RealtimeWatchdog};
 
 const MAX_RESTARTS: u32 = 3;
 const RESTART_DELAY: Duration = Duration::from_secs(5);
 const PROGRESS_STALL: Duration = Duration::from_secs(10);
 const PRELIVE_TIMEOUT: Duration = Duration::from_secs(20);
 const PRELIVE_TIMEOUT_HW: Duration = Duration::from_secs(8);
-
-pub fn resolve_ffmpeg_path() -> Result<PathBuf, String> {
-    let exe_name = if cfg!(windows) {
-        "ffmpeg.exe"
-    } else {
-        "ffmpeg"
-    };
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let c = dir.join(exe_name);
-            if c.exists() {
-                return Ok(c);
-            }
-        }
-    }
-    #[cfg(debug_assertions)]
-    {
-        let bin = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries");
-        if let Ok(rd) = std::fs::read_dir(&bin) {
-            for e in rd.flatten() {
-                let n = e.file_name();
-                let n = n.to_string_lossy();
-                if n.starts_with("ffmpeg") && n.ends_with(".exe") {
-                    return Ok(e.path());
-                }
-            }
-        }
-    }
-    Err("ffmpeg sidecar not found; run src-tauri/scripts/get-ffmpeg.ps1".into())
-}
+const REALTIME_GRACE: Duration = Duration::from_secs(10);
+const REALTIME_SLOW_WINDOW: Duration = Duration::from_secs(5);
+const MIN_REALTIME_SPEED: f64 = 0.5;
 
 pub async fn supervise(
     app: AppHandle,
     state: SharedState,
     spec: LaunchSpec,
     mut stop_rx: watch::Receiver<bool>,
-    mut live_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    mut live_tx: Option<oneshot::Sender<Result<(), String>>>,
 ) {
     let LaunchSpec {
         ffmpeg_path,
         whip_url,
         settings,
         replay_base,
-        encoder,
+        ladder,
+        preferred,
     } = spec;
-    let mut encoder = encoder;
-    let mut downgrades: u32 = 0;
+
+    let mut rung_idx: usize = 0;
+    let mut ever_live = false;
+    let mut last_emitted: Option<Encoder> = None;
     let mut attempt: u32 = 0;
     let mut segment: u32 = 0;
 
     loop {
+        let Some(rung) = ladder.get(rung_idx).copied() else {
+            mlog!(
+                LogCat::Stream,
+                "[ffmpeg] no encoder/quality combination could sustain the stream"
+            );
+            if let Some(tx) = live_tx.take() {
+                let _ = tx.send(Err(
+                    "no encoder could sustain the stream on this machine — copy the debug logs for details".into(),
+                ));
+            }
+            emit_status(
+                &app,
+                StreamState::Error,
+                Some("no encoder could sustain the stream".into()),
+            );
+            clear_session(&state);
+            return;
+        };
+        let encoder = rung.encoder;
+        let mut attempt_settings = settings.clone();
+        attempt_settings.framerate = rung.framerate;
+        attempt_settings.resolution = rung.resolution;
+
+        if rung_idx > 0 {
+            emit_status(
+                &app,
+                StreamState::Connecting,
+                Some(encoder.name().to_string()),
+            );
+        }
+
         let replay = replay_base
             .as_ref()
             .and_then(|b| super::replay_run(b, segment));
-        let wgc =
-            match super::capture::start_capture_for(&settings.source, settings.framerate.max(1))
-                .await
-            {
-                Ok(h) => h,
-                Err(e) => {
-                    mlog!(LogCat::Stream, "[ffmpeg] capture failed: {e}");
-                    emit_status(&app, StreamState::Error, Some(e));
-                    clear_session(&state);
-                    return;
-                }
-            };
+        let wgc = match super::capture::start_capture_for(
+            &attempt_settings.source,
+            attempt_settings.framerate.max(1),
+        )
+        .await
+        {
+            Ok(h) => h,
+            Err(e) => {
+                mlog!(LogCat::Stream, "[ffmpeg] capture failed: {e}");
+                emit_status(&app, StreamState::Error, Some(e));
+                clear_session(&state);
+                return;
+            }
+        };
         let audio = audio::start_audio();
         let video_pipe = wgc.as_ref().map(|w| pipeline::VideoPipe {
             path: w.pipe_name(),
@@ -91,7 +108,7 @@ pub async fn supervise(
             height: w.height(),
         });
         let args = match pipeline::build_args(
-            &settings,
+            &attempt_settings,
             &whip_url,
             &audio.source,
             replay.as_ref(),
@@ -114,6 +131,15 @@ pub async fn supervise(
             mlog!(LogCat::Stream, "[replay] writing {}", r.pattern.display());
         }
         record_run_encoder(replay.as_ref(), segment, encoder);
+        mlog!(
+            LogCat::Stream,
+            "[ffmpeg] rung {}/{}: {} {}p{}",
+            rung_idx + 1,
+            ladder.len(),
+            encoder.name(),
+            attempt_settings.resolution,
+            attempt_settings.framerate
+        );
         mlog!(LogCat::Stream, "[ffmpeg] spawn: {}", args.join(" "));
 
         let child = match spawn_ffmpeg(&ffmpeg_path, &args) {
@@ -145,8 +171,10 @@ pub async fn supervise(
         } else {
             PRELIVE_TIMEOUT_HW
         };
+
         let (outcome, went_live, err_tail) =
             run_child(&app, child, &mut stop_rx, &mut live_tx, prelive).await;
+
         if let Some((tx, handle)) = replay_watch {
             let _ = tx.send(true);
             let _ = handle.await;
@@ -156,27 +184,50 @@ pub async fn supervise(
             w.shutdown().await;
         }
 
+        if went_live && last_emitted != Some(encoder) {
+            let _ = app.emit(
+                crate::events::STREAM_ENCODER,
+                EncoderStatusPayload {
+                    preferred: preferred.clone(),
+                    effective: encoder.name().to_string(),
+                },
+            );
+            last_emitted = Some(encoder);
+        }
+        if went_live {
+            ever_live = true;
+        }
+
         match outcome {
             Outcome::Stopped => {
                 emit_status(&app, StreamState::Stopped, None);
                 return;
             }
+            Outcome::TooSlow => {
+                mlog!(
+                    LogCat::Stream,
+                    "[ffmpeg] {} {}p{} too slow for this machine, trying the next option",
+                    encoder.name(),
+                    rung.resolution,
+                    rung.framerate
+                );
+                mark_mixed_encoders(replay.as_ref());
+                rung_idx += 1;
+                segment += 1;
+                continue;
+            }
             Outcome::Died => {
-                if !went_live
-                    && encoder != Encoder::X264
-                    && downgrades == 0
-                    && hw_encoder_failed(&err_tail, encoder)
-                {
+                if !ever_live && hw_encoder_failed(&err_tail) {
+                    let reason = err_tail.last().cloned();
                     mlog!(
                         LogCat::Stream,
-                        "[ffmpeg] {} failed to start, falling back to libx264: {}",
+                        "[ffmpeg] {} unusable{}, trying the next option",
                         encoder.name(),
-                        err_tail.last().map(String::as_str).unwrap_or("?")
+                        reason.map(|r| format!(": {r}")).unwrap_or_default()
                     );
                     super::encoder::poison(encoder);
                     mark_mixed_encoders(replay.as_ref());
-                    encoder = Encoder::X264;
-                    downgrades += 1;
+                    rung_idx += 1;
                     segment += 1;
                     continue;
                 }
@@ -238,10 +289,9 @@ fn clear_session(state: &SharedState) {
     }
 }
 
-fn hw_encoder_failed(tail: &[String], enc: Encoder) -> bool {
+fn hw_encoder_failed(tail: &[String]) -> bool {
     tail.iter().any(|l| {
-        l.contains(enc.name())
-            || l.contains("No capable devices found")
+        l.contains("No capable devices found")
             || l.contains("OpenEncodeSessionEx failed")
             || l.contains("Cannot load nvcuda")
             || l.contains("Cannot load nvEncodeAPI")
@@ -273,7 +323,7 @@ async fn run_child(
     app: &AppHandle,
     mut child: Child,
     stop_rx: &mut watch::Receiver<bool>,
-    live_tx: &mut Option<tokio::sync::oneshot::Sender<()>>,
+    live_tx: &mut Option<oneshot::Sender<Result<(), String>>>,
     prelive_timeout: Duration,
 ) -> (Outcome, bool, Vec<String>) {
     let spawned = Instant::now();
@@ -318,6 +368,12 @@ async fn run_child(
     let mut went_live = false;
     let mut last_progress = Instant::now();
     let mut stall = tokio::time::interval(Duration::from_secs(1));
+    let mut parser = ProgressParser::default();
+    let mut watchdog = RealtimeWatchdog::default();
+    let mut valid_blocks: u32 = 0;
+    let mut last_frame: Option<u64> = None;
+    let mut slow_since: Option<Instant> = None;
+    let mut last_speed: f64 = 1.0;
 
     loop {
         tokio::select! {
@@ -330,13 +386,37 @@ async fn run_child(
             line = lines.next_line() => {
                 match line {
                     Ok(Some(l)) => {
-                        if l.starts_with("progress=") {
-                            last_progress = Instant::now();
-                            if !went_live {
-                                went_live = true;
-                                emit_status(app, StreamState::Live, None);
-                                if let Some(tx) = live_tx.take() {
-                                    let _ = tx.send(());
+                        let Some(block) = parser.feed(&l) else { continue };
+                        last_progress = Instant::now();
+
+                        let increasing = match block.frame {
+                            Some(f) => last_frame.map(|prev| f > prev).unwrap_or(true),
+                            None => false,
+                        };
+                        if increasing {
+                            last_frame = block.frame;
+                            valid_blocks += 1;
+                        } else {
+                            valid_blocks = 0;
+                        }
+
+                        if !went_live && valid_blocks >= 2 {
+                            went_live = true;
+                            emit_status(app, StreamState::Live, None);
+                            if let Some(tx) = live_tx.take() {
+                                let _ = tx.send(Ok(()));
+                            }
+                        }
+
+                        if let Some(out_time_us) = block.out_time_us {
+                            if let Some(speed) = watchdog.observe(last_progress, out_time_us) {
+                                last_speed = speed;
+                                if spawned.elapsed() > REALTIME_GRACE {
+                                    if speed < MIN_REALTIME_SPEED {
+                                        slow_since.get_or_insert(last_progress);
+                                    } else {
+                                        slow_since = None;
+                                    }
                                 }
                             }
                         }
@@ -348,6 +428,18 @@ async fn run_child(
                 }
             }
             _ = stall.tick() => {
+                if let Some(since) = slow_since {
+                    let sustained = since.elapsed();
+                    if sustained > REALTIME_SLOW_WINDOW {
+                        mlog!(
+                            LogCat::Stream,
+                            "[ffmpeg] encoder can't keep up in real time ({last_speed:.2}x sustained {}s), killing",
+                            sustained.as_secs()
+                        );
+                        let _ = child.kill().await;
+                        return (Outcome::TooSlow, went_live, drain(reader, last_err).await);
+                    }
+                }
                 if went_live && last_progress.elapsed() > PROGRESS_STALL {
                     mlog!(LogCat::Stream, "[ffmpeg] progress stalled, killing");
                     let _ = child.kill().await;
@@ -363,78 +455,5 @@ async fn run_child(
     }
 }
 
-async fn graceful_stop(child: &mut Child, stdin: &mut Option<tokio::process::ChildStdin>) {
-    if let Some(si) = stdin.as_mut() {
-        let _ = si.write_all(b"q\n").await;
-        let _ = si.flush().await;
-    }
-    *stdin = None;
-    if tokio::time::timeout(Duration::from_secs(3), child.wait())
-        .await
-        .is_err()
-    {
-        let _ = child.kill().await;
-    }
-}
-
-#[cfg(windows)]
-pub(crate) const NULL_SINK: &str = "NUL";
-#[cfg(not(windows))]
-pub(crate) const NULL_SINK: &str = "/dev/null";
-
-pub(crate) fn ffmpeg_command(path: &Path) -> Command {
-    #[cfg_attr(not(windows), allow(unused_mut))]
-    let mut cmd = Command::new(path);
-    #[cfg(windows)]
-    cmd.creation_flags(0x0800_0000);
-    cmd
-}
-
-pub(crate) fn spawn_ffmpeg(path: &Path, args: &[String]) -> Result<Child, String> {
-    let mut cmd = ffmpeg_command(path);
-    cmd.args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    let child = cmd.spawn().map_err(|e| e.to_string())?;
-    #[cfg(windows)]
-    assign_to_job(&child);
-    Ok(child)
-}
-
-#[cfg(windows)]
-fn assign_to_job(child: &Child) {
-    use std::sync::OnceLock;
-    use windows::Win32::Foundation::HANDLE;
-    use windows::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    };
-
-    static JOB: OnceLock<isize> = OnceLock::new();
-    let handle = *JOB.get_or_init(|| unsafe {
-        let Ok(h) = CreateJobObjectW(None, windows::core::PCWSTR::null()) else {
-            return 0;
-        };
-        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        let _ = SetInformationJobObject(
-            h,
-            JobObjectExtendedLimitInformation,
-            &info as *const _ as *const std::ffi::c_void,
-            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-        );
-        h.0 as isize
-    });
-
-    if handle == 0 {
-        return;
-    }
-    if let Some(raw) = child.raw_handle() {
-        unsafe {
-            let _ = AssignProcessToJobObject(HANDLE(handle as *mut _), HANDLE(raw as *mut _));
-        }
-    }
-}
+#[cfg(test)]
+mod tests;

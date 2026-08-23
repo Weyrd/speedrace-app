@@ -1,9 +1,9 @@
 use std::fs;
 
 fn main() {
-    println!("cargo:rerun-if-changed=.env");
+    println!("cargo:rerun-if-changed=../.env");
 
-    if let Ok(contents) = fs::read_to_string(".env") {
+    if let Ok(contents) = fs::read_to_string("../.env") {
         for line in contents.lines() {
             let line = line.trim();
             if line.is_empty() || line.starts_with('#') {
