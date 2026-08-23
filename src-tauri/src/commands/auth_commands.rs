@@ -45,13 +45,18 @@ pub async fn logout(app: AppHandle, state: State<'_, SharedState>) -> Result<(),
 
     crate::stream::shutdown(&app, state.inner(), true).await;
 
-    {
+    let ws_shutdown = {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.app_state = AppState::Unauthenticated;
         guard.user = None;
         guard.lobby = None;
         guard.race_start_at = None;
-    }
+        guard.ws_gen = guard.ws_gen.wrapping_add(1);
+        guard.ws_loop_running = false;
+        guard.ws_status = crate::models::WsStatus::Disconnected;
+        guard.ws_shutdown.clone()
+    };
+    ws_shutdown.notify_waiters();
 
     emit_auth_state(&app, AuthStatePayload::Unauthenticated);
 

@@ -13,6 +13,8 @@ mod session;
 
 #[cfg(windows)]
 pub(crate) use capture::{start, GameCaptureHandle};
+#[cfg(windows)]
+pub(crate) use session::describe;
 
 #[cfg(windows)]
 use std::path::PathBuf;

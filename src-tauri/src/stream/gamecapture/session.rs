@@ -46,6 +46,39 @@ fn named(base: &str, pid: u32) -> String {
     protocol::name_with_id(base, pid)
 }
 
+pub(crate) fn is_hooked(hwnd: u64) -> bool {
+    let (pid, _tid) = win_target(hwnd);
+    if pid == 0 {
+        return false;
+    }
+    match open_event(&named(protocol::EVENT_CAPTURE_RESTART, pid)) {
+        Some(h) => {
+            unsafe {
+                let _ = CloseHandle(h);
+            }
+            true
+        }
+        None => false,
+    }
+}
+
+pub(crate) fn describe(hwnd: u64) -> String {
+    let (pid, _tid) = win_target(hwnd);
+    if pid == 0 {
+        return "no owning process (window gone?)".into();
+    }
+    let bits = match super::inject::target_is_64bit(pid) {
+        Ok(true) => "64-bit",
+        Ok(false) => "32-bit",
+        Err(e) => return format!("pid={pid}, bitness check failed: {e}"),
+    };
+    let hooked = is_hooked(hwnd);
+    format!(
+        "pid={pid}, {bits}, obs-hook={}",
+        if hooked { "armed" } else { "not armed" }
+    )
+}
+
 fn ensure_hooked(hwnd: u64) -> Result<(u32, u32, HANDLE), String> {
     let (pid, tid) = win_target(hwnd);
     if pid == 0 {

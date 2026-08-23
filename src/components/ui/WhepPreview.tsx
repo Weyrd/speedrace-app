@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { WhepClient } from "../../stream/whep";
 import { StreamStatus } from "../../types";
+import { CopyLogsButton } from "./CopyLogsButton";
 
 export function WhepPreview({
   whepUrl,
@@ -58,6 +59,7 @@ export function WhepPreview({
           </>
         )}
       </div>
+      <CopyLogsButton className="absolute bottom-2 right-2" />
     </div>
   );
 }

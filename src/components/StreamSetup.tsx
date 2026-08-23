@@ -8,6 +8,7 @@ import { tryCatch } from "../lib/tryCatch";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
 import { PreviewCanvas } from "./ui/PreviewCanvas";
+import { CopyLogsButton } from "./ui/CopyLogsButton";
 import SourcePicker from "./SourcePicker";
 import { Button } from "./ui/button";
 
@@ -54,9 +55,12 @@ export default function StreamSetup() {
         earlyStartDetected={state.autosplit?.run_in_progress}
       />
 
-      <PreviewCanvas
-        onClick={publishing ? undefined : () => setPickerOpen(true)}
-      />
+      <div className="relative shrink-0">
+        <PreviewCanvas
+          onClick={publishing ? undefined : () => setPickerOpen(true)}
+        />
+        <CopyLogsButton className="absolute bottom-2 right-2" />
+      </div>
       <p className="text-2xs text-dim font-mono tracking-wide text-center -mt-1">
         {t("stream.change_source_hint")}
         {sourceLabel && (
