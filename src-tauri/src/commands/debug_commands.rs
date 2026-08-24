@@ -1,5 +1,5 @@
 use crate::logging;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use crate::stream;
 use std::fmt::Write;
 use tauri::{AppHandle, State};
@@ -44,11 +44,7 @@ fn write_header(out: &mut String, app: &AppHandle) {
 
 fn write_state(out: &mut String, state: &SharedState) {
     let _ = writeln!(out, "=== App state ===");
-    let Ok(g) = state.lock() else {
-        let _ = writeln!(out, "(state mutex poisoned)");
-        let _ = writeln!(out);
-        return;
-    };
+    let g = state.lock_state();
     let _ = writeln!(out, "app_state: {:?}", g.app_state);
     let _ = writeln!(out, "ws_status: {:?}", g.ws_status);
     let _ = writeln!(
@@ -143,7 +139,11 @@ fn write_capture(out: &mut String, app: &AppHandle, state: &SharedState) {
     match &source {
         CaptureSource::Window { hwnd, title } => {
             let _ = writeln!(out, "selected source: window \"{title}\" (hwnd={hwnd:#x})");
-            let _ = writeln!(out, "owning process: {}", stream::gamecapture::describe(*hwnd));
+            let _ = writeln!(
+                out,
+                "owning process: {}",
+                stream::gamecapture::describe(*hwnd)
+            );
             match stream::capture::target_size_even(CaptureTarget::Window { hwnd: *hwnd }) {
                 Ok((w, h)) => {
                     let _ = writeln!(out, "capture size: {w}x{h}");

@@ -50,7 +50,10 @@ fn realtime_speed_flags_an_encoder_that_cannot_keep_up() {
     let speed = w
         .observe(t1, 194_000)
         .expect("second sample yields a speed");
-    assert!(speed < MIN_REALTIME_SPEED, "expected a slow speed, got {speed}");
+    assert!(
+        speed < MIN_REALTIME_SPEED,
+        "expected a slow speed, got {speed}"
+    );
 }
 
 #[test]

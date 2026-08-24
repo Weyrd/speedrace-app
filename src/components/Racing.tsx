@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 import { Check, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
+import { autosplitDrivesFinish } from "../types";
 import StopModal from "./StopModal";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
@@ -12,6 +13,7 @@ import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useFinishHotkey } from "../hooks/useFinishHotkey";
 import { useClockOffset } from "../hooks/useClockOffset";
 import { primeCountdown, scheduleCountdown, Sound } from "../lib/sound";
+import { createClockStore } from "../lib/clockStore";
 import { Button } from "./ui/button";
 
 const COUNTDOWN_BEEPS = [
@@ -21,25 +23,13 @@ const COUNTDOWN_BEEPS = [
   { at: 0, sound: Sound.CountdownGo },
 ] as const;
 
-let rafId: number;
-let cachedNow = Date.now();
-const clockListeners = new Set<() => void>();
-function subscribeToRaf(cb: () => void) {
-  clockListeners.add(cb);
-  if (clockListeners.size === 1) tick();
-  return () => {
-    clockListeners.delete(cb);
-    if (clockListeners.size === 0) cancelAnimationFrame(rafId);
-  };
-}
-function tick() {
-  cachedNow = Date.now();
-  clockListeners.forEach((fn) => fn());
-  rafId = requestAnimationFrame(tick);
-}
-function getNow() {
-  return cachedNow;
-}
+const rafClock = createClockStore((tick) => {
+  let rafId = requestAnimationFrame(function loop() {
+    tick();
+    rafId = requestAnimationFrame(loop);
+  });
+  return () => cancelAnimationFrame(rafId);
+});
 
 export default function Racing() {
   const state = useAppState();
@@ -47,20 +37,17 @@ export default function Racing() {
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
 
-  const now = useSyncExternalStore(subscribeToRaf, getNow);
+  const now = useSyncExternalStore(rafClock.subscribe, rafClock.getNow);
   const { offsetMs } = useClockOffset();
   const { data: finishHotkey } = useFinishHotkey();
   const startAt =
     state.phase === Phase.RaceInProgress ? state.raceStartAt : null;
 
-  const autosplitDrivesFinish =
-    state.phase === Phase.RaceInProgress &&
-    (state.autosplit?.wasm === true ||
-      (state.autosplit?.livesplit === true &&
-        state.autosplit.splits_match !== false));
+  const autosplitDrives =
+    state.phase === Phase.RaceInProgress && autosplitDrivesFinish(state.autosplit);
 
   useEffect(() => {
-    if (autosplitDrivesFinish) return;
+    if (autosplitDrives) return;
     registerFinishHotkey().catch((e) =>
       console.error("[race] registerFinishHotkey error", e),
     );
@@ -69,7 +56,7 @@ export default function Racing() {
         console.error("[race] unregisterFinishHotkey error", e),
       );
     };
-  }, [autosplitDrivesFinish, finishHotkey]);
+  }, [autosplitDrives, finishHotkey]);
 
   useEffect(() => {
     if (startAt == null) return;
@@ -131,7 +118,7 @@ export default function Racing() {
         />
       )}
       <div className="flex gap-2 mt-auto">
-        {!autosplitDrivesFinish && (
+        {!autosplitDrives && (
           <Button
             variant="finish"
             size="lg"

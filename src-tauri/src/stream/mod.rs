@@ -29,7 +29,7 @@ use crate::events::STREAM_STATUS;
 use crate::logging::{mlog, LogCat};
 use crate::models::lobby::RaceType;
 use crate::models::AppState;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::watch;
@@ -41,7 +41,7 @@ pub fn emit_status(app: &AppHandle, state: StreamState, message: Option<String>)
 }
 
 pub fn current_source(app: &AppHandle, state: &SharedState) -> CaptureSource {
-    let session = state.lock().ok().and_then(|g| g.capture_source.clone());
+    let session = state.lock_state().capture_source.clone();
     session.unwrap_or(CaptureSource::Monitor {
         index: crate::settings::load_stream_settings(app).monitor_index,
     })
@@ -51,7 +51,7 @@ pub fn current_source(app: &AppHandle, state: &SharedState) -> CaptureSource {
 #[cfg(windows)]
 pub(crate) async fn auto_select_game_window(app: &AppHandle, state: &SharedState, pid: u32) {
     let current = {
-        let Ok(g) = state.lock() else { return };
+        let g = state.lock_state();
         if g.stream.is_some() {
             return;
         }
@@ -67,7 +67,7 @@ pub(crate) async fn auto_select_game_window(app: &AppHandle, state: &SharedState
     }
     let source = CaptureSource::Window { hwnd, title };
     {
-        let Ok(mut g) = state.lock() else { return };
+        let mut g = state.lock_state();
         if g.stream.is_some() {
             return;
         }
@@ -89,7 +89,7 @@ pub async fn start(
     live_tx: Option<tokio::sync::oneshot::Sender<Result<(), String>>>,
 ) -> Result<Option<PathBuf>, String> {
     let (whip_url, session_source, race_type, game_name, category_name, username) = {
-        let guard = state.lock().map_err(|e| e.to_string())?;
+        let guard = state.lock_state();
         if guard.app_state != AppState::StreamSetup {
             return Err("stream can only start from StreamSetup".into());
         }
@@ -162,7 +162,7 @@ pub async fn start(
     });
 
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.stream = Some(StreamSession { stop_tx, join });
         guard.replay_base = replay_out.clone();
     }
@@ -194,7 +194,7 @@ pub async fn publish(app: &AppHandle, state: &SharedState, lobby_id: &str) -> Re
     }
 
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.app_state = AppState::WaitingForStart;
     }
     Ok(())
@@ -212,7 +212,8 @@ async fn publish_fail(
         if let Some(a) = replay::ReplayArtifacts::open(&p) {
             a.discard();
         }
-        if let Ok(mut g) = state.lock() {
+        {
+            let mut g = state.lock_state();
             g.replay_base = None;
             g.countdown_start_at_ms = None;
         }
@@ -225,16 +226,12 @@ async fn publish_fail(
 pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
     preview::stop(state).await;
     let session = {
-        match state.lock() {
-            Ok(mut g) => {
-                let s = g.stream.take();
-                if s.is_some() {
-                    g.stream_finalizing = true;
-                }
-                s
-            }
-            Err(_) => return,
+        let mut g = state.lock_state();
+        let s = g.stream.take();
+        if s.is_some() {
+            g.stream_finalizing = true;
         }
+        s
     };
     let Some(session) = session else {
         await_finalized(state).await;
@@ -248,9 +245,7 @@ pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
     } else {
         session.join.abort();
     }
-    if let Ok(mut g) = state.lock() {
-        g.stream_finalizing = false;
-    }
+    state.lock_state().stream_finalizing = false;
     mlog!(
         LogCat::Stream,
         "[stream] shutdown complete (graceful={graceful})"
@@ -260,9 +255,8 @@ pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
 
 async fn await_finalized(state: &SharedState) {
     for _ in 0..300 {
-        match state.lock() {
-            Ok(g) if g.stream_finalizing => {}
-            _ => return,
+        if !state.lock_state().stream_finalizing {
+            return;
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
