@@ -54,6 +54,13 @@ export interface AutosplitState {
   run_in_progress?: boolean;
 }
 
+export function autosplitDrivesFinish(autosplit?: AutosplitState): boolean {
+  return (
+    autosplit?.wasm === true ||
+    (autosplit?.livesplit === true && autosplit.splits_match !== false)
+  );
+}
+
 export interface LobbySetup {
   lobby_id: string;
   lobby_status: LobbyStatus;

@@ -1,15 +1,7 @@
 import { WsStatus, StreamStatus, StreamEventState, type User } from "../types";
 import { Phase, ActionType, type AppState, type AppAction } from "./types";
 
-const PHASES_WITH_WS = new Set<Phase>([
-  Phase.Idle,
-  Phase.StreamSetup,
-  Phase.WaitingForStart,
-  Phase.RaceInProgress,
-  Phase.Finished,
-]);
-
-const PHASES_WITH_USER = new Set<Phase>([
+const PHASES_WITH_SESSION = new Set<Phase>([
   Phase.Idle,
   Phase.StreamSetup,
   Phase.WaitingForStart,
@@ -50,7 +42,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case ActionType.WsStatus: {
-      if (!PHASES_WITH_WS.has(state.phase)) return state;
+      if (!PHASES_WITH_SESSION.has(state.phase)) return state;
       return {
         ...(state as Extract<AppState, { wsStatus: WsStatus }>),
         wsStatus: action.ws_status,
@@ -58,7 +50,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case ActionType.LobbySetup: {
-      if (!PHASES_WITH_USER.has(state.phase)) return state;
+      if (!PHASES_WITH_SESSION.has(state.phase)) return state;
       const s = state as Extract<AppState, { user: User; wsStatus: WsStatus }>;
       if (
         state.phase === Phase.WaitingForStart ||
@@ -79,7 +71,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case ActionType.LobbyClosed: {
-      if (!PHASES_WITH_USER.has(state.phase)) return state;
+      if (!PHASES_WITH_SESSION.has(state.phase)) return state;
       const s = state as Extract<AppState, { user: User; wsStatus: WsStatus }>;
       return {
         phase: Phase.Idle,

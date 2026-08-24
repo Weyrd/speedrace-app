@@ -3,7 +3,9 @@ use crate::api::client::PostOutcome;
 use crate::events::{SPLIT_FIRED, WS_PLAYER_RESULT};
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
-use crate::state::{AutosplitSource, BufferedEarlySplit, PendingSplit, SharedState};
+use crate::state::{
+    AutosplitSource, BufferedEarlySplit, LockGlobalState, PendingSplit, SharedState,
+};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
@@ -38,21 +40,14 @@ enum Outcome {
 }
 
 fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
-    let now_ms = crate::autosplit::now_epoch_ms();
-
     let outcome = {
-        let mut guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let mut guard = state.lock_state();
 
         if guard.app_state != AppState::RaceInProgress {
             return;
         }
 
-        if guard.autosplit_source == Some(AutosplitSource::LiveSplit)
-            && guard.livesplit_splits_match == Some(false)
-        {
+        if guard.autosplit.splits_are_invalid() {
             return;
         }
 
@@ -71,7 +66,14 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
             let Some(race_start_at) = guard.race_start_at else {
                 return;
             };
-            let end_ms = ((now_ms + guard.clock_offset_ms) - race_start_at).max(0) as u64;
+            let raw_end_ms = guard.server_now_ms() - race_start_at;
+            if raw_end_ms < 0 {
+                mlog!(
+                    LogCat::Autosplit,
+                    "[split] negative elapsed at split (raw={raw_end_ms}ms) — clamping to 0, clock offset likely stale"
+                );
+            }
+            let end_ms = raw_end_ms.max(0) as u64;
 
             let Some(run) = guard.split_run.as_ref() else {
                 return;
@@ -85,6 +87,12 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
             let segment_name = run.segment(index as usize).name().to_string();
             let start_ms = guard.segment_start_ms;
 
+            if end_ms < start_ms {
+                mlog!(
+                    LogCat::Autosplit,
+                    "[split] segment {index} end_ms={end_ms} before start_ms={start_ms} — clamping, segment time is unreliable"
+                );
+            }
             let end_ms = end_ms.max(start_ms);
 
             let skip = force_skip;
@@ -116,7 +124,7 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                 match api::lobby::post_player_forfeited(&app, &lobby_id).await {
                     Ok(result) => {
                         {
-                            let Ok(mut g) = state.lock() else { return };
+                            let mut g = state.lock_state();
                             g.app_state = AppState::Finished;
                             g.race_start_at = None;
                             g.run_start_instant = None;
@@ -128,9 +136,7 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                             LogCat::Autosplit,
                             "[autosplit] unverified-start forfeit: {e}"
                         );
-                        if let Ok(mut g) = state.lock() {
-                            g.run_forfeited = false;
-                        }
+                        state.lock_state().run_forfeited = false;
                     }
                 }
             });
@@ -194,10 +200,7 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
 pub fn buffer_early_split(app: &AppHandle, state: &SharedState) {
     crate::autosplit::run_started::mark_run_start(app, state, crate::autosplit::now_epoch_ms());
 
-    let mut guard = match state.lock() {
-        Ok(g) => g,
-        Err(_) => return,
-    };
+    let mut guard = state.lock_state();
     let Some(lobby) = guard.lobby.as_ref() else {
         return;
     };
@@ -223,11 +226,8 @@ pub fn buffer_early_split(app: &AppHandle, state: &SharedState) {
 
 pub fn flush_early_splits(app: &AppHandle, state: &SharedState) {
     let buffered = {
-        let mut g = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
-        if g.autosplit_source != Some(AutosplitSource::Wasm)
+        let mut g = state.lock_state();
+        if g.autosplit.source != Some(AutosplitSource::Wasm)
             || g.app_state != AppState::RaceInProgress
             || g.pending_early_splits.is_empty()
         {
@@ -250,16 +250,11 @@ pub fn flush_early_splits(app: &AppHandle, state: &SharedState) {
 
 pub fn fire_prestart_split(app: &AppHandle, state: &SharedState) {
     let (lobby_id, split_index, segment_name, is_final) = {
-        let mut guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let mut guard = state.lock_state();
         if guard.app_state != AppState::RaceInProgress {
             return;
         }
-        if guard.autosplit_source == Some(AutosplitSource::LiveSplit)
-            && guard.livesplit_splits_match == Some(false)
-        {
+        if guard.autosplit.splits_are_invalid() {
             return;
         }
         let Some(lobby) = guard.lobby.as_ref() else {
@@ -318,15 +313,12 @@ fn emit_prestart_split(
 
 pub fn enqueue_split(app: &AppHandle, state: &SharedState, split: PendingSplit) {
     {
-        let mut guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let mut guard = state.lock_state();
         guard.pending_splits.push(split);
-        if guard.split_retry_running {
+        if guard.retry.split {
             return;
         }
-        guard.split_retry_running = true;
+        guard.retry.split = true;
     }
     let app = app.clone();
     let state = state.clone();
@@ -339,21 +331,27 @@ async fn durable_split_loop(app: AppHandle, state: SharedState) {
     let mut backoff = Duration::from_secs(crate::config::WS_RECONNECT_BASE_SECS);
     loop {
         let split = {
-            let mut g = match state.lock() {
-                Ok(g) => g,
-                Err(_) => return,
-            };
+            let mut g = state.lock_state();
             match g.pending_splits.first().cloned() {
                 Some(s) => s,
                 None => {
-                    g.split_retry_running = false;
+                    g.retry.split = false;
                     return;
                 }
             }
         };
         match api::lobby::submit_split(&app, &split).await {
-            PostOutcome::Ok(()) | PostOutcome::Rejected => {
-                if let Ok(mut g) = state.lock() {
+            outcome @ (PostOutcome::Ok(()) | PostOutcome::Rejected) => {
+                if matches!(outcome, PostOutcome::Rejected) {
+                    mlog!(
+                        LogCat::Api,
+                        "[split] server rejected split {} for lobby {}: dropping, not retried",
+                        split.split_index,
+                        split.lobby_id
+                    );
+                }
+                {
+                    let mut g = state.lock_state();
                     if g.pending_splits.first().is_some_and(|s| {
                         s.lobby_id == split.lobby_id && s.split_index == split.split_index
                     }) {

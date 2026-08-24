@@ -4,7 +4,7 @@ mod resumable;
 
 use crate::events::UPLOAD_STATUS;
 use crate::logging::{mlog, LogCat};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use crate::stream::replay::ReplayArtifacts;
 use crate::ws::messages::UploadUnavailableReason;
 use assemble::assemble;
@@ -56,10 +56,7 @@ pub fn emit_unavailable(
     lobby_id: &str,
     reason: UploadUnavailableReason,
 ) {
-    let replay_base = match state.lock() {
-        Ok(g) => g.replay_base.clone(),
-        Err(_) => None,
-    };
+    let replay_base = state.lock_state().replay_base.clone();
     if let Some(base) = replay_base {
         let _ = crate::settings::save_pending_upload(app, lobby_id, &base);
     }
@@ -93,9 +90,7 @@ pub async fn resume_pending(
                 "[upload] resuming pending upload for lobby {}",
                 pending.lobby_id
             );
-            if let Ok(mut guard) = state.lock() {
-                guard.replay_base = Some(pending.replay_base.clone());
-            }
+            state.lock_state().replay_base = Some(pending.replay_base.clone());
             spawn(
                 &app,
                 &state,
@@ -123,7 +118,7 @@ pub fn spawn(
 ) {
     let cancel = Arc::new(AtomicBool::new(false));
     let replay_base = {
-        let Ok(mut guard) = state.lock() else { return };
+        let mut guard = state.lock_state();
         if guard.upload.is_some() {
             mlog!(LogCat::Api, "[upload] already running, ignoring offer");
             return;
@@ -159,9 +154,7 @@ pub fn spawn(
                 emit(&app, UploadPhase::Failed, 0, 0, Some(e));
             }
         }
-        if let Ok(mut g) = state.lock() {
-            g.upload = None;
-        }
+        state.lock_state().upload = None;
     });
 }
 
@@ -178,7 +171,7 @@ async fn run(
     crate::stream::shutdown(app, state, true).await;
 
     let base = {
-        let guard = state.lock().map_err(|e| e.to_string())?;
+        let guard = state.lock_state();
         guard.replay_base.clone()
     };
     let base = base.ok_or("no replay recorded for this race")?;

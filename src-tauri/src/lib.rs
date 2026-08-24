@@ -16,7 +16,7 @@ mod ws;
 
 use logging::{mlog, LogCat};
 use models::AppState;
-use state::{GlobalState, SharedState};
+use state::{GlobalState, LockGlobalState, SharedState};
 
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -57,10 +57,7 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
     let state = app.state::<SharedState>().inner().clone();
 
     let (lobby_id, finishing_time_ms) = {
-        let guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let guard = state.lock_state();
         if guard.app_state != AppState::RaceInProgress {
             return;
         }
@@ -72,12 +69,12 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
             Some(s) => s,
             None => return,
         };
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as i64)
-            .unwrap_or(0);
-        let elapsed = (now + guard.clock_offset_ms) - start;
+        let elapsed = guard.server_now_ms() - start;
         if elapsed < 0 {
+            mlog!(
+                LogCat::Lifecycle,
+                "[hotkey] negative elapsed at finish (raw={elapsed}ms) — ignoring finish press"
+            );
             return;
         }
         (lobby_id, elapsed as u64)
@@ -170,7 +167,6 @@ pub fn run() {
             commands::unregister_finish_hotkey,
             commands::sync_clock,
             commands::get_split_segments,
-            commands::get_current_split_index,
             commands::get_autosplit_state,
             commands::collect_debug_report,
             hide_to_tray,
@@ -255,9 +251,7 @@ pub fn run() {
             }
 
             if let Some((offset, _)) = settings::load_clock_offset(&app_handle) {
-                if let Ok(mut guard) = shared_state.lock() {
-                    guard.clock_offset_ms = offset;
-                }
+                shared_state.lock_state().set_clock_offset(offset);
             }
 
             {

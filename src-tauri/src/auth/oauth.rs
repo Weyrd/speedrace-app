@@ -4,7 +4,7 @@ use crate::config;
 use crate::events::AUTH_STATE;
 use crate::logging::{mlog, LogCat};
 use crate::models::{AuthStatePayload, AuthUser, LoginError};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
             );
 
             {
-                let mut guard = shared_state.lock().unwrap();
+                let mut guard = shared_state.lock_state();
                 guard.user = Some(stored.user.clone());
                 guard.app_state = crate::models::AppState::Connecting;
             }
