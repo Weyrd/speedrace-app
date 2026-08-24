@@ -1,7 +1,7 @@
 use crate::api;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use crate::stream;
 use serde::Serialize;
 use tauri::Emitter;
@@ -39,7 +39,7 @@ pub async fn stop_stream(
     }
 
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.app_state = AppState::StreamSetup;
         guard.race_start_at = None;
     }
@@ -134,7 +134,7 @@ pub fn set_capture_source(
     if let stream::CaptureSource::Monitor { index } = source {
         crate::settings::save_monitor_index(&app, index)?;
     }
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     guard.capture_source = Some(source);
     Ok(())
 }

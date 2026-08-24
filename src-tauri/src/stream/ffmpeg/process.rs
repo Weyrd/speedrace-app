@@ -34,7 +34,10 @@ pub fn resolve_ffmpeg_path() -> Result<PathBuf, String> {
     Err("ffmpeg sidecar not found; run src-tauri/scripts/get-ffmpeg.ps1".into())
 }
 
-pub(crate) async fn graceful_stop(child: &mut Child, stdin: &mut Option<tokio::process::ChildStdin>) {
+pub(crate) async fn graceful_stop(
+    child: &mut Child,
+    stdin: &mut Option<tokio::process::ChildStdin>,
+) {
     if let Some(si) = stdin.as_mut() {
         let _ = si.write_all(b"q\n").await;
         let _ = si.flush().await;

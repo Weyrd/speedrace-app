@@ -5,14 +5,14 @@ use crate::events::WS_PLAYER_RESULT;
 use crate::logging::{mlog, LogCat};
 use crate::models::lobby::PlayerStatus;
 use crate::models::{AppState, AutosplitState, ClientState};
-use crate::state::{PendingFinish, SharedState};
+use crate::state::{LockGlobalState, PendingFinish, SharedState};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[tauri::command]
 pub fn get_split_segments(state: State<SharedState>) -> Vec<String> {
-    let guard = state.lock().unwrap();
+    let guard = state.lock_state();
     guard
         .split_run
         .as_ref()
@@ -25,25 +25,20 @@ pub fn get_split_segments(state: State<SharedState>) -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn get_current_split_index(state: State<SharedState>) -> u32 {
-    state.lock().unwrap().current_split_index
-}
-
-#[tauri::command]
 pub fn get_autosplit_state(state: State<SharedState>) -> crate::ws::handler::AutosplitProbePayload {
     crate::ws::handler::current_autosplit_probe(&state)
 }
 
 #[tauri::command]
 pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
+    let guard = state.lock_state();
     Ok(ClientState {
         app_state: guard.app_state.clone(),
         lobby: guard.lobby.clone(),
         autosplit: AutosplitState {
-            wasm: guard.wasm_attached,
-            livesplit: guard.livesplit_connected,
-            splits_match: guard.livesplit_splits_match,
+            wasm: guard.autosplit.wasm_attached,
+            livesplit: guard.autosplit.livesplit_connected,
+            splits_match: guard.autosplit.livesplit_splits_match,
             run_in_progress: guard.run_active,
         },
     })
@@ -56,19 +51,16 @@ pub fn start_durable_finish(
     finishing_time_ms: u64,
 ) {
     {
-        let mut guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let mut guard = state.lock_state();
         guard.pending_finish = Some(PendingFinish {
             lobby_id,
             finishing_time_ms,
             run_started_at_ms: guard.run_start_instant,
         });
-        if guard.finish_retry_running {
+        if guard.retry.finish {
             return;
         }
-        guard.finish_retry_running = true;
+        guard.retry.finish = true;
     }
     let app = app.clone();
     let state = state.clone();
@@ -80,7 +72,7 @@ pub fn start_durable_finish(
 async fn durable_finish_loop(app: AppHandle, state: SharedState) {
     let mut backoff = Duration::from_secs(crate::config::WS_RECONNECT_BASE_SECS);
     while let Some(pending) = {
-        let g = state.lock().unwrap();
+        let g = state.lock_state();
         g.pending_finish.clone()
     } {
         crate::counter::flush_all_counter_buffers(&app, &state, &pending.lobby_id).await;
@@ -98,8 +90,14 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
                 break;
             }
             PostOutcome::Rejected => {
+                mlog!(
+                    LogCat::Api,
+                    "[finish] server rejected finish for lobby {}: local time {}ms not confirmed",
+                    pending.lobby_id,
+                    pending.finishing_time_ms
+                );
                 let result = PlayerResult {
-                    player_status: PlayerStatus::Finished,
+                    player_status: PlayerStatus::Forfeited,
                     finishing_time_ms: Some(pending.finishing_time_ms),
                     finish_position: None,
                 };
@@ -117,18 +115,13 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
             }
         }
     }
-    if let Ok(mut g) = state.lock() {
-        g.finish_retry_running = false;
-    }
+    state.lock_state().retry.finish = false;
 }
 
 fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result: PlayerResult) {
     let username;
     {
-        let mut guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let mut guard = state.lock_state();
         match &guard.pending_finish {
             Some(p) if p.lobby_id == lobby_id => {}
             _ => return,
@@ -184,7 +177,7 @@ pub async fn send_player_forfeited(
     crate::counter::flush_all_counter_buffers(&app, state.inner(), &lobby_id).await;
     let result = api::lobby::post_player_forfeited(&app, &lobby_id).await?;
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.app_state = AppState::Finished;
         guard.race_start_at = None;
         guard.run_start_instant = None;
@@ -196,7 +189,7 @@ pub async fn send_player_forfeited(
 
 #[tauri::command]
 pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     if guard.upload.is_some() {
         return Err("upload in progress".into());
     }
@@ -213,7 +206,7 @@ pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn abandon_upload(state: State<SharedState>) -> Result<(), String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
+    let guard = state.lock_state();
     if let Some(u) = guard.upload.as_ref() {
         u.cancel.store(true, Ordering::SeqCst);
     }
@@ -223,7 +216,7 @@ pub fn abandon_upload(state: State<SharedState>) -> Result<(), String> {
 #[tauri::command]
 pub async fn retry_upload(app: AppHandle, state: State<'_, SharedState>) -> Result<(), String> {
     let lobby_id = {
-        let guard = state.lock().map_err(|e| e.to_string())?;
+        let guard = state.lock_state();
         if guard.upload.is_some() {
             return Err("upload already running".into());
         }

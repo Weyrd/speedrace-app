@@ -11,19 +11,12 @@ use crate::config;
 use crate::events::{APP_STATE, WS_STATUS};
 use crate::logging::{mlog, LogCat};
 use crate::models::{AppState, AuthStatePayload, AuthUser, WsStatus};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 
 const CLOSE_AUTH_INVALID: u16 = 4001;
 const CLOSE_BANNED: u16 = 4003;
 
 type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
-
-enum AuthOutcome {
-    Ok,
-    Invalid,
-    Banned,
-    Transient,
-}
 
 enum AttemptResult {
     Connected(Box<WsStream>),
@@ -35,10 +28,10 @@ enum AttemptResult {
 pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
     let mut backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
     let mut transient_failures: u32 = 0;
-    let my_gen = state.lock().unwrap().ws_gen;
+    let my_gen = state.lock_state().ws_gen;
 
     loop {
-        if state.lock().unwrap().ws_gen != my_gen {
+        if state.lock_state().ws_gen != my_gen {
             mlog!(
                 LogCat::Ws,
                 "[ws] superseded generation, stopping connect loop"
@@ -58,7 +51,8 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
             AttemptResult::Connected(stream) => {
                 transient_failures = 0;
                 backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
-                let shutdown = serve_connection(&app, &state, *stream).await;
+                announce_connection(&app, &state).await;
+                let shutdown = read_loop(&app, &state, *stream).await;
                 emit_ws_status(&app, &state, WsStatus::Disconnected);
                 if shutdown {
                     break;
@@ -91,14 +85,14 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
         }
     }
 
-    let mut guard = state.lock().unwrap();
+    let mut guard = state.lock_state();
     if guard.ws_gen == my_gen {
         guard.ws_loop_running = false;
     }
 }
 
 pub async fn retry_once(app: AppHandle, state: SharedState) {
-    if state.lock().map(|g| g.ws_loop_running).unwrap_or(false) {
+    if state.lock_state().ws_loop_running {
         return;
     }
 
@@ -113,13 +107,13 @@ pub async fn retry_once(app: AppHandle, state: SharedState) {
     match attempt_connection(&app, &state, &token).await {
         AttemptResult::Connected(stream) => {
             announce_connection(&app, &state).await;
-            state.lock().unwrap().ws_loop_running = true;
+            state.lock_state().ws_loop_running = true;
             let app = app.clone();
             let state = state.clone();
             tauri::async_runtime::spawn(async move {
                 read_loop(&app, &state, *stream).await;
                 emit_ws_status(&app, &state, WsStatus::Disconnected);
-                state.lock().unwrap().ws_loop_running = false;
+                state.lock_state().ws_loop_running = false;
                 crate::lifecycle::start_background_loops(&app, &state);
             });
         }
@@ -163,21 +157,25 @@ async fn attempt_connection(app: &AppHandle, state: &SharedState, token: &str) -
         return AttemptResult::Transient;
     }
 
-    match read_auth_outcome(&mut ws_stream).await {
-        AuthOutcome::Ok => AttemptResult::Connected(Box::new(ws_stream)),
-        AuthOutcome::Invalid => AttemptResult::Invalid,
-        AuthOutcome::Banned => AttemptResult::Banned,
-        AuthOutcome::Transient => AttemptResult::Transient,
+    loop {
+        match ws_stream.next().await {
+            Some(Ok(Message::Text(_))) => return AttemptResult::Connected(Box::new(ws_stream)),
+            Some(Ok(Message::Close(frame))) => {
+                let code = frame.map(|f| u16::from(f.code)).unwrap_or(0);
+                return match code {
+                    CLOSE_AUTH_INVALID => AttemptResult::Invalid,
+                    CLOSE_BANNED => AttemptResult::Banned,
+                    _ => AttemptResult::Transient,
+                };
+            }
+            Some(Ok(_)) => continue,
+            Some(Err(_)) | None => return AttemptResult::Transient,
+        }
     }
 }
 
-async fn serve_connection(app: &AppHandle, state: &SharedState, ws_stream: WsStream) -> bool {
-    announce_connection(app, state).await;
-    read_loop(app, state, ws_stream).await
-}
-
 async fn announce_connection(app: &AppHandle, state: &SharedState) {
-    let user = state.lock().unwrap().user.clone();
+    let user = state.lock_state().user.clone();
     if let Some(user) = user {
         emit_auth_state(
             app,
@@ -196,7 +194,7 @@ async fn announce_connection(app: &AppHandle, state: &SharedState) {
 }
 
 async fn read_loop(app: &AppHandle, state: &SharedState, mut ws_stream: WsStream) -> bool {
-    let shutdown = state.lock().unwrap().ws_shutdown.clone();
+    let shutdown = state.lock_state().ws_shutdown.clone();
     let notified = shutdown.notified();
     tokio::pin!(notified);
 
@@ -227,27 +225,6 @@ async fn read_loop(app: &AppHandle, state: &SharedState, mut ws_stream: WsStream
     }
 }
 
-async fn read_auth_outcome<S>(ws_stream: &mut S) -> AuthOutcome
-where
-    S: StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,
-{
-    loop {
-        match ws_stream.next().await {
-            Some(Ok(Message::Text(_))) => return AuthOutcome::Ok,
-            Some(Ok(Message::Close(frame))) => {
-                let code = frame.map(|f| u16::from(f.code)).unwrap_or(0);
-                return match code {
-                    CLOSE_AUTH_INVALID => AuthOutcome::Invalid,
-                    CLOSE_BANNED => AuthOutcome::Banned,
-                    _ => AuthOutcome::Transient,
-                };
-            }
-            Some(Ok(_)) => continue,
-            Some(Err(_)) | None => return AuthOutcome::Transient,
-        }
-    }
-}
-
 async fn register_transient(
     app: &AppHandle,
     state: &SharedState,
@@ -260,7 +237,7 @@ async fn register_transient(
         if *failures == config::WS_MAX_RETRIES {
             emit_app_state(app, state, AppState::ServerUnavailable);
         }
-        let in_lobby = state.lock().map(|g| g.lobby.is_some()).unwrap_or(false);
+        let in_lobby = state.lock_state().lobby.is_some();
         if !in_lobby {
             return true;
         }
@@ -300,7 +277,7 @@ fn logout(app: &AppHandle, state: &SharedState, store: &TokenStore) {
     let _ = store.clear();
     crate::stream::shutdown_spawn(app, state);
     {
-        let mut guard = state.lock().unwrap();
+        let mut guard = state.lock_state();
         guard.app_state = AppState::Unauthenticated;
         guard.user = None;
         guard.lobby = None;
@@ -312,7 +289,7 @@ fn logout(app: &AppHandle, state: &SharedState, store: &TokenStore) {
 
 fn emit_app_state(app: &AppHandle, state: &SharedState, app_state: AppState) {
     {
-        let mut guard = state.lock().unwrap();
+        let mut guard = state.lock_state();
         guard.app_state = app_state.clone();
     }
     let _ = app.emit(APP_STATE, &app_state);
@@ -321,7 +298,7 @@ fn emit_app_state(app: &AppHandle, state: &SharedState, app_state: AppState) {
 pub fn emit_ws_status(app: &AppHandle, state: &SharedState, ws_status: WsStatus) {
     let transitioned_to_idle;
     {
-        let mut guard = state.lock().unwrap();
+        let mut guard = state.lock_state();
         guard.ws_status = ws_status.clone();
         if ws_status == WsStatus::Connected && guard.app_state == AppState::Connecting {
             guard.app_state = AppState::Idle;

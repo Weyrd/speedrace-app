@@ -3,7 +3,7 @@ use tauri::{AppHandle, State};
 
 use crate::config;
 use crate::settings;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 
 const CLOCK_CACHE_TTL_MS: i64 = 24 * 60 * 60 * 1000;
 const SAMPLE_COUNT: usize = 5;
@@ -68,9 +68,7 @@ pub async fn sync_clock(
     if !force {
         if let Some((offset, synced_at)) = settings::load_clock_offset(&app) {
             if now_ms() - synced_at < CLOCK_CACHE_TTL_MS {
-                if let Ok(mut guard) = state.lock() {
-                    guard.clock_offset_ms = offset;
-                }
+                state.lock_state().set_clock_offset(offset);
                 return Ok(ClockOffset {
                     offset_ms: offset,
                     synced_at,
@@ -82,9 +80,7 @@ pub async fn sync_clock(
     let offset = measure_offset().await?;
     let synced_at = now_ms();
     settings::save_clock_offset(&app, offset, synced_at)?;
-    if let Ok(mut guard) = state.lock() {
-        guard.clock_offset_ms = offset;
-    }
+    state.lock_state().set_clock_offset(offset);
     Ok(ClockOffset {
         offset_ms: offset,
         synced_at,

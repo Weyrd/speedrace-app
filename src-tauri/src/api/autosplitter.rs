@@ -6,7 +6,6 @@ use crate::logging::{mlog, LogCat};
 use super::cache::{cache_paths, CacheKind};
 use super::client::authed_get_bytes;
 
-#[allow(dead_code)]
 pub async fn fetch_game_autosplitter(
     app: &AppHandle,
     game_id: &str,

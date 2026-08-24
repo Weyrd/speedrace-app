@@ -1,13 +1,4 @@
-#[allow(dead_code)]
-pub(super) enum Corner {
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
-
 pub(super) struct OverlayStyle {
-    pub corner: Corner,
     pub max_splits: usize,
     pub margin: f32,
     pub pad: f32,
@@ -23,7 +14,6 @@ pub(super) struct OverlayStyle {
 }
 
 pub(super) const DEFAULT_STYLE: OverlayStyle = OverlayStyle {
-    corner: Corner::TopRight,
     max_splits: 3,
     margin: 0.015,
     pad: 0.008,

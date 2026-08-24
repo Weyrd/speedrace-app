@@ -1,6 +1,6 @@
-use super::overlay_style::{Corner, DEFAULT_STYLE, FONT_FILE, MIN_FONT_PX};
+use super::overlay_style::{DEFAULT_STYLE, FONT_FILE, MIN_FONT_PX};
 use crate::logging::{mlog, LogCat};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use std::path::{Path, PathBuf};
 
 const TIMER_FILE: &str = "overlay_timer.txt";
@@ -76,14 +76,8 @@ pub(super) fn filter_chain(dir: &Path, out_height: u32) -> Option<String> {
     let timer_line = timer_fs * 6 / 5 + 2 * pad;
     let split_line = split_fs * 6 / 5 + 2 * pad;
 
-    let x = |_fs: u32| match style.corner {
-        Corner::TopLeft | Corner::BottomLeft => format!("{margin}"),
-        Corner::TopRight | Corner::BottomRight => format!("w-tw-{margin}"),
-    };
-    let y = |row_top: u32| match style.corner {
-        Corner::TopLeft | Corner::TopRight => format!("{}", margin + row_top),
-        Corner::BottomLeft | Corner::BottomRight => format!("h-{}", margin + row_top),
-    };
+    let x = |_fs: u32| format!("w-tw-{margin}");
+    let y = |row_top: u32| format!("{}", margin + row_top);
 
     let chip = |file: &str, fs: u32, color: &str, alpha: f32, x: String, y: String| {
         format!(
@@ -201,7 +195,7 @@ pub(crate) fn record_split(state: &SharedState, name: &str, end_ms: u64) {
         width = style.name_max_chars
     );
     let (dir, rows) = {
-        let Ok(mut g) = state.lock() else { return };
+        let mut g = state.lock_state();
         let Some(dir) = g
             .replay_base
             .as_ref()
@@ -227,7 +221,7 @@ pub(super) fn spawn_ticker(state: SharedState, mut stop_rx: tokio::sync::watch::
                 _ = tokio::time::sleep(std::time::Duration::from_millis(TICK_MS)) => {}
             }
             let (dir, elapsed) = {
-                let Ok(g) = state.lock() else { continue };
+                let g = state.lock_state();
                 let Some(dir) = g
                     .replay_base
                     .as_ref()
@@ -236,10 +230,7 @@ pub(super) fn spawn_ticker(state: SharedState, mut stop_rx: tokio::sync::watch::
                     continue;
                 };
                 let Some(rs) = g.race_start_at else { continue };
-                (
-                    dir,
-                    crate::autosplit::now_epoch_ms() + g.clock_offset_ms - rs,
-                )
+                (dir, g.server_now_ms() - rs)
             };
             let text = fmt_timer(elapsed);
             if text != last {

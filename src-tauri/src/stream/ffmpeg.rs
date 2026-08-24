@@ -1,11 +1,10 @@
 use super::pipeline;
 use super::{
-    audio, emit_status, EncoderStatusPayload, Encoder, LaunchSpec, Outcome, ReplayRun,
-    StreamState,
+    audio, emit_status, Encoder, EncoderStatusPayload, LaunchSpec, Outcome, ReplayRun, StreamState,
 };
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -16,9 +15,9 @@ use tokio::sync::{oneshot, watch};
 
 mod process;
 mod progress;
+use process::graceful_stop;
 pub use process::resolve_ffmpeg_path;
 pub(crate) use process::{ffmpeg_command, spawn_ffmpeg, NULL_SINK};
-use process::graceful_stop;
 use progress::{ProgressParser, RealtimeWatchdog};
 
 const MAX_RESTARTS: u32 = 3;
@@ -234,10 +233,7 @@ pub async fn supervise(
                 if went_live {
                     attempt = 0;
                 }
-                let phase = state
-                    .lock()
-                    .map(|g| g.app_state.clone())
-                    .unwrap_or(AppState::Idle);
+                let phase = state.lock_state().app_state.clone();
 
                 if phase == AppState::RaceInProgress {
                     attempt += 1;
@@ -263,15 +259,14 @@ pub async fn supervise(
                 mlog!(LogCat::Stream, "[ffmpeg] pre-race death");
                 if matches!(phase, AppState::StreamSetup | AppState::WaitingForStart) {
                     let lobby_id = state
-                        .lock()
-                        .ok()
-                        .and_then(|g| g.lobby.as_ref().map(|l| l.lobby_id.clone()));
+                        .lock_state()
+                        .lobby
+                        .as_ref()
+                        .map(|l| l.lobby_id.clone());
                     if let Some(id) = lobby_id {
                         let _ = crate::api::lobby::post_stream_stopped(&app, &id).await;
                     }
-                    if let Ok(mut g) = state.lock() {
-                        g.app_state = AppState::StreamSetup;
-                    }
+                    state.lock_state().app_state = AppState::StreamSetup;
                     let _ = app.emit(crate::events::APP_STATE, AppState::StreamSetup);
                 }
                 emit_status(&app, StreamState::Error, Some("stream ended".into()));
@@ -284,9 +279,7 @@ pub async fn supervise(
 }
 
 fn clear_session(state: &SharedState) {
-    if let Ok(mut g) = state.lock() {
-        g.stream = None;
-    }
+    state.lock_state().stream = None;
 }
 
 fn hw_encoder_failed(tail: &[String]) -> bool {

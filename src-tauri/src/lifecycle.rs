@@ -4,7 +4,7 @@ use crate::auth::token_store::TokenStore;
 use crate::events::{APP_STATE, WS_LOBBY_SETUP};
 use crate::logging::{mlog, LogCat};
 use crate::models::{AppState, AuthStatePayload, AuthUser, LobbySetup, LobbyStatus, PlayerStatus};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use tauri::AppHandle;
 use tauri::Emitter;
 
@@ -20,7 +20,7 @@ pub async fn fetch_and_apply_current_lobby(
                 PlayerStatus::Finished | PlayerStatus::Forfeited
             );
             {
-                let mut guard = state.lock().unwrap();
+                let mut guard = state.lock_state();
                 guard.app_state = if player_done {
                     AppState::Finished
                 } else {
@@ -32,7 +32,7 @@ pub async fn fetch_and_apply_current_lobby(
             Some((lobby_resp, player_done))
         }
         None => {
-            let mut guard = state.lock().unwrap();
+            let mut guard = state.lock_state();
             if guard.app_state != AppState::Unauthenticated {
                 guard.app_state = AppState::Idle;
                 guard.lobby = None;
@@ -51,7 +51,7 @@ pub fn broadcast_lobby_restore(
     lobby: &LobbySetup,
     player_done: bool,
 ) {
-    let app_state = state.lock().unwrap().app_state.clone();
+    let app_state = state.lock_state().app_state.clone();
     let _ = app.emit(APP_STATE, &app_state);
     let _ = app.emit(WS_LOBBY_SETUP, lobby);
     crate::stream::preview::ensure_for_phase(app, state);
@@ -72,7 +72,7 @@ pub async fn sync_current_lobby(app: &AppHandle, state: &SharedState) -> bool {
 
 pub fn start_background_loops(app: &AppHandle, state: &SharedState) -> bool {
     let should_spawn_refresh = {
-        let mut guard = state.lock().unwrap();
+        let mut guard = state.lock_state();
         if guard.refresh_loop_running {
             false
         } else {
@@ -89,7 +89,7 @@ pub fn start_background_loops(app: &AppHandle, state: &SharedState) -> bool {
     }
 
     let should_spawn_ws = {
-        let mut guard = state.lock().unwrap();
+        let mut guard = state.lock_state();
         if guard.ws_loop_running {
             false
         } else {
@@ -148,7 +148,7 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
     };
 
     {
-        let mut guard = shared_state.lock().unwrap();
+        let mut guard = shared_state.lock_state();
         guard.app_state = AppState::Connecting;
         guard.user = Some(user.clone());
     }

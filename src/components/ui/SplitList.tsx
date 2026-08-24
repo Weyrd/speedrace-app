@@ -1,7 +1,7 @@
 import { useRef, useLayoutEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
 import { formatTime } from "../../lib/formatTime";
+import { getSplitSegments } from "../../lib/commands";
 import {
   groupSegments,
   hasSubsplitStructure,
@@ -23,7 +23,7 @@ export function SplitList({
 }: SplitListProps) {
   const { data: segments = [] } = useQuery({
     queryKey: ["split-segments"],
-    queryFn: () => invoke<string[]>("get_split_segments"),
+    queryFn: getSplitSegments,
     staleTime: Infinity,
   });
 

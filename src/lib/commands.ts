@@ -172,10 +172,6 @@ export async function getSplitSegments(): Promise<string[]> {
   return invoke<string[]>("get_split_segments");
 }
 
-export async function getCurrentSplitIndex(): Promise<number> {
-  return invoke<number>("get_current_split_index");
-}
-
 export async function getAutosplitState(): Promise<AutosplitState> {
   return invoke<AutosplitState>("get_autosplit_state");
 }
