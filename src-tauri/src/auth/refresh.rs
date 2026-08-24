@@ -7,7 +7,7 @@ use crate::auth::token_store::{seconds_until_expiry, TokenStore, Tokens};
 use crate::config;
 use crate::logging::{mlog, LogCat};
 use crate::models::AuthStatePayload;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 
 pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
     let store = TokenStore::new(app.clone());
@@ -44,9 +44,7 @@ pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
         }
     }
 
-    if let Ok(mut guard) = shared_state.lock() {
-        guard.refresh_loop_running = false;
-    }
+    shared_state.lock_state().refresh_loop_running = false;
 }
 
 pub async fn do_refresh(refresh_token: &str) -> Result<Tokens, String> {

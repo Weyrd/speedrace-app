@@ -1,6 +1,6 @@
 use super::ReplayRun;
 use crate::models::app_state::AppState;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use crate::{mlog, LogCat};
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
@@ -220,10 +220,7 @@ pub(crate) async fn supervise_run(
 
         let (fresh, next_pos) = read_appended(&run.list, read_pos);
         if !fresh.is_empty() {
-            let (now_server, _) = match state.lock() {
-                Ok(g) => (crate::autosplit::now_epoch_ms() + g.clock_offset_ms, ()),
-                Err(_) => continue,
-            };
+            let now_server = state.lock_state().server_now_ms();
             for l in &fresh {
                 let sample = now_server - (l.end * 1000.0) as i64;
                 anchor_ms = Some(anchor_ms.map_or(sample, |a: i64| a.min(sample)));
@@ -235,9 +232,9 @@ pub(crate) async fn supervise_run(
             read_pos = next_pos;
         }
 
-        let (phase, countdown) = match state.lock() {
-            Ok(g) => (g.app_state.clone(), g.countdown_start_at_ms),
-            Err(_) => continue,
+        let (phase, countdown) = {
+            let g = state.lock_state();
+            (g.app_state.clone(), g.countdown_start_at_ms)
         };
 
         let waiting = matches!(phase, AppState::StreamSetup | AppState::WaitingForStart);

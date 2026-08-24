@@ -1,6 +1,6 @@
 use crate::autosplit::timer::SpeedraceTimer;
 use crate::logging::{mlog, LogCat};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use livesplit_auto_splitting::{
     settings, AutoSplitter, CompiledAutoSplitter, Config, Process, Runtime,
 };
@@ -15,7 +15,7 @@ const REINSTANTIATE_DELAY_MS: u64 = 1000;
 
 pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_at: Option<&str>) {
     let bytes = crate::api::autosplitter::fetch_game_autosplitter(app, game_id, updated_at).await;
-    let mut guard = state.lock().unwrap();
+    let mut guard = state.lock_state();
     match &bytes {
         Some(b) => mlog!(
             LogCat::Wasm,
@@ -29,7 +29,7 @@ pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_
 
 pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) -> bool {
     let wasm = {
-        let g = state.lock().unwrap();
+        let g = state.lock_state();
         if g.autosplitter_runtime.is_some() {
             return true;
         }
@@ -69,7 +69,7 @@ pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) 
 }
 
 fn build_settings_map(state: &SharedState) -> Option<settings::Map> {
-    let guard = state.lock().unwrap();
+    let guard = state.lock_state();
     let xml = guard.split_run.as_ref()?.auto_splitter_settings();
     if xml.is_empty() {
         return None;
@@ -94,7 +94,7 @@ fn instantiate(
     match compiled.instantiate(timer, build_settings_map(state), None) {
         Ok(s) => {
             let s = Arc::new(s);
-            state.lock().unwrap().autosplitter_runtime = Some(Arc::clone(&s));
+            state.lock_state().autosplitter_runtime = Some(Arc::clone(&s));
             Some(s)
         }
         Err(e) => {
@@ -151,8 +151,8 @@ async fn supervise(
             }
         }
 
-        let lost = state.lock().unwrap().autosplit_source
-            == Some(crate::state::AutosplitSource::LiveSplit);
+        let lost =
+            state.lock_state().autosplit.source == Some(crate::state::AutosplitSource::LiveSplit);
         if cancel.load(Ordering::SeqCst) || !crate::ws::handler::in_lobby(&state) || lost {
             break;
         }
@@ -181,7 +181,7 @@ async fn supervise(
             Tick::Ran { attached, pid } => {
                 if last_attached != Some(attached) {
                     last_attached = Some(attached);
-                    state.lock().unwrap().wasm_attached = attached;
+                    state.lock_state().autosplit.wasm_attached = attached;
                     if attached {
                         maybe_switch_source(&app, &state, pid);
                     }
@@ -193,7 +193,7 @@ async fn supervise(
                 mlog!(LogCat::Wasm, "[wasm] update trapped, re-instantiating");
                 if last_attached != Some(false) {
                     last_attached = Some(false);
-                    state.lock().unwrap().wasm_attached = false;
+                    state.lock_state().autosplit.wasm_attached = false;
                     crate::ws::handler::report_autosplit_state(&app, &state).await;
                 }
                 if let Some(s) = instantiate(&compiled, &app, &state) {
@@ -206,8 +206,8 @@ async fn supervise(
     }
 
     {
-        let mut guard = state.lock().unwrap();
-        guard.wasm_attached = false;
+        let mut guard = state.lock_state();
+        guard.autosplit.wasm_attached = false;
         guard.autosplitter_runtime = None;
     }
     crate::ws::handler::report_autosplit_state(&app, &state).await;

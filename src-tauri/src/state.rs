@@ -3,11 +3,34 @@ use crate::counter::CounterBuffer;
 use crate::models::{AppState, LobbySetup, WsStatus};
 use std::collections::HashMap;
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AutosplitSource {
     Wasm,
     LiveSplit,
+}
+
+#[derive(Debug, Default)]
+pub struct RetryLoops {
+    pub run_started: bool,
+    pub finish: bool,
+    pub split: bool,
+}
+
+#[derive(Debug, Default)]
+pub struct AutosplitLinks {
+    pub source: Option<AutosplitSource>,
+    pub wasm_attached: bool,
+    pub livesplit_connected: bool,
+    pub livesplit_splits_match: Option<bool>,
+}
+
+impl AutosplitLinks {
+    pub fn splits_are_invalid(&self) -> bool {
+        self.source == Some(AutosplitSource::LiveSplit)
+            && self.livesplit_splits_match == Some(false)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +44,8 @@ pub struct PendingFinish {
 pub struct PendingRunStarted {
     pub lobby_id: String,
     pub run_start_instant: i64,
+    pub elapsed_at_capture_ms: i64,
+    pub captured_at: Instant,
 }
 
 #[derive(Debug, Clone)]
@@ -47,12 +72,12 @@ pub struct GlobalState {
     pub lobby: Option<LobbySetup>,
     pub race_start_at: Option<i64>,
     pub clock_offset_ms: i64,
+    pub clock_anchor: Option<(Instant, i64)>,
     pub run_start_instant: Option<i64>,
     pub run_active: bool,
 
     pub run_forfeited: bool,
     pub pending_run_started: Option<PendingRunStarted>,
-    pub run_started_retry_running: bool,
     pub refresh_loop_running: bool,
     pub ws_loop_running: bool,
     pub ws_gen: u64,
@@ -68,16 +93,12 @@ pub struct GlobalState {
     pub probe_running: bool,
     pub livesplit_running: bool,
     pub last_autosplit_reported: Option<(bool, bool, bool)>,
-    pub autosplit_source: Option<AutosplitSource>,
-    pub wasm_attached: bool,
-    pub livesplit_connected: bool,
-    pub livesplit_splits_match: Option<bool>,
+    pub autosplit: AutosplitLinks,
     pub counter_config: Option<Vec<crate::api::counter_config::CounterConfig>>,
     pub counter_buffers: HashMap<String, CounterBuffer>,
     pub pending_finish: Option<PendingFinish>,
-    pub finish_retry_running: bool,
     pub pending_splits: Vec<PendingSplit>,
-    pub split_retry_running: bool,
+    pub retry: RetryLoops,
     pub wasm_last_igt: Option<i64>,
     pub pending_early_splits: Vec<BufferedEarlySplit>,
     pub stream: Option<crate::stream::StreamSession>,
@@ -105,11 +126,11 @@ impl GlobalState {
             lobby: None,
             race_start_at: None,
             clock_offset_ms: 0,
+            clock_anchor: None,
             run_start_instant: None,
             run_active: false,
             run_forfeited: false,
             pending_run_started: None,
-            run_started_retry_running: false,
             refresh_loop_running: false,
             ws_loop_running: false,
             ws_gen: 0,
@@ -123,16 +144,12 @@ impl GlobalState {
             probe_running: false,
             livesplit_running: false,
             last_autosplit_reported: None,
-            autosplit_source: None,
-            wasm_attached: false,
-            livesplit_connected: false,
-            livesplit_splits_match: None,
+            autosplit: AutosplitLinks::default(),
             counter_config: None,
             counter_buffers: HashMap::new(),
             pending_finish: None,
-            finish_retry_running: false,
             pending_splits: Vec::new(),
-            split_retry_running: false,
+            retry: RetryLoops::default(),
             wasm_last_igt: None,
             pending_early_splits: Vec::new(),
             stream: None,
@@ -156,6 +173,25 @@ impl Default for GlobalState {
     }
 }
 
+impl GlobalState {
+    pub fn set_clock_offset(&mut self, offset_ms: i64) {
+        self.clock_offset_ms = offset_ms;
+        if self.app_state != AppState::RaceInProgress {
+            self.clock_anchor =
+                Some((Instant::now(), crate::autosplit::now_epoch_ms() + offset_ms));
+        }
+    }
+
+    pub fn server_now_ms(&self) -> i64 {
+        match &self.clock_anchor {
+            Some((instant, epoch_at_anchor)) => {
+                epoch_at_anchor.saturating_add(instant.elapsed().as_millis() as i64)
+            }
+            None => crate::autosplit::now_epoch_ms() + self.clock_offset_ms,
+        }
+    }
+}
+
 pub fn reset_run_start(g: &mut GlobalState) {
     g.run_start_instant = None;
     g.run_active = false;
@@ -166,3 +202,13 @@ pub fn reset_run_start(g: &mut GlobalState) {
 }
 
 pub type SharedState = Arc<Mutex<GlobalState>>;
+
+pub trait LockGlobalState {
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, GlobalState>;
+}
+
+impl LockGlobalState for Mutex<GlobalState> {
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, GlobalState> {
+        self.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}

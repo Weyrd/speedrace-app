@@ -1,6 +1,6 @@
 use crate::autosplit::now_epoch_ms;
 use crate::logging::{mlog, LogCat};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -80,16 +80,15 @@ pub async fn poll_loop(
     let mut saw_not_running = false;
     let mut tick: u32 = 0;
 
-    let mut was_committed = {
-        state.lock().unwrap().autosplit_source == Some(crate::state::AutosplitSource::LiveSplit)
-    };
+    let mut was_committed =
+        { state.lock_state().autosplit.source == Some(crate::state::AutosplitSource::LiveSplit) };
 
     loop {
         if cancel.load(Ordering::SeqCst) {
             break;
         }
 
-        let phase = state.lock().unwrap().app_state.clone();
+        let phase = state.lock_state().app_state.clone();
         if !matches!(
             phase,
             crate::models::AppState::StreamSetup
@@ -100,7 +99,7 @@ pub async fn poll_loop(
         }
 
         crate::ws::handler::maybe_commit_source(&state);
-        let source = state.lock().unwrap().autosplit_source;
+        let source = state.lock_state().autosplit.source;
         if source == Some(crate::state::AutosplitSource::Wasm) {
             mlog!(
                 LogCat::LiveSplit,
@@ -162,9 +161,7 @@ pub async fn poll_loop(
         if index < 0 {
             saw_not_running = true;
             if run_start_captured {
-                if let Ok(mut g) = state.lock() {
-                    crate::state::reset_run_start(&mut g);
-                }
+                crate::state::reset_run_start(&mut state.lock_state());
                 run_start_captured = false;
                 crate::ws::handler::report_autosplit_state(&app, &state).await;
             }
@@ -259,7 +256,7 @@ pub async fn poll_loop(
 
         if index >= 0 && index != name_checked_index {
             let expected = {
-                let g = state.lock().unwrap();
+                let g = state.lock_state();
                 g.split_run.as_ref().and_then(|r| {
                     let i = index as usize;
                     (i < r.len()).then(|| r.segment(i).name().to_string())
@@ -286,9 +283,9 @@ pub async fn poll_loop(
                                 );
                             }
                             let changed = {
-                                let mut g = state.lock().unwrap();
-                                let prev = g.livesplit_splits_match;
-                                g.livesplit_splits_match = Some(matches);
+                                let mut g = state.lock_state();
+                                let prev = g.autosplit.livesplit_splits_match;
+                                g.autosplit.livesplit_splits_match = Some(matches);
                                 prev != Some(matches)
                             };
                             if changed {

@@ -32,7 +32,6 @@ pub struct CachePaths {
     pub stamp: PathBuf,
 }
 
-#[allow(dead_code)]
 pub fn cache_paths(app: &AppHandle, kind: CacheKind, id: &str) -> Option<CachePaths> {
     let dir = app.path().app_local_data_dir().ok()?.join(kind.subdir());
     Some(CachePaths {

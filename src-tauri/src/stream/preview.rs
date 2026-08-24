@@ -2,7 +2,7 @@ use super::{ffmpeg, pipeline, PreviewEvent, PreviewSession};
 use crate::events::STREAM_PREVIEW;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use base64::Engine;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{AppHandle, Emitter};
@@ -16,10 +16,7 @@ fn emit(app: &AppHandle, ev: PreviewEvent) {
 }
 
 pub fn ensure_for_phase(app: &AppHandle, state: &SharedState) {
-    let setup = matches!(
-        state.lock().map(|g| g.app_state.clone()),
-        Ok(AppState::StreamSetup)
-    );
+    let setup = state.lock_state().app_state == AppState::StreamSetup;
     let app = app.clone();
     let state = state.clone();
     if setup {
@@ -45,7 +42,7 @@ pub async fn start(app: &AppHandle, state: &SharedState) -> Result<(), String> {
 
 async fn start_inner(app: &AppHandle, state: &SharedState) -> Result<(), String> {
     let my_gen = {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         if guard.app_state != AppState::StreamSetup {
             return Ok(());
         }
@@ -61,9 +58,7 @@ async fn start_inner(app: &AppHandle, state: &SharedState) -> Result<(), String>
 
     let started = start_capture_and_session(app, state, my_gen).await;
     if started.is_err() {
-        if let Ok(mut g) = state.lock() {
-            g.preview_starting = false;
-        }
+        state.lock_state().preview_starting = false;
     }
     started
 }
@@ -104,7 +99,7 @@ async fn start_capture_and_session(
     });
 
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.preview_starting = false;
         if guard.preview.is_none() && guard.preview_gen == my_gen {
             guard.preview = Some(PreviewSession { id, stop_tx, join });
@@ -117,12 +112,10 @@ async fn start_capture_and_session(
 }
 
 pub async fn stop(state: &SharedState) {
-    let session = match state.lock() {
-        Ok(mut g) => {
-            g.preview_gen = g.preview_gen.wrapping_add(1);
-            g.preview.take()
-        }
-        Err(_) => return,
+    let session = {
+        let mut g = state.lock_state();
+        g.preview_gen = g.preview_gen.wrapping_add(1);
+        g.preview.take()
     };
     let Some(session) = session else { return };
     let _ = session.stop_tx.send(true);
@@ -205,9 +198,7 @@ async fn drive_preview(
                             stat_bytes = 0;
                         }
                         let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg);
-                        if let Ok(mut g) = state.lock() {
-                            g.preview_last_jpeg = Some(jpeg);
-                        }
+                        state.lock_state().preview_last_jpeg = Some(jpeg);
                         emit(app, PreviewEvent::Frame { frame: b64 });
                     }
                     None => {
@@ -224,10 +215,9 @@ async fn drive_preview(
 }
 
 fn clear_own_session(state: &SharedState, id: u64) {
-    if let Ok(mut g) = state.lock() {
-        if g.preview.as_ref().map(|p| p.id) == Some(id) {
-            g.preview = None;
-        }
+    let mut g = state.lock_state();
+    if g.preview.as_ref().map(|p| p.id) == Some(id) {
+        g.preview = None;
     }
 }
 

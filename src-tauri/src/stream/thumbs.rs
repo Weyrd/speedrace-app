@@ -1,4 +1,4 @@
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use base64::Engine;
 use tauri::{AppHandle, State};
 
@@ -17,11 +17,7 @@ pub async fn capture_monitor_thumb(
         super::CaptureSource::Monitor { index: i } if i == index
     );
     let reuse = if on_this_monitor {
-        state
-            .lock()
-            .map_err(|e| e.to_string())?
-            .preview_last_jpeg
-            .clone()
+        state.lock_state().preview_last_jpeg.clone()
     } else {
         None
     };
