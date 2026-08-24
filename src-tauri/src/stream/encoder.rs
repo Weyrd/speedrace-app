@@ -100,10 +100,7 @@ fn probe_args(enc: Encoder, legs: u8) -> Vec<String> {
             a.push("-map".into());
             a.push(if i == 0 { "[a]".into() } else { "[b]".into() });
         }
-        a.push("-c:v".into());
-        a.push(enc.name().to_string());
-        a.push("-b:v".into());
-        a.push("1000k".into());
+        a.extend(super::pipeline::live_encoder_args(enc, 30, 1000));
         a.push("-f".into());
         a.push("mp4".into());
         a.push("-movflags".into());

@@ -6,7 +6,7 @@ fn owned(v: &[&str]) -> Vec<String> {
     v.iter().map(|s| s.to_string()).collect()
 }
 
-fn live_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
+pub(crate) fn live_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
     let mut a = vec!["-c:v".into(), enc.name().to_string()];
     a.extend(match enc {
         Encoder::X264 => owned(&["-preset", "veryfast", "-tune", "zerolatency"]),
@@ -33,12 +33,14 @@ fn live_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
             &(2 * fps).to_string(),
             "-async_depth",
             "1",
+            "-forced_idr",
+            "1",
         ]),
     });
     a.extend(owned(&[
         "-profile:v",
         match enc {
-            Encoder::Amf => "constrained_baseline",
+            Encoder::Amf => "main",
             _ => "baseline",
         },
         "-bf",
@@ -208,7 +210,7 @@ pub fn build_args(
     for s in [
         "-hide_banner",
         "-loglevel",
-        "info",
+        "verbose",
         "-nostats",
         "-progress",
         "pipe:1",
