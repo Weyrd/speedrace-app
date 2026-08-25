@@ -190,13 +190,6 @@ export const EncoderPref = {
 } as const;
 export type EncoderPref = (typeof EncoderPref)[keyof typeof EncoderPref];
 
-export const ENCODER_CHOICES = [
-  EncoderPref.Auto,
-  EncoderPref.Nvenc,
-  EncoderPref.Amf,
-  EncoderPref.X264,
-] as const;
-
 export const ENCODER_LABELS: Record<EncoderPref, string> = {
   [EncoderPref.Auto]: "Auto",
   [EncoderPref.Nvenc]: "NVIDIA (NVENC)",
@@ -213,4 +206,5 @@ export interface StreamSettings {
   replay_autodelete: boolean;
   replay_casual: boolean;
   replay_delete_uploaded: boolean;
+  debug_stream: boolean;
 }

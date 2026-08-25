@@ -24,15 +24,11 @@ pub(crate) fn live_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String
         ]),
         Encoder::Amf => owned(&[
             "-usage",
-            "ultralowlatency",
+            "lowlatency",
             "-quality",
             "speed",
             "-rc",
             "cbr",
-            "-header_spacing",
-            &(2 * fps).to_string(),
-            "-async_depth",
-            "1",
             "-forced_idr",
             "1",
         ]),
@@ -202,6 +198,7 @@ pub fn build_args(
     replay: Option<&ReplayRun>,
     video_pipe: Option<&VideoPipe>,
     encoder: Encoder,
+    live_preview_path: Option<&std::path::Path>,
 ) -> Result<Vec<String>, String> {
     let fps = settings.framerate.max(1);
     let kbps = settings.bitrate_kbps.max(500);
@@ -279,6 +276,10 @@ pub fn build_args(
     for s in live_encoder_args(encoder, fps, kbps) {
         push(&s);
     }
+    if encoder == Encoder::Amf {
+        push("-force_key_frames");
+        push("expr:gte(t,n_forced*2)");
+    }
     push("-c:a");
     push("libopus");
     push("-b:a");
@@ -326,6 +327,26 @@ pub fn build_args(
         push("-segment_list_flags");
         push("+live");
         push(&run.pattern.to_string_lossy());
+    }
+
+    if let Some(path) = live_preview_path {
+        push("-map");
+        push("0:v");
+        push("-vf");
+        push(&video_filter(video_pipe.is_some(), PREVIEW_TAIL));
+        push("-r");
+        push("2");
+        push("-c:v");
+        push("mjpeg");
+        push("-q:v");
+        push("7");
+        push("-f");
+        push("image2");
+        push("-update");
+        push("1");
+        push("-atomic_writing");
+        push("1");
+        push(&path.to_string_lossy());
     }
 
     Ok(a)

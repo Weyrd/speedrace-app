@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActions } from "../store";
-import { EncoderPref, ENCODER_CHOICES, ENCODER_LABELS } from "../types";
+import { EncoderPref, ENCODER_LABELS } from "../types";
 import { getSoundVolume, setSoundVolume, playSound, Sound } from "../lib/sound";
 import {
   useFinishHotkey,
@@ -24,6 +24,7 @@ import {
   useStreamSettings,
   useSetStreamSettings,
   useDetectedEncoder,
+  useAvailableEncoders,
 } from "../hooks/useStreamSettings";
 import {
   eventToAccelerator,
@@ -74,10 +75,19 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const preset = QUALITY_PRESETS[resolution];
   const encoder = streamSettings?.encoder ?? EncoderPref.Auto;
   const { data: detected } = useDetectedEncoder();
+  const { data: availableEncoders } = useAvailableEncoders();
+  const encoderOptions: EncoderPref[] = [
+    EncoderPref.Auto,
+    ...(availableEncoders ?? []),
+  ];
+  if (encoder !== EncoderPref.Auto && !encoderOptions.includes(encoder)) {
+    encoderOptions.push(encoder);
+  }
   const replayDir = streamSettings?.replay_dir ?? "";
   const replayAutodelete = streamSettings?.replay_autodelete ?? true;
   const replayCasual = streamSettings?.replay_casual ?? false;
   const replayDeleteUploaded = streamSettings?.replay_delete_uploaded ?? false;
+  const debugStream = streamSettings?.debug_stream ?? false;
 
   const safeBitrate = (preset.bitrates as readonly number[]).includes(bitrate)
     ? bitrate
@@ -292,9 +302,13 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
                 saveStreamSettings({ encoder: e.target.value as EncoderPref })
               }
             >
-              {ENCODER_CHOICES.map((c) => (
+              {encoderOptions.map((c) => (
                 <option key={c} value={c}>
-                  {c === EncoderPref.Auto ? t("encoder_auto") : ENCODER_LABELS[c]}
+                  {c === EncoderPref.Auto
+                    ? t("encoder_auto")
+                    : availableEncoders && !availableEncoders.includes(c)
+                      ? `${ENCODER_LABELS[c]} (${t("encoder_unavailable")})`
+                      : ENCODER_LABELS[c]}
                 </option>
               ))}
             </Select>
@@ -304,6 +318,12 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               ? t("encoder_detected", { encoder: ENCODER_LABELS[detected] })
               : t("encoder_detecting")}
           </Description>
+          <Checkbox
+            checked={debugStream}
+            onChange={(checked) => saveStreamSettings({ debug_stream: checked })}
+            label={t("debug_stream_label")}
+            className="mt-1"
+          />
         </div>
 
         <div className="flex flex-col gap-2">
