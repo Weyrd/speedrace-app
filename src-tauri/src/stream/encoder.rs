@@ -1,5 +1,5 @@
 use super::ffmpeg::{resolve_ffmpeg_path, spawn_ffmpeg};
-use super::{Encoder, Rung, StreamSettings};
+use super::Encoder;
 use crate::logging::{mlog, LogCat};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -31,15 +31,6 @@ fn remember(enc: Encoder, legs: u8, ok: bool) {
     if let Ok(mut m) = caps().lock() {
         m.insert((enc, legs), ok);
     }
-}
-
-pub fn poison(enc: Encoder) {
-    if let Ok(mut m) = caps().lock() {
-        for legs in 1..=2u8 {
-            m.insert((enc, legs), false);
-        }
-    }
-    mlog!(LogCat::Stream, "[encoder] {} poisoned", enc.name());
 }
 
 fn synthetic_frame(width: u32, height: u32, seed: u32) -> Vec<u8> {
@@ -100,7 +91,10 @@ fn probe_args(enc: Encoder, legs: u8) -> Vec<String> {
             a.push("-map".into());
             a.push(if i == 0 { "[a]".into() } else { "[b]".into() });
         }
-        a.extend(super::pipeline::live_encoder_args(enc, 30, 1000));
+        a.push("-c:v".into());
+        a.push(enc.name().to_string());
+        a.push("-b:v".into());
+        a.push("1000k".into());
         a.push("-f".into());
         a.push("mp4".into());
         a.push("-movflags".into());
@@ -181,60 +175,35 @@ async fn probe(enc: Encoder, legs: u8) -> bool {
 
 pub async fn warm(with_replay: bool) {
     let legs = if with_replay { 2 } else { 1 };
-    if probe(Encoder::Nvenc, legs).await {
-        return;
-    }
+    probe(Encoder::Nvenc, legs).await;
     probe(Encoder::Amf, legs).await;
 }
 
-pub async fn build_ladder(
-    pref: Option<Encoder>,
-    settings: &StreamSettings,
-    with_replay: bool,
-) -> Vec<Rung> {
+pub async fn available(with_replay: bool) -> Vec<Encoder> {
     let legs = if with_replay { 2 } else { 1 };
-    let mut rungs = Vec::new();
-
-    if pref != Some(Encoder::X264) {
-        let order = if pref == Some(Encoder::Amf) {
-            [Encoder::Amf, Encoder::Nvenc]
-        } else {
-            [Encoder::Nvenc, Encoder::Amf]
-        };
-        for enc in order {
-            if probe(enc, legs).await {
-                rungs.push(Rung {
-                    encoder: enc,
-                    framerate: settings.framerate,
-                    resolution: settings.resolution,
-                });
-            }
+    let mut encoders = Vec::new();
+    for enc in [Encoder::Nvenc, Encoder::Amf] {
+        if probe(enc, legs).await {
+            encoders.push(enc);
         }
     }
+    encoders.push(Encoder::X264);
+    encoders
+}
 
-    let base = Rung {
-        encoder: Encoder::X264,
-        framerate: settings.framerate,
-        resolution: settings.resolution,
-    };
-    rungs.push(base);
-    let half = Rung {
-        encoder: Encoder::X264,
-        framerate: settings.framerate.min(30),
-        resolution: settings.resolution,
-    };
-    if half != base {
-        rungs.push(half);
+pub async fn resolve(pref: Option<Encoder>, with_replay: bool) -> Encoder {
+    let legs = if with_replay { 2 } else { 1 };
+    if let Some(enc) = pref {
+        if enc == Encoder::X264 || probe(enc, legs).await {
+            return enc;
+        }
     }
-    let floor = Rung {
-        encoder: Encoder::X264,
-        framerate: settings.framerate.min(30),
-        resolution: 720,
-    };
-    if floor != half && floor != base {
-        rungs.push(floor);
+    for enc in [Encoder::Nvenc, Encoder::Amf] {
+        if probe(enc, legs).await {
+            return enc;
+        }
     }
-    rungs
+    Encoder::X264
 }
 
 pub fn detected() -> Option<Encoder> {

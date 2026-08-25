@@ -145,6 +145,7 @@ pub fn run() {
             commands::get_stream_settings,
             commands::set_stream_settings,
             commands::get_detected_encoder,
+            commands::list_encoders,
             commands::get_capture_source,
             commands::set_capture_source,
             commands::restart_preview,

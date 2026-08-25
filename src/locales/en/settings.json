@@ -17,6 +17,8 @@
   "encoder_auto": "Auto",
   "encoder_detected": "Detected: {{encoder}}. Encoding on the GPU frees up your CPU for the game.",
   "encoder_detecting": "Detecting the best encoder…",
+  "encoder_unavailable": "unavailable",
+  "debug_stream_label": "Debug stream tools",
   "replay_title": "Replays",
   "replay_description": "Ranked races are saved to your computer as an MP4.",
   "replay_folder_unset": "Default folder",
