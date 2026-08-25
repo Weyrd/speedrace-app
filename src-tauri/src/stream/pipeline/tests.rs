@@ -59,9 +59,10 @@ fn test_settings() -> StreamSettings {
     }
 }
 
+const TEST_PREVIEW_PIPE: &str = r"\\.\pipe\speedrace_preview_test";
+
 #[test]
 fn amf_whip_output_forces_periodic_key_frames_but_other_encoders_dont() {
-    let preview_path = std::path::Path::new("live_preview.jpg");
     let amf_args = build_args(
         &test_settings(),
         "https://example.invalid/whip",
@@ -69,7 +70,7 @@ fn amf_whip_output_forces_periodic_key_frames_but_other_encoders_dont() {
         None,
         None,
         Encoder::Amf,
-        Some(preview_path),
+        Some(TEST_PREVIEW_PIPE),
     )
     .expect("valid args");
     assert!(
@@ -84,7 +85,7 @@ fn amf_whip_output_forces_periodic_key_frames_but_other_encoders_dont() {
         None,
         None,
         Encoder::X264,
-        Some(preview_path),
+        Some(TEST_PREVIEW_PIPE),
     )
     .expect("valid args");
     assert!(!x264_args.contains(&"-force_key_frames".to_string()));
@@ -99,10 +100,11 @@ fn live_preview_output_is_only_added_when_debug_is_enabled() {
         None,
         None,
         Encoder::X264,
-        Some(std::path::Path::new("live_preview.jpg")),
+        Some(TEST_PREVIEW_PIPE),
     )
     .expect("valid args");
-    assert!(with_debug.contains(&"image2".to_string()));
+    assert!(with_debug.contains(&TEST_PREVIEW_PIPE.to_string()));
+    assert!(with_debug.windows(2).any(|w| w[0] == "-f" && w[1] == "mpjpeg"));
 
     let without_debug = build_args(
         &test_settings(),
@@ -114,5 +116,85 @@ fn live_preview_output_is_only_added_when_debug_is_enabled() {
         None,
     )
     .expect("valid args");
-    assert!(!without_debug.contains(&"image2".to_string()));
+    assert!(!without_debug.contains(&TEST_PREVIEW_PIPE.to_string()));
+}
+
+#[test]
+fn build_args_only_uses_muxers_the_minimal_ffmpeg_sidecar_ships() {
+    // src-tauri/scripts/README.md: "If the streaming pipeline gains a codec, filter,
+    // muxer, or protocol, the build must gain it too." Our sidecar is
+    // --disable-everything, so anything outside this list makes ffmpeg fail during
+    // argument splitting, before any encoder ever runs (v0.6.11's `-f image2` break).
+    const ALLOWED_FORMATS: &[&str] = &[
+        "whip", "mp4", "mpjpeg", "mjpeg", "segment", "rawvideo", "f32le", "lavfi",
+    ];
+    fn assert_only_allowed_formats(args: &[String]) {
+        for w in args.windows(2) {
+            if w[0] == "-f" {
+                assert!(
+                    ALLOWED_FORMATS.contains(&w[1].as_str()),
+                    "'-f {}' is not a muxer/demuxer the minimal ffmpeg sidecar ships",
+                    w[1]
+                );
+            }
+        }
+    }
+
+    let replay = ReplayRun {
+        dir: std::path::PathBuf::from("replay_dir"),
+        pattern: std::path::PathBuf::from("replay_dir/part_%03d.mp4"),
+        list: std::path::PathBuf::from("replay_dir/list.csv"),
+    };
+
+    let plain = build_args(
+        &test_settings(),
+        "https://example.invalid/whip",
+        &AudioSource::Silent,
+        None,
+        None,
+        Encoder::X264,
+        None,
+    )
+    .expect("valid args");
+    assert_only_allowed_formats(&plain);
+
+    let with_replay = build_args(
+        &test_settings(),
+        "https://example.invalid/whip",
+        &AudioSource::Silent,
+        Some(&replay),
+        None,
+        Encoder::X264,
+        None,
+    )
+    .expect("valid args");
+    assert_only_allowed_formats(&with_replay);
+
+    let with_preview = build_args(
+        &test_settings(),
+        "https://example.invalid/whip",
+        &AudioSource::Silent,
+        None,
+        None,
+        Encoder::X264,
+        Some(TEST_PREVIEW_PIPE),
+    )
+    .expect("valid args");
+    assert_only_allowed_formats(&with_preview);
+
+    let with_replay_and_preview = build_args(
+        &test_settings(),
+        "https://example.invalid/whip",
+        &AudioSource::Silent,
+        Some(&replay),
+        None,
+        Encoder::X264,
+        Some(TEST_PREVIEW_PIPE),
+    )
+    .expect("valid args");
+    assert_only_allowed_formats(&with_replay_and_preview);
+
+    assert_only_allowed_formats(
+        &build_preview_args(&CaptureSource::Monitor { index: 0 }, None).expect("valid args"),
+    );
 }

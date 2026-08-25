@@ -221,7 +221,9 @@ fn clear_own_session(state: &SharedState, id: u64) {
     }
 }
 
-async fn read_mpjpeg_frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -> Option<Vec<u8>> {
+pub(crate) async fn read_mpjpeg_frame<R: tokio::io::AsyncBufRead + Unpin>(
+    reader: &mut R,
+) -> Option<Vec<u8>> {
     let mut content_length: Option<usize> = None;
     loop {
         let mut line = String::new();

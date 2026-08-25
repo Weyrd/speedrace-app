@@ -19,6 +19,16 @@ pub(crate) fn new_video_pipe() -> Result<(String, NamedPipeServer), String> {
     Ok((name, server))
 }
 
+pub(crate) fn new_preview_pipe() -> Result<(String, NamedPipeServer), String> {
+    let name = format!(r"\\.\pipe\speedrace_preview_{:016x}", rand::random::<u64>());
+    let server = ServerOptions::new()
+        .first_pipe_instance(true)
+        .access_outbound(false)
+        .create(&name)
+        .map_err(|e| format!("preview pipe create failed: {e}"))?;
+    Ok((name, server))
+}
+
 pub(crate) fn spawn_paced_writer(
     server: NamedPipeServer,
     latest: Arc<Mutex<Vec<u8>>>,
