@@ -29,13 +29,6 @@ pub struct EncoderStatusPayload {
     pub effective: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Rung {
-    pub encoder: Encoder,
-    pub framerate: u32,
-    pub resolution: u32,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CaptureSource {
@@ -56,14 +49,14 @@ pub struct LaunchSpec {
     pub whip_url: String,
     pub settings: StreamSettings,
     pub replay_base: Option<PathBuf>,
-    pub ladder: Vec<Rung>,
+    pub encoder: Encoder,
+    pub fallback: Option<Encoder>,
     pub preferred: String,
 }
 
 pub(crate) enum Outcome {
     Stopped,
     Died,
-    TooSlow,
 }
 
 pub struct StreamSession {

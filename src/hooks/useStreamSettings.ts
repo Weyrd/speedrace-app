@@ -6,6 +6,7 @@ import {
   getStreamSettings,
   setStreamSettings,
   getDetectedEncoder,
+  listEncoders,
   getCaptureSource,
   setCaptureSource,
   restartPreview,
@@ -18,8 +19,8 @@ export const windowsKey = ["windows"] as const;
 export const streamSettingsKey = ["streamSettings"] as const;
 export const captureSourceKey = ["captureSource"] as const;
 export const detectedEncoderKey = ["detectedEncoder"] as const;
+export const availableEncodersKey = ["availableEncoders"] as const;
 export const effectiveEncoderKey = ["effectiveEncoder"] as const;
-export const streamAttemptKey = ["streamAttempt"] as const;
 export const captureSupportedKey = ["captureSupported"] as const;
 
 export function useMonitors() {
@@ -59,6 +60,14 @@ export function useDetectedEncoder() {
   });
 }
 
+export function useAvailableEncoders() {
+  return useQuery({
+    queryKey: availableEncodersKey,
+    queryFn: listEncoders,
+    refetchInterval: (q) => (q.state.data ? false : 1000),
+  });
+}
+
 export function useCaptureSource() {
   return useQuery({ queryKey: captureSourceKey, queryFn: getCaptureSource });
 }
@@ -66,15 +75,6 @@ export function useCaptureSource() {
 export function useEffectiveEncoder() {
   return useQuery<EncoderStatusPayload | null>({
     queryKey: effectiveEncoderKey,
-    queryFn: () => null,
-    enabled: false,
-    initialData: null,
-  });
-}
-
-export function useStreamAttempt() {
-  return useQuery<string | null>({
-    queryKey: streamAttemptKey,
     queryFn: () => null,
     enabled: false,
     initialData: null,
@@ -109,6 +109,7 @@ export function useSetStreamSettings() {
         replay_casual: patch.replay_casual ?? cur?.replay_casual ?? false,
         replay_delete_uploaded:
           patch.replay_delete_uploaded ?? cur?.replay_delete_uploaded ?? false,
+        debug_stream: patch.debug_stream ?? cur?.debug_stream ?? false,
       };
       await setStreamSettings(
         merged.bitrate_kbps,
@@ -119,6 +120,7 @@ export function useSetStreamSettings() {
         merged.replay_autodelete,
         merged.replay_casual,
         merged.replay_delete_uploaded,
+        merged.debug_stream,
       );
       return merged;
     },

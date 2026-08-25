@@ -75,6 +75,7 @@ export async function setStreamSettings(
   replayAutodelete: boolean,
   replayCasual: boolean,
   replayDeleteUploaded: boolean,
+  debugStream: boolean,
 ): Promise<void> {
   return invoke("set_stream_settings", {
     bitrateKbps,
@@ -85,11 +86,16 @@ export async function setStreamSettings(
     replayAutodelete,
     replayCasual,
     replayDeleteUploaded,
+    debugStream,
   });
 }
 
 export async function getDetectedEncoder(): Promise<EncoderPref> {
   return invoke<EncoderPref>("get_detected_encoder");
+}
+
+export async function listEncoders(): Promise<EncoderPref[]> {
+  return invoke<EncoderPref[]>("list_encoders");
 }
 
 export async function getCaptureSource(): Promise<CaptureSource> {
