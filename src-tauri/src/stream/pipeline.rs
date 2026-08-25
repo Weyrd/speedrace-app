@@ -198,7 +198,7 @@ pub fn build_args(
     replay: Option<&ReplayRun>,
     video_pipe: Option<&VideoPipe>,
     encoder: Encoder,
-    live_preview_path: Option<&std::path::Path>,
+    live_preview_pipe: Option<&str>,
 ) -> Result<Vec<String>, String> {
     let fps = settings.framerate.max(1);
     let kbps = settings.bitrate_kbps.max(500);
@@ -206,6 +206,7 @@ pub fn build_args(
 
     for s in [
         "-hide_banner",
+        "-y",
         "-loglevel",
         "verbose",
         "-nostats",
@@ -329,7 +330,7 @@ pub fn build_args(
         push(&run.pattern.to_string_lossy());
     }
 
-    if let Some(path) = live_preview_path {
+    if let Some(pipe) = live_preview_pipe {
         push("-map");
         push("0:v");
         push("-vf");
@@ -341,12 +342,8 @@ pub fn build_args(
         push("-q:v");
         push("7");
         push("-f");
-        push("image2");
-        push("-update");
-        push("1");
-        push("-atomic_writing");
-        push("1");
-        push(&path.to_string_lossy());
+        push("mpjpeg");
+        push(pipe);
     }
 
     Ok(a)

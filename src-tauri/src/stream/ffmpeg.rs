@@ -8,10 +8,9 @@ use crate::models::AppState;
 use crate::state::{LockGlobalState, SharedState};
 use base64::Engine;
 use std::collections::VecDeque;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::{oneshot, watch};
@@ -39,41 +38,37 @@ fn emit_encoder(app: &AppHandle, preferred: &str, encoder: Encoder) {
     );
 }
 
-fn resolve_live_preview_path(app: &AppHandle) -> PathBuf {
-    let dir = app
-        .path()
-        .app_local_data_dir()
-        .unwrap_or_else(|_| std::env::temp_dir());
-    let _ = std::fs::create_dir_all(&dir);
-    dir.join("live_preview.jpg")
+#[cfg(windows)]
+fn start_debug_preview(app: &AppHandle) -> Option<(String, tauri::async_runtime::JoinHandle<()>)> {
+    match super::capture_pipe::new_preview_pipe() {
+        Ok((name, server)) => Some((name, spawn_preview_reader(app.clone(), server))),
+        Err(e) => {
+            mlog!(LogCat::Stream, "[debug-preview] {e}");
+            None
+        }
+    }
 }
 
-fn spawn_live_preview_poll(
+#[cfg(windows)]
+fn spawn_preview_reader(
     app: AppHandle,
-    path: PathBuf,
+    server: tokio::net::windows::named_pipe::NamedPipeServer,
 ) -> tauri::async_runtime::JoinHandle<()> {
     tauri::async_runtime::spawn(async move {
-        let mut last_modified = None;
-        let mut ticker = tokio::time::interval(Duration::from_millis(500));
-        loop {
-            ticker.tick().await;
-            let Ok(meta) = tokio::fs::metadata(&path).await else {
-                continue;
-            };
-            let Ok(modified) = meta.modified() else {
-                continue;
-            };
-            if last_modified == Some(modified) {
-                continue;
-            }
-            let Ok(bytes) = tokio::fs::read(&path).await else {
-                continue;
-            };
-            last_modified = Some(modified);
-            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        if server.connect().await.is_err() {
+            return;
+        }
+        let mut reader = BufReader::new(server);
+        while let Some(jpeg) = super::preview::read_mpjpeg_frame(&mut reader).await {
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg);
             let _ = app.emit(crate::events::STREAM_PREVIEW, PreviewEvent::Frame { frame: b64 });
         }
     })
+}
+
+#[cfg(not(windows))]
+fn start_debug_preview(_app: &AppHandle) -> Option<(String, tauri::async_runtime::JoinHandle<()>)> {
+    None
 }
 
 pub async fn supervise(
@@ -84,14 +79,7 @@ pub async fn supervise(
     live_tx: Option<oneshot::Sender<Result<(), String>>>,
 ) {
     let debug_stream = crate::settings::load_stream_settings(&app).debug_stream;
-    let live_preview_path = debug_stream.then(|| resolve_live_preview_path(&app));
-    let preview_poll = live_preview_path
-        .clone()
-        .map(|p| spawn_live_preview_poll(app.clone(), p));
-    run_supervisor(app, state, spec, stop_rx, live_tx, live_preview_path.as_deref()).await;
-    if let Some(poll) = preview_poll {
-        poll.abort();
-    }
+    run_supervisor(app, state, spec, stop_rx, live_tx, debug_stream).await;
 }
 
 async fn run_supervisor(
@@ -100,7 +88,7 @@ async fn run_supervisor(
     spec: LaunchSpec,
     mut stop_rx: watch::Receiver<bool>,
     mut live_tx: Option<oneshot::Sender<Result<(), String>>>,
-    live_preview_path: Option<&std::path::Path>,
+    debug_stream: bool,
 ) {
     let LaunchSpec {
         ffmpeg_path,
@@ -142,6 +130,11 @@ async fn run_supervisor(
             width: w.width(),
             height: w.height(),
         });
+        let preview_pipe = debug_stream.then(|| start_debug_preview(&app)).flatten();
+        let (preview_pipe_name, preview_reader) = match preview_pipe {
+            Some((name, reader)) => (Some(name), Some(reader)),
+            None => (None, None),
+        };
         let args = match pipeline::build_args(
             &settings,
             &whip_url,
@@ -149,7 +142,7 @@ async fn run_supervisor(
             replay.as_ref(),
             video_pipe.as_ref(),
             encoder,
-            live_preview_path,
+            preview_pipe_name.as_deref(),
         ) {
             Ok(a) => a,
             Err(e) => {
@@ -157,6 +150,9 @@ async fn run_supervisor(
                 audio.shutdown().await;
                 if let Some(w) = wgc {
                     w.shutdown().await;
+                }
+                if let Some(r) = preview_reader {
+                    r.abort();
                 }
                 emit_status(&app, StreamState::Error, Some(e));
                 clear_session(&state);
@@ -176,6 +172,9 @@ async fn run_supervisor(
                 audio.shutdown().await;
                 if let Some(w) = wgc {
                     w.shutdown().await;
+                }
+                if let Some(r) = preview_reader {
+                    r.abort();
                 }
                 emit_status(&app, StreamState::Error, Some(e));
                 clear_session(&state);
@@ -210,6 +209,9 @@ async fn run_supervisor(
         if let Some(w) = wgc {
             w.shutdown().await;
         }
+        if let Some(r) = preview_reader {
+            r.abort();
+        }
 
         if went_live {
             ever_live = true;
@@ -221,6 +223,19 @@ async fn run_supervisor(
                 return;
             }
             Outcome::Died => {
+                if let Some(bad_args) = err_tail
+                    .iter()
+                    .find(|l| l.contains("Error splitting the argument list"))
+                {
+                    let msg = format!("ffmpeg rejected its own arguments ({bad_args}) — this is a bug, please report it");
+                    mlog!(LogCat::Stream, "[ffmpeg] {msg}");
+                    if let Some(tx) = live_tx.take() {
+                        let _ = tx.send(Err(msg.clone()));
+                    }
+                    emit_status(&app, StreamState::Error, Some(msg));
+                    clear_session(&state);
+                    return;
+                }
                 if !ever_live && hw_encoder_failed(&err_tail) {
                     if let Some(next) = fallback.take() {
                         let reason = err_tail.last().cloned();
