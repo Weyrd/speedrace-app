@@ -2,12 +2,8 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
-import {
-  useCaptureSource,
-  useEffectiveEncoder,
-  useStreamAttempt,
-} from "../hooks/useStreamSettings";
-import { CaptureSourceKind, EncoderPref, ENCODER_LABELS } from "../types";
+import { useCaptureSource, useStreamSettings } from "../hooks/useStreamSettings";
+import { CaptureSourceKind } from "../types";
 import { tryCatch } from "../lib/tryCatch";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
@@ -21,8 +17,8 @@ export default function StreamSetup() {
   const actions = useActions();
   const { t } = useTranslation("app");
   const { data: captureSource } = useCaptureSource();
-  const { data: effectiveEncoder } = useEffectiveEncoder();
-  const { data: streamAttempt } = useStreamAttempt();
+  const { data: streamSettings } = useStreamSettings();
+  const debugStream = streamSettings?.debug_stream ?? false;
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -33,8 +29,6 @@ export default function StreamSetup() {
       : captureSource
         ? t("stream.monitor_short", { index: captureSource.index + 1 })
         : null;
-
-  const encoderLabel = (id: string) => ENCODER_LABELS[id as EncoderPref] ?? id;
 
   const handlePublish = async (lobbyId: string) => {
     setError(null);
@@ -67,27 +61,12 @@ export default function StreamSetup() {
         <PreviewCanvas
           onClick={publishing ? undefined : () => setPickerOpen(true)}
         />
-        <CopyLogsButton className="absolute bottom-2 right-2" />
+        {debugStream && <CopyLogsButton className="absolute bottom-2 right-2" />}
       </div>
       <p className="text-2xs text-dim font-mono tracking-wide text-center -mt-1">
         {t("stream.change_source_hint")}
         {sourceLabel && <span className="text-text"> ({sourceLabel})</span>}
       </p>
-      {effectiveEncoder &&
-        effectiveEncoder.preferred !== EncoderPref.Auto &&
-        effectiveEncoder.preferred !== effectiveEncoder.effective && (
-          <p className="text-2xs text-dim font-mono tracking-wide text-center -mt-2">
-            {t("stream.encoder_fallback_hint", {
-              encoder: encoderLabel(effectiveEncoder.effective),
-            })}
-          </p>
-        )}
-
-      {publishing && streamAttempt && (
-        <p className="text-2xs text-dim font-mono tracking-wide text-center -mt-2">
-          {t("stream.trying_encoder", { encoder: encoderLabel(streamAttempt) })}
-        </p>
-      )}
 
       {lobby.split_resource_updated_at && <SplitList />}
 

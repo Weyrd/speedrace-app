@@ -17,6 +17,8 @@
   "encoder_auto": "Auto",
   "encoder_detected": "Détecté : {{encoder}}. Encoder sur le GPU libère ton CPU pour le jeu.",
   "encoder_detecting": "Détection du meilleur encodeur…",
+  "encoder_unavailable": "indisponible",
+  "debug_stream_label": "Outils de debug du stream",
   "replay_title": "Replays",
   "replay_description": "Les races classées sont enregistrées sur ton ordinateur en MP4.",
   "replay_folder_unset": "Dossier par défaut",

@@ -14,6 +14,7 @@ const STREAM_REPLAY_DIR_KEY: &str = "stream_replay_dir";
 const STREAM_REPLAY_AUTODELETE_KEY: &str = "stream_replay_autodelete";
 const STREAM_REPLAY_CASUAL_KEY: &str = "stream_replay_casual";
 const STREAM_REPLAY_DELETE_UPLOADED_KEY: &str = "stream_replay_delete_uploaded";
+const STREAM_DEBUG_KEY: &str = "stream_debug";
 const PENDING_UPLOAD_KEY: &str = "pending_upload";
 
 pub const DEFAULT_FINISH_HOTKEY: &str = "CmdOrCtrl+Shift+F";
@@ -24,6 +25,7 @@ pub const DEFAULT_STREAM_ENCODER: &str = "auto";
 pub const DEFAULT_REPLAY_AUTODELETE: bool = true;
 pub const DEFAULT_REPLAY_CASUAL: bool = false;
 pub const DEFAULT_REPLAY_DELETE_UPLOADED: bool = false;
+pub const DEFAULT_STREAM_DEBUG: bool = false;
 
 pub const REPLAY_RETENTION_DAYS: u64 = 7;
 
@@ -37,6 +39,7 @@ pub struct StoredStreamSettings {
     pub replay_autodelete: bool,
     pub replay_casual: bool,
     pub replay_delete_uploaded: bool,
+    pub debug_stream: bool,
 }
 
 pub fn default_replay_dir(app: &AppHandle) -> String {
@@ -160,6 +163,11 @@ pub fn load_stream_settings(app: &AppHandle) -> StoredStreamSettings {
         .and_then(|s| s.get(STREAM_REPLAY_DELETE_UPLOADED_KEY))
         .and_then(|v| v.as_bool())
         .unwrap_or(DEFAULT_REPLAY_DELETE_UPLOADED);
+    let debug_stream = store
+        .as_ref()
+        .and_then(|s| s.get(STREAM_DEBUG_KEY))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(DEFAULT_STREAM_DEBUG);
     StoredStreamSettings {
         monitor_index: get_u32(STREAM_MONITOR_KEY, 0),
         bitrate_kbps: get_u32(STREAM_BITRATE_KEY, DEFAULT_STREAM_BITRATE_KBPS),
@@ -170,6 +178,7 @@ pub fn load_stream_settings(app: &AppHandle) -> StoredStreamSettings {
         replay_autodelete,
         replay_casual,
         replay_delete_uploaded,
+        debug_stream,
     }
 }
 
@@ -199,6 +208,7 @@ pub fn save_stream_settings(app: &AppHandle, s: &StoredStreamSettings) -> Result
         STREAM_REPLAY_DELETE_UPLOADED_KEY,
         serde_json::Value::from(s.replay_delete_uploaded),
     );
+    store.set(STREAM_DEBUG_KEY, serde_json::Value::from(s.debug_stream));
     store.save().map_err(|e| e.to_string())?;
     Ok(())
 }

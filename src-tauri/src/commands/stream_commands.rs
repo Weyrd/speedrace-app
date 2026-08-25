@@ -58,6 +58,7 @@ pub struct StreamSettingsDto {
     pub replay_autodelete: bool,
     pub replay_casual: bool,
     pub replay_delete_uploaded: bool,
+    pub debug_stream: bool,
 }
 
 #[tauri::command]
@@ -72,6 +73,7 @@ pub fn get_stream_settings(app: AppHandle) -> StreamSettingsDto {
         replay_autodelete: s.replay_autodelete,
         replay_casual: s.replay_casual,
         replay_delete_uploaded: s.replay_delete_uploaded,
+        debug_stream: s.debug_stream,
     }
 }
 
@@ -86,6 +88,7 @@ pub fn set_stream_settings(
     replay_autodelete: bool,
     replay_casual: bool,
     replay_delete_uploaded: bool,
+    debug_stream: bool,
     app: AppHandle,
 ) -> Result<(), String> {
     let monitor_index = crate::settings::load_stream_settings(&app).monitor_index;
@@ -101,6 +104,7 @@ pub fn set_stream_settings(
             replay_autodelete,
             replay_casual,
             replay_delete_uploaded,
+            debug_stream,
         },
     )
 }
@@ -113,6 +117,15 @@ pub async fn get_detected_encoder() -> String {
     stream::encoder::detected()
         .map(|e| e.name().to_string())
         .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn list_encoders() -> Vec<String> {
+    stream::encoder::available(true)
+        .await
+        .into_iter()
+        .map(|e| e.name().to_string())
+        .collect()
 }
 
 #[tauri::command]

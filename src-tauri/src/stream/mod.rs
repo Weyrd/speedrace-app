@@ -123,15 +123,12 @@ pub async fn start(
 
     let pref_raw = crate::settings::load_stream_settings(app).encoder;
     let pref = Encoder::parse(&pref_raw);
-    let ladder = encoder::build_ladder(pref, &settings, replay_base.is_some()).await;
+    let encoder = encoder::resolve(pref, replay_base.is_some()).await;
+    let fallback = (encoder != Encoder::X264).then_some(Encoder::X264);
     mlog!(
         LogCat::Stream,
-        "[stream] ladder: {}",
-        ladder
-            .iter()
-            .map(|r| format!("{}@{}p{}", r.encoder.name(), r.resolution, r.framerate))
-            .collect::<Vec<_>>()
-            .join(" -> ")
+        "[stream] encoder: {} (preferred={pref_raw})",
+        encoder.name()
     );
 
     let (stop_tx, stop_rx) = watch::channel(false);
@@ -152,7 +149,8 @@ pub async fn start(
                 whip_url: whip,
                 settings,
                 replay_base,
-                ladder,
+                encoder,
+                fallback,
                 preferred: pref_raw,
             },
             stop_rx,
