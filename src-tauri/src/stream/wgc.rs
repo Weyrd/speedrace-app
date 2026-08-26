@@ -112,6 +112,7 @@ pub(crate) enum CaptureTarget {
 fn start_session(
     target: CaptureTarget,
     flags: WgcFlags,
+    fps: u32,
 ) -> Result<windows_capture::capture::CaptureControl<WgcCapture, WgcError>, String> {
     use windows_capture::capture::GraphicsCaptureApiHandler;
     use windows_capture::settings::{
@@ -119,34 +120,50 @@ fn start_session(
         MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
     };
 
-    macro_rules! start {
-        ($item:expr) => {
-            WgcCapture::start_free_threaded(Settings::new(
-                $item,
-                CursorCaptureSettings::WithCursor,
-                DrawBorderSettings::WithoutBorder,
-                SecondaryWindowSettings::Default,
-                MinimumUpdateIntervalSettings::Default,
-                DirtyRegionSettings::Default,
-                ColorFormat::Bgra8,
-                flags,
-            ))
-            .map_err(|e| e.to_string())
-        };
-    }
-
-    match target {
-        CaptureTarget::Window { hwnd } => {
-            let window =
-                windows_capture::window::Window::from_raw_hwnd(hwnd as *mut std::ffi::c_void);
-            if !window.is_valid() {
-                return Err("window is gone; pick another source".into());
-            }
-            start!(window)
+    let try_start = |interval: MinimumUpdateIntervalSettings| -> Result<_, String> {
+        macro_rules! start {
+            ($item:expr) => {
+                WgcCapture::start_free_threaded(Settings::new(
+                    $item,
+                    CursorCaptureSettings::WithCursor,
+                    DrawBorderSettings::WithoutBorder,
+                    SecondaryWindowSettings::Default,
+                    interval,
+                    DirtyRegionSettings::Default,
+                    ColorFormat::Bgra8,
+                    flags.clone(),
+                ))
+                .map_err(|e| e.to_string())
+            };
         }
-        CaptureTarget::Monitor { hmonitor } => start!(
-            windows_capture::monitor::Monitor::from_raw_hmonitor(hmonitor as *mut std::ffi::c_void)
-        ),
+
+        match target {
+            CaptureTarget::Window { hwnd } => {
+                let window =
+                    windows_capture::window::Window::from_raw_hwnd(hwnd as *mut std::ffi::c_void);
+                if !window.is_valid() {
+                    return Err("window is gone; pick another source".into());
+                }
+                start!(window)
+            }
+            CaptureTarget::Monitor { hmonitor } => {
+                start!(windows_capture::monitor::Monitor::from_raw_hmonitor(
+                    hmonitor as *mut std::ffi::c_void
+                ))
+            }
+        }
+    };
+
+    let period = std::time::Duration::from_micros(1_000_000 / fps.max(1) as u64);
+    match try_start(MinimumUpdateIntervalSettings::Custom(period)) {
+        Ok(control) => Ok(control),
+        Err(e) => {
+            mlog!(
+                LogCat::Stream,
+                "[wgc] custom update interval unsupported ({e}); falling back to default"
+            );
+            try_start(MinimumUpdateIntervalSettings::Default)
+        }
     }
 }
 
@@ -175,7 +192,7 @@ pub(crate) fn start_capture(
     };
 
     let first_closed = flags.closed.clone();
-    let control = start_session(target, flags.clone())?;
+    let control = start_session(target, flags.clone(), fps)?;
 
     let stop_s = stop.clone();
     let flags_s = flags.clone();
@@ -213,6 +230,7 @@ pub(crate) fn start_capture(
                     closed: closed.clone(),
                     ..flags_s.clone()
                 },
+                fps,
             ) {
                 Ok(c) => {
                     control = Some(c);
