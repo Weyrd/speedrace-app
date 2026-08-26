@@ -199,7 +199,7 @@ async fn run_supervisor(
         };
 
         let (outcome, went_live, err_tail) =
-            run_child(&app, child, &mut stop_rx, &mut live_tx, prelive).await;
+            run_child(&app, child, &mut stop_rx, &mut live_tx, prelive, encoder).await;
 
         if let Some((tx, handle)) = replay_watch {
             let _ = tx.send(true);
@@ -364,6 +364,7 @@ async fn run_child(
     stop_rx: &mut watch::Receiver<bool>,
     live_tx: &mut Option<oneshot::Sender<Result<(), String>>>,
     prelive_timeout: Duration,
+    encoder: Encoder,
 ) -> (Outcome, bool, Vec<String>) {
     let spawned = Instant::now();
     let mut stdin = child.stdin.take();
@@ -410,6 +411,7 @@ async fn run_child(
     let mut parser = ProgressParser::default();
     let mut valid_blocks: u32 = 0;
     let mut last_frame: Option<u64> = None;
+    let mut ticks_since_heartbeat: u32 = 0;
 
     loop {
         tokio::select! {
@@ -438,6 +440,13 @@ async fn run_child(
 
                         if !went_live && valid_blocks >= 2 {
                             went_live = true;
+                            mlog!(
+                                LogCat::Stream,
+                                "[ffmpeg] live: {} after {:?} (frame={})",
+                                encoder.name(),
+                                spawned.elapsed(),
+                                last_frame.unwrap_or(0)
+                            );
                             emit_status(app, StreamState::Live, None);
                             if let Some(tx) = live_tx.take() {
                                 let _ = tx.send(Ok(()));
@@ -455,6 +464,18 @@ async fn run_child(
                     mlog!(LogCat::Stream, "[ffmpeg] progress stalled, killing");
                     let _ = child.kill().await;
                     return (Outcome::Died, went_live, drain(reader, last_err).await);
+                }
+                if went_live {
+                    ticks_since_heartbeat += 1;
+                    if ticks_since_heartbeat >= 5 {
+                        ticks_since_heartbeat = 0;
+                        mlog!(
+                            LogCat::Stream,
+                            "[ffmpeg] heartbeat: {} frame={}",
+                            encoder.name(),
+                            last_frame.unwrap_or(0)
+                        );
+                    }
                 }
                 if !went_live && spawned.elapsed() > prelive_timeout {
                     mlog!(LogCat::Stream, "[ffmpeg] never went live, killing");
