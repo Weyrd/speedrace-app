@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useSyncExternalStore } from "react";
+import { Check, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
+import { autosplitDrivesFinish } from "../types";
 import StopModal from "./StopModal";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
@@ -11,6 +13,7 @@ import { registerFinishHotkey, unregisterFinishHotkey } from "../lib/commands";
 import { useFinishHotkey } from "../hooks/useFinishHotkey";
 import { useClockOffset } from "../hooks/useClockOffset";
 import { primeCountdown, scheduleCountdown, Sound } from "../lib/sound";
+import { createClockStore } from "../lib/clockStore";
 import { Button } from "./ui/button";
 
 const COUNTDOWN_BEEPS = [
@@ -20,25 +23,13 @@ const COUNTDOWN_BEEPS = [
   { at: 0, sound: Sound.CountdownGo },
 ] as const;
 
-let rafId: number;
-let cachedNow = Date.now();
-const clockListeners = new Set<() => void>();
-function subscribeToRaf(cb: () => void) {
-  clockListeners.add(cb);
-  if (clockListeners.size === 1) tick();
-  return () => {
-    clockListeners.delete(cb);
-    if (clockListeners.size === 0) cancelAnimationFrame(rafId);
-  };
-}
-function tick() {
-  cachedNow = Date.now();
-  clockListeners.forEach((fn) => fn());
-  rafId = requestAnimationFrame(tick);
-}
-function getNow() {
-  return cachedNow;
-}
+const rafClock = createClockStore((tick) => {
+  let rafId = requestAnimationFrame(function loop() {
+    tick();
+    rafId = requestAnimationFrame(loop);
+  });
+  return () => cancelAnimationFrame(rafId);
+});
 
 export default function Racing() {
   const state = useAppState();
@@ -46,20 +37,17 @@ export default function Racing() {
   const [showModal, setShowModal] = useState(false);
   const { t } = useTranslation("app");
 
-  const now = useSyncExternalStore(subscribeToRaf, getNow);
+  const now = useSyncExternalStore(rafClock.subscribe, rafClock.getNow);
   const { offsetMs } = useClockOffset();
   const { data: finishHotkey } = useFinishHotkey();
   const startAt =
     state.phase === Phase.RaceInProgress ? state.raceStartAt : null;
 
-  const autosplitDrivesFinish =
-    state.phase === Phase.RaceInProgress &&
-    (state.lobby.autosplitter_updated_at != null ||
-      (state.autosplit?.livesplit === true &&
-        state.autosplit.splits_match !== false));
+  const autosplitDrives =
+    state.phase === Phase.RaceInProgress && autosplitDrivesFinish(state.autosplit);
 
   useEffect(() => {
-    if (autosplitDrivesFinish) return;
+    if (autosplitDrives) return;
     registerFinishHotkey().catch((e) =>
       console.error("[race] registerFinishHotkey error", e),
     );
@@ -68,7 +56,7 @@ export default function Racing() {
         console.error("[race] unregisterFinishHotkey error", e),
       );
     };
-  }, [autosplitDrivesFinish, finishHotkey]);
+  }, [autosplitDrives, finishHotkey]);
 
   useEffect(() => {
     if (startAt == null) return;
@@ -104,7 +92,7 @@ export default function Racing() {
   const display = (negative ? "-" : "") + formatTime(Math.abs(elapsed));
 
   return (
-    <div className="h-full flex flex-col gap-3 px-4 py-4">
+    <div className="h-full flex flex-col gap-3 px-4 py-4 overflow-y-auto">
       <LobbyHeader
         gameName={lobby.game_name}
         categories={lobby.category_name}
@@ -114,14 +102,11 @@ export default function Racing() {
         earlyStartDetected={state.autosplit?.run_in_progress}
       />
       <WhepPreview whepUrl={whepUrl} streamStatus={state.streamStatus} />
-      <div className="flex flex-col items-center py-2 gap-1">
+      <div className="flex justify-center py-2">
         <span
           className={`text-4xl font-bold font-mono tracking-wide transition-colors ${negative ? "text-muted" : "text-text"}`}
         >
           {display}
-        </span>
-        <span className="text-2xs text-dim font-mono tracking-wide">
-          {negative ? t("race.starting_soon") : t("race.in_race")}
         </span>
       </div>
       {lobby.split_resource_updated_at && (
@@ -133,21 +118,25 @@ export default function Racing() {
         />
       )}
       <div className="flex gap-2 mt-auto">
-        {!autosplitDrivesFinish && (
+        {!autosplitDrives && (
           <Button
             variant="finish"
+            size="lg"
             onClick={() => actions.finish(lobby.lobby_id, elapsed)}
             disabled={negative}
-            className="flex-1 py-3.5"
+            className="flex-1"
           >
+            <Check size={14} />
             {t("race.finish")}
           </Button>
         )}
         <Button
           variant="forfeit"
+          size="lg"
           onClick={() => setShowModal(true)}
-          className="flex-1 py-3.5"
+          className="flex-1"
         >
+          <X size={14} />
           {t("race.forfeit")}
         </Button>
       </div>

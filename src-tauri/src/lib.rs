@@ -11,11 +11,13 @@ mod models;
 mod settings;
 mod state;
 mod stream;
+mod upload;
 mod ws;
 
 use logging::{mlog, LogCat};
 use models::AppState;
-use state::{GlobalState, SharedState};
+use state::{GlobalState, LockGlobalState, SharedState};
+
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -46,7 +48,6 @@ fn minimize_to_tray(window: &tauri::Window) {
     }
 }
 
-// Dismissing the first-time tray hint sends the window to the tray
 #[tauri::command]
 fn hide_to_tray(window: tauri::Window) {
     let _ = window.hide();
@@ -56,10 +57,7 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
     let state = app.state::<SharedState>().inner().clone();
 
     let (lobby_id, finishing_time_ms) = {
-        let guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let guard = state.lock_state();
         if guard.app_state != AppState::RaceInProgress {
             return;
         }
@@ -71,18 +69,17 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
             Some(s) => s,
             None => return,
         };
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as i64)
-            .unwrap_or(0);
-        let elapsed = (now + guard.clock_offset_ms) - start;
+        let elapsed = guard.server_now_ms() - start;
         if elapsed < 0 {
-            return; // still counting down
+            mlog!(
+                LogCat::Lifecycle,
+                "[hotkey] negative elapsed at finish (raw={elapsed}ms) — ignoring finish press"
+            );
+            return;
         }
         (lobby_id, elapsed as u64)
     };
 
-    // Surface the window so the runner sees their result.
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
@@ -132,7 +129,6 @@ pub fn run() {
             tauri::WindowEvent::CloseRequested { .. } => {
                 window.app_handle().exit(0);
             }
-            // Minimize (-) sends Speedrace to the tray instead of the taskbar/Dock
             tauri::WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
                 minimize_to_tray(window);
             }
@@ -148,6 +144,8 @@ pub fn run() {
             commands::stop_stream,
             commands::get_stream_settings,
             commands::set_stream_settings,
+            commands::get_detected_encoder,
+            commands::list_encoders,
             commands::get_capture_source,
             commands::set_capture_source,
             commands::restart_preview,
@@ -157,18 +155,21 @@ pub fn run() {
             stream::list_windows,
             stream::capture_monitor_thumb,
             stream::capture_window_thumb,
+            stream::capture_supported,
             commands::get_lobby_state,
             commands::send_player_finished,
             commands::send_player_forfeited,
             commands::acknowledge_results,
+            commands::abandon_upload,
+            commands::retry_upload,
             commands::get_finish_hotkey,
             commands::set_finish_hotkey,
             commands::register_finish_hotkey,
             commands::unregister_finish_hotkey,
             commands::sync_clock,
             commands::get_split_segments,
-            commands::get_current_split_index,
             commands::get_autosplit_state,
+            commands::collect_debug_report,
             hide_to_tray,
         ])
         .setup(move |app| {
@@ -221,11 +222,9 @@ pub fn run() {
                     .build(app)?;
             }
 
-            // Register deep link in DEV
             #[cfg(debug_assertions)]
             app.deep_link().register("speedrace").ok();
 
-            // Deep-link handler
             {
                 let app_for_link = app_handle.clone();
                 let state_for_link = shared_state.clone();
@@ -252,11 +251,8 @@ pub fn run() {
                 });
             }
 
-            // Seed last-known offset so the hotkey is fair before the frontend re-syncs.
             if let Some((offset, _)) = settings::load_clock_offset(&app_handle) {
-                if let Ok(mut guard) = shared_state.lock() {
-                    guard.clock_offset_ms = offset;
-                }
+                shared_state.lock_state().set_clock_offset(offset);
             }
 
             {
@@ -273,7 +269,6 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            // macOS: clicking the Dock icon while the window is hidden reopens it.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = event {
                 if let Some(w) = app_handle.get_webview_window("main") {

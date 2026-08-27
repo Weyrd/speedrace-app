@@ -14,8 +14,14 @@ dist
 dist-ssr
 *.local
 
-# ffmpeg sidecar fetched by src-tauri/scripts/get-ffmpeg.ps1
+# Build-time config — CI supplies these from repo secrets/variables (see .env.example)
+.env
+.env.*
+!.env.example
+
+# binaries fetched by src-tauri/scripts/get-ffmpeg.ps1 + get-game-capture.ps1
 src-tauri/binaries/
+target-gate/
 
 # Editor directories and files
 .vscode/*

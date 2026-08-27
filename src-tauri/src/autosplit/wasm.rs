@@ -1,7 +1,9 @@
 use crate::autosplit::timer::SpeedraceTimer;
 use crate::logging::{mlog, LogCat};
-use crate::state::SharedState;
-use livesplit_auto_splitting::{settings, AutoSplitter, CompiledAutoSplitter, Config, Runtime};
+use crate::state::{LockGlobalState, SharedState};
+use livesplit_auto_splitting::{
+    settings, AutoSplitter, CompiledAutoSplitter, Config, Process, Runtime,
+};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -13,7 +15,7 @@ const REINSTANTIATE_DELAY_MS: u64 = 1000;
 
 pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_at: Option<&str>) {
     let bytes = crate::api::autosplitter::fetch_game_autosplitter(app, game_id, updated_at).await;
-    let mut guard = state.lock().unwrap();
+    let mut guard = state.lock_state();
     match &bytes {
         Some(b) => mlog!(
             LogCat::Wasm,
@@ -25,12 +27,11 @@ pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_
     guard.autosplitter_wasm = bytes;
 }
 
-// Compile once, then supervise (re-instantiates cheaply on trap). false = broken module → LiveSplit
 pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) -> bool {
     let wasm = {
-        let g = state.lock().unwrap();
+        let g = state.lock_state();
         if g.autosplitter_runtime.is_some() {
-            return true; // already running
+            return true;
         }
         g.autosplitter_wasm.clone()
     };
@@ -68,7 +69,7 @@ pub async fn start(app: AppHandle, state: SharedState, cancel: Arc<AtomicBool>) 
 }
 
 fn build_settings_map(state: &SharedState) -> Option<settings::Map> {
-    let guard = state.lock().unwrap();
+    let guard = state.lock_state();
     let xml = guard.split_run.as_ref()?.auto_splitter_settings();
     if xml.is_empty() {
         return None;
@@ -81,7 +82,6 @@ fn build_settings_map(state: &SharedState) -> Option<settings::Map> {
     Some(map)
 }
 
-// A fresh instance clears the permanent trap flag
 fn instantiate(
     compiled: &CompiledAutoSplitter,
     app: &AppHandle,
@@ -94,7 +94,7 @@ fn instantiate(
     match compiled.instantiate(timer, build_settings_map(state), None) {
         Ok(s) => {
             let s = Arc::new(s);
-            state.lock().unwrap().autosplitter_runtime = Some(Arc::clone(&s));
+            state.lock_state().autosplitter_runtime = Some(Arc::clone(&s));
             Some(s)
         }
         Err(e) => {
@@ -106,8 +106,30 @@ fn instantiate(
 
 enum Tick {
     Trapped,
-    Ran { attached: bool },
+    Ran { attached: bool, pid: Option<u32> },
     Busy,
+}
+
+#[allow(clippy::unnecessary_cast)]
+#[inline]
+fn attached_pid(p: &Process) -> u32 {
+    p.pid() as u32
+}
+
+fn maybe_switch_source(app: &AppHandle, state: &SharedState, pid: Option<u32>) {
+    #[cfg(windows)]
+    {
+        let Some(pid) = pid else { return };
+        let app = app.clone();
+        let state = state.clone();
+        tauri::async_runtime::spawn(async move {
+            crate::stream::auto_select_game_window(&app, &state, pid).await;
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, state, pid);
+    }
 }
 
 async fn supervise(
@@ -117,9 +139,7 @@ async fn supervise(
     state: SharedState,
     cancel: Arc<AtomicBool>,
 ) {
-    // "connected" = attached to the game process; report only on change.
     let mut last_attached: Option<bool> = None;
-    // The .lss loads in parallel with startup; push settings once it lands
     let mut settings_pushed = false;
 
     loop {
@@ -131,27 +151,26 @@ async fn supervise(
             }
         }
 
-        let lost = state.lock().unwrap().autosplit_source
-            == Some(crate::state::AutosplitSource::LiveSplit);
+        let lost =
+            state.lock_state().autosplit.source == Some(crate::state::AutosplitSource::LiveSplit);
         if cancel.load(Ordering::SeqCst) || !crate::ws::handler::in_lobby(&state) || lost {
             break;
         }
 
-        // Commit before update() so a split fired this tick goes to the chosen source
         crate::ws::handler::maybe_commit_source(&state);
-        // Once committed to WASM at the gun, flush any pre-gun (early-start)
         crate::autosplit::split::flush_early_splits(&app, &state);
 
         let tick_rate = splitter.tick_rate();
 
-        // ExecutionGuard is !Send, so drop it before any await
         let tick = match splitter.try_lock() {
             Some(mut exec) => {
                 if exec.update().is_err() {
                     Tick::Trapped
                 } else {
+                    let pid = exec.attached_processes().next().map(attached_pid);
                     Tick::Ran {
-                        attached: exec.attached_processes().next().is_some(),
+                        attached: pid.is_some(),
+                        pid,
                     }
                 }
             }
@@ -159,20 +178,22 @@ async fn supervise(
         };
 
         match tick {
-            Tick::Ran { attached } => {
+            Tick::Ran { attached, pid } => {
                 if last_attached != Some(attached) {
                     last_attached = Some(attached);
-                    state.lock().unwrap().wasm_attached = attached;
+                    state.lock_state().autosplit.wasm_attached = attached;
+                    if attached {
+                        maybe_switch_source(&app, &state, pid);
+                    }
                     crate::ws::handler::report_autosplit_state(&app, &state).await;
                 }
                 sleep(tick_rate).await;
             }
             Tick::Trapped => {
-                // Trap is permanent for this instance, usually because the game is not running yet
                 mlog!(LogCat::Wasm, "[wasm] update trapped, re-instantiating");
                 if last_attached != Some(false) {
                     last_attached = Some(false);
-                    state.lock().unwrap().wasm_attached = false;
+                    state.lock_state().autosplit.wasm_attached = false;
                     crate::ws::handler::report_autosplit_state(&app, &state).await;
                 }
                 if let Some(s) = instantiate(&compiled, &app, &state) {
@@ -184,11 +205,9 @@ async fn supervise(
         }
     }
 
-    // Leaving (lobby ended or LiveSplit won): mark detached, unregister so the
-    // next lobby's start() doesn't see a stale "already running" handle.
     {
-        let mut guard = state.lock().unwrap();
-        guard.wasm_attached = false;
+        let mut guard = state.lock_state();
+        guard.autosplit.wasm_attached = false;
         guard.autosplitter_runtime = None;
     }
     crate::ws::handler::report_autosplit_state(&app, &state).await;

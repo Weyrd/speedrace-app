@@ -1,4 +1,3 @@
-// Auth
 export interface User {
   username: string;
 }
@@ -11,7 +10,6 @@ export type AuthStatePayload =
   | { state: typeof AuthState.Authenticated; user: User }
   | { state: typeof AuthState.Unauthenticated };
 
-// WS / connection
 export const WsStatus = {
   Connected: "connected",
   Connecting: "connecting",
@@ -19,7 +17,6 @@ export const WsStatus = {
 } as const;
 export type WsStatus = (typeof WsStatus)[keyof typeof WsStatus];
 
-// Domain enums - values must match Rust serde output exactly
 export const PlayerStatus = {
   Preparing: "preparing",
   InProgress: "in_progress",
@@ -57,7 +54,13 @@ export interface AutosplitState {
   run_in_progress?: boolean;
 }
 
-// Tauri event payloads
+export function autosplitDrivesFinish(autosplit?: AutosplitState): boolean {
+  return (
+    autosplit?.wasm === true ||
+    (autosplit?.livesplit === true && autosplit.splits_match !== false)
+  );
+}
+
 export interface LobbySetup {
   lobby_id: string;
   lobby_status: LobbyStatus;
@@ -97,7 +100,6 @@ export interface LobbyStartPayload {
   expires_at: number;
 }
 
-// ffmpeg stream
 export const StreamStatus = {
   Idle: "idle",
   Connecting: "connecting",
@@ -114,16 +116,37 @@ export const StreamEventState = {
 export type StreamEventState =
   (typeof StreamEventState)[keyof typeof StreamEventState];
 
-// "stream:status" event payload
 export interface StreamStatusPayload {
   state: StreamEventState;
   message?: string;
 }
 
-// "stream:preview" base64 JPEG frame
+export interface EncoderStatusPayload {
+  preferred: string;
+  effective: string;
+}
+
 export interface StreamPreviewPayload {
   frame?: string;
   error?: string;
+}
+
+export const UploadPhase = {
+  Preparing: "preparing",
+  Uploading: "uploading",
+  Processing: "processing",
+  Done: "done",
+  Failed: "failed",
+  QuotaExhausted: "quota_exhausted",
+  Abandoned: "abandoned",
+} as const;
+export type UploadPhase = (typeof UploadPhase)[keyof typeof UploadPhase];
+
+export interface UploadStatusPayload {
+  state: UploadPhase;
+  uploaded_bytes: number;
+  total_bytes: number;
+  message?: string;
 }
 
 export const PreviewState = {
@@ -145,6 +168,7 @@ export interface WindowInfo {
   hwnd: number;
   title: string;
   process_name: string;
+  iconic: boolean;
 }
 
 export const CaptureSourceKind = {
@@ -158,10 +182,29 @@ export type CaptureSource =
   | { kind: typeof CaptureSourceKind.Monitor; index: number }
   | { kind: typeof CaptureSourceKind.Window; hwnd: number; title: string };
 
+export const EncoderPref = {
+  Auto: "auto",
+  Nvenc: "h264_nvenc",
+  Amf: "h264_amf",
+  X264: "libx264",
+} as const;
+export type EncoderPref = (typeof EncoderPref)[keyof typeof EncoderPref];
+
+export const ENCODER_LABELS: Record<EncoderPref, string> = {
+  [EncoderPref.Auto]: "Auto",
+  [EncoderPref.Nvenc]: "NVIDIA (NVENC)",
+  [EncoderPref.Amf]: "AMD (AMF)",
+  [EncoderPref.X264]: "CPU (x264)",
+};
+
 export interface StreamSettings {
   bitrate_kbps: number;
   framerate: number;
+  resolution: number;
+  encoder: EncoderPref;
   replay_dir: string;
   replay_autodelete: boolean;
   replay_casual: boolean;
+  replay_delete_uploaded: boolean;
+  debug_stream: boolean;
 }

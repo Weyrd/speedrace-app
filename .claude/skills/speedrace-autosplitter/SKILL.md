@@ -46,6 +46,21 @@ off mid-race, you double-fire or desync. So firing is gated on the committed sou
 
 Both supervisors loop while `in_lobby(&state)` and `!autosplitter_cancel`.
 
+## Auto-select the game window on attach
+
+On the WASM **false→true attach transition** (`wasm.rs::maybe_switch_source`), the supervisor
+auto-selects the game's window as the **capture source** — the attach gives us the game's exact
+**PID** (`attached_pid` from `Process::pid()`), so the match is precise. It spawns
+`stream::auto_select_game_window(app, state, pid)` (off the tick loop, so a preview restart doesn't
+stall autosplitting), which: finds the game window via `stream::window_list::game_window_for_pid`
+(largest visible top-level of that PID + its title), sets `capture_source = Window { hwnd, title }`,
+restarts the preview, and emits **`stream:source`** so the frontend updates the `["captureSource"]`
+query cache (`AppEventBridge` → `qc.setQueryData`) — keeping the source label/picker in sync.
+**Gated on `state.stream.is_none()`** — fires only *before* the racer has published; never touches
+a live stream and never triggers a publish. No-ops if that window is already the source (absorbs the
+re-attach double-fire). Non-windows is a no-op. `stream:source` is a both-sides constant
+(`events.rs` + `lib/events.ts`).
+
 ## Recovery (why the supervisors look the way they do)
 
 - **WASM**: compiled **once**; `supervise` re-instantiates cheaply on an `update()` **trap**. A

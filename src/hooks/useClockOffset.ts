@@ -16,7 +16,6 @@ export function ensureClockFresh(qc: QueryClient) {
   });
 }
 
-// Force a fresh measurement (bypasses the Rust cache); updates every observer.
 export function resyncClock(qc: QueryClient) {
   return qc.fetchQuery({
     queryKey: CLOCK_KEY,
@@ -25,7 +24,6 @@ export function resyncClock(qc: QueryClient) {
   });
 }
 
-// Offset (ms) to add to local time; Rust owns caching, resync forces a refresh.
 export function useClockOffset() {
   const qc = useQueryClient();
 

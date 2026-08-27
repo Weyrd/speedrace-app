@@ -2,7 +2,7 @@
 
 Status: **implemented** (2026-07-13) except the Future work section at the end. This is the
 single streaming spec — it replaced `README_STREAM_V2.md`, `PLAN_LOCAL_PREVIEW_PUBLISH.md` and
-`PLAN_MP4_REPLAY.md`. It records both *what* the system does and *why* each decision was made,
+`PLAN_MP4_REPLAY.md`. It records both _what_ the system does and _why_ each decision was made,
 so a change that looks like a simplification can be checked against the constraint it would break.
 
 ## What it does
@@ -11,7 +11,7 @@ Nothing leaves the machine until the racer presses **Publish**. Inside a lobby:
 
 1. **StreamSetup** auto-starts a **local preview**: a preview-mode ffmpeg captures the selected
    source and streams JPEG frames to the webview. No WHIP, no MP4, no audio. The host sees the
-   racer as *not ready* the whole time (see Back contract).
+   racer as _not ready_ the whole time (see Back contract).
 2. Clicking the preview opens the **source picker** (Windows / Fullscreen tabs, live thumbnails).
    Selecting a source restarts the preview.
 3. **Publish** runs one Rust transaction: kill preview → spawn the real ffmpeg (WHIP live + MP4
@@ -23,16 +23,20 @@ Nothing leaves the machine until the racer presses **Publish**. Inside a lobby:
 
 ```
 ┌ Tauri app (Rust) ──────────────────────────────────────────────────────────┐
-│ preview:  ffmpeg (ddagrab | WGC pipe) ─ mpjpeg → stdout → base64 frames ───┼─▶ webview <img>
+│ preview:  ffmpeg (WGC pipe) ─ mpjpeg → stdout → base64 frames ─────────────┼─▶ webview <img>
 │                                                                             │
-│ live:     cpal WASAPI loopback ──▶ paced writer ──▶ \\.\pipe\momentum_audio │
-│           WGC thread (window src) ─▶ letterbox ──▶ \\.\pipe\momentum_video  │
-│           ddagrab (monitor src, in-ffmpeg)          │                       │
+│ live:     cpal WASAPI loopback ──▶ paced writer ──▶ \\.\pipe\speedrace_audio │
+│           WGC session (window OR monitor) ─▶ letterbox ─▶ \\.\pipe\speedrace_video
+│                                                     │                       │
 │                                                     ▼                       │
 │                                    ffmpeg sidecar ──▶ WHIP ─▶ MediaMTX ─▶ WHEP preview
 │                                          └──▶ MP4 VOD (ranked / casual opt-in)
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+All capture (window *and* monitor) runs in Rust via WGC and feeds ffmpeg a constant-rate
+rawvideo pipe; ffmpeg never touches the display itself. `ddagrab` remains only as an in-ffmpeg
+fallback for monitor sources when WGC can't start (see "Capture").
 
 ## Design decisions and why
 
@@ -46,7 +50,7 @@ without re-checking its reason.
   two-step removes the state where a stream is live but the racer isn't ready — a state that had
   no purpose and needed its own UI.
 - **The preview is a second ffmpeg, not the live one muted.** The live pipeline can't run
-  without publishing (the WHIP output *is* the pipeline), and keeping one process with outputs
+  without publishing (the WHIP output _is_ the pipeline), and keeping one process with outputs
   toggled would mean restarting ffmpeg on Publish anyway. A tiny separate preview process keeps
   the live args identical to the proven form.
 - **Preview transport: `-f mpjpeg` → stdout, relayed by Rust** (Content-length-framed JPEG
@@ -59,24 +63,72 @@ without re-checking its reason.
   `preview::ensure_for_phase` runs at every transition that can land on StreamSetup and
   `start()` is hard-gated on `app_state == StreamSetup`. This is what makes the frontend
   useEffect-free and makes "which paths start/stop the preview" a one-file question.
-- **One teardown choke point.** `stream::shutdown` kills preview *and* live session. It already
+- **One teardown choke point.** `stream::shutdown` kills preview _and_ live session. It already
   had nine call sites (logout, stop, forfeit, finish, WS PlayerResult/LobbyClosed, auth-lost,
-  banned, app exit); putting preview teardown inside it means every current *and future* exit
+  banned, app exit); putting preview teardown inside it means every current _and future_ exit
   path handles the preview for free instead of requiring per-site patching.
 - **Window selections are session-only; only the monitor choice persists.** An HWND dies with
   its process, so persisting it can only produce a broken restore. Exe/title re-resolution was
   deferred until re-picking proves annoying.
-- **MP4 replay = a second output on the *same* ffmpeg process.** One process shares one capture
+- **MP4 replay = a second output on the _same_ ffmpeg process.** One process shares one capture
   and keeps the supervisor, graceful stop and Job Object unchanged. Not the `tee` muxer: tee
   needs identical codecs per branch, but WHIP mandates Opus and MP4 wants AAC — so it's two full
   output blocks via `split`/`asplit` (at ~2× encode cost; the reason NVENC is the natural
   follow-up). Without a replay, the args stay byte-identical to the proven single-output form.
 - **Fragmented MP4** (`+frag_keyframe+empty_moov`): a hard-killed ffmpeg still leaves a playable
   file — no moov repair, no next-launch recovery code.
-- **The replay spans Publish → stop, not just the race.** Trimming to the race would require
-  restarting ffmpeg at the gun, which would drop the live WHIP stream. The racer trims later;
-  the run itself is always fully captured. A mid-race reconnect necessarily starts a new file
-  (`…_pt{n}.mp4`) — each restart is a new process.
+- **The replay starts at the countdown, not at Publish.** A racer can idle 30 min in a lobby,
+  and recording all of it wasted disk, upload bandwidth and YouTube storage on footage nobody
+  watches. The two obvious fixes were both rejected: restarting ffmpeg at the gun drops the live
+  WHIP stream at the worst possible moment, and rewriting the finished file remuxes every byte
+  kept. The third way is to **segment the replay branch and throw away the pre-countdown
+  segments**, which does neither.
+
+  The replay output is `-f segment` (`SEGMENT_SECS`, keyframe-aligned), writing
+  `r{run}_s{n}.mp4` plus a live CSV index into a sibling `{stem}.parts/` directory —
+  never loose in `replay_dir`, which holds only the finished VOD. `-segment_list_flags +live`
+  is load-bearing: the default `+cache` withholds the index until the run ends, and both the
+  prune and the anchor read it live.
+
+  `stream/replay.rs` watches that index: while the phase is `StreamSetup`/`WaitingForStart` it
+  keeps only the newest couple of closed segments, so a long lobby wait costs nothing on disk.
+  Pruning is gated on **phase, not on the countdown timestamp** — an older back that sends no
+  `countdown_start_at` must degrade to "keep everything untrimmed", and a timestamp gate would
+  instead have pruned straight through the race.
+
+  The back sends `countdown_start_at` per player on `LobbyStart` (handicap already folded in),
+  so the gun is **exactly `countdown_seconds` into every VOD** and no per-video offset needs
+  storing — `video_started_at_ms` was deleted, replaced by `countdown_seconds` on `RaceHistory`.
+
+  Media time is mapped to wall clock by a **min-estimator over segment-close samples**
+  (`min(wall_now − media_end)`): every sample is late by the muxer flush and never early, so the
+  minimum converges on media t=0. Accuracy is **±50-150 ms with a residual late bias**, not
+  frame-exact — `-progress` is deliberately *not* used as the anchor, because with two outputs
+  its clock is a global aggregate that tracks the low-latency WHIP leg, not the replay leg.
+  Frame-exactness would need wall-clock input timestamps, which ddagrab (a lavfi source
+  generating its own PTS) cannot provide.
+
+  Segment lengths **drift**: the muxer cuts at the first keyframe at or after each boundary and
+  x264's scenecut IDRs shift the GOP phase, so a 5 s setting yields e.g. 6.03 / 4.0 / 2.0 s.
+  All trim math must read the real `start_time` from the index — never `n × segment_time`.
+- **A mid-race reconnect opens a new run, not a new file.** Each restart is a new process with a
+  new media t=0, so it gets its own `r{run}` namespace and its own anchor. Assembly orders by
+  run then index. This is also the boundary an encoder downgrade creates, which is why the
+  encoder is recorded per run (`encoder.txt`) and a mixed-encoder assembly re-encodes instead of
+  `-c copy`.
+
+  **The hole between runs is filled with black**, or the gun would stop sitting
+  `countdown_seconds` into the VOD for everything after the reconnect (`RESTART_DELAY` is 5 s,
+  and the supervisor may take several attempts). Each run persists its resolved anchor to
+  `r{run}.anchor.json` when it ends — the value lives only in the watcher task otherwise — and
+  the uploader sizes a `color`+`anullsrc` clip from
+  `anchor_next − (anchor_prev + last_end_prev)`, encoded with that run's own settings so the
+  join stays a stream copy. Gaps over `MAX_FILLER_MS` are left unfilled: that is not a reconnect.
+
+  Because `-c copy` exits 0 on a bad join, a filled assembly is **checked before upload**: the
+  total must match the segment index (with slack that grows per piece — each joined file rounds
+  up ~0.03 s, so a 30 min race drifts ~11 s) and each splice must decode. On failure the VOD is
+  rebuilt without fillers: short by the gap still plays, broken does not.
 - **Preview is video-only.** Audio capture starts at Publish exactly like before; a pre-publish
   level meter wasn't worth wiring cpal early.
 
@@ -102,17 +154,20 @@ non-Windows stubs that return an error.
 
 ## Rust module — `src-tauri/src/stream/`
 
-| File | Role |
-| --- | --- |
-| `types.rs` | **Every data type of the module** (`StreamState`, `CaptureSource`, `StreamSettings`, `LaunchSpec`, sessions, payloads…). Logic files hold no type defs. |
-| `mod.rs` | `start`/`publish`/`shutdown`/`shutdown_spawn`, `current_source`, `emit_status`, replay path helpers. |
-| `preview.rs` | Local preview: preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events. `ensure_for_phase` auto-starts it on StreamSetup. |
-| `pipeline.rs` | `build_args` / `build_preview_args` → the exact ffmpeg CLI, branched on `CaptureSource`. |
-| `ffmpeg.rs` | `resolve_ffmpeg_path`, spawn (tokio::process), Job Object, the **supervisor** task, graceful stop. |
-| `wgc.rs` | Window capture: WGC session → fixed-size BGRA letterbox → paced rawvideo named pipe. |
-| `monitors.rs` / `window_list.rs` | `list_monitors` (DXGI, same order as ddagrab `output_idx`) / `list_windows` (filtered, non-cloaked). |
-| `thumbs.rs` | Picker thumbnails: monitor one-shot ffmpeg (or the preview's last frame), window WGC one-shots behind a `Semaphore(2)`. |
-| `audio.rs` | cpal WASAPI loopback on a dedicated thread + a paced named-pipe writer. |
+| File                             | Role                                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.rs`                       | **Every data type of the module** (`StreamState`, `CaptureSource`, `StreamSettings`, `LaunchSpec`, sessions, payloads…). Logic files hold no type defs. |
+| `mod.rs`                         | `start`/`publish`/`shutdown`/`shutdown_spawn`, `current_source`, `emit_status`, replay path helpers.                                                    |
+| `preview.rs`                     | Local preview: preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events. `ensure_for_phase` auto-starts it on StreamSetup.               |
+| `pipeline.rs`                    | `build_args` / `build_preview_args` → the exact ffmpeg CLI; pipe-first video input, ddagrab fallback.                                                   |
+| `ffmpeg.rs`                      | `resolve_ffmpeg_path`, spawn (tokio::process), Job Object, the **supervisor** task, graceful stop.                                                      |
+| `capture.rs`                     | Capture **router** + window/monitor geometry: `start_capture_for` (windowed→WGC; fullscreen→WGC-probe-then-escalate-to-injection; monitor→WGC/ddagrab), computes each backend's dims. Returns a `CaptureHandle`. |
+| `capture_pipe.rs`                | Shared `new_video_pipe()` + `spawn_paced_writer()` both backends use (one BGRA rawvideo pipe, black until first frame). |
+| `wgc.rs`                         | WGC **backend** only: `start_capture(target, w, h, fps)` → self-healing WGC session → shared paced pipe. |
+| `gamecapture/`                   | OBS-hook injection for exclusive-fullscreen games (incl. emulators): `protocol`(ABI)/`inject`/`offsets`/`session`(handshake)/`frame`(D3D11 shared texture, **normalizes any format → BGRA**)/`capture`(continuous session → shared pipe). Window-only, never the screen. |
+| `monitors.rs` / `window_list.rs` | `list_monitors` (DXGI, same order as ddagrab `output_idx`) / `list_windows` (filtered, non-cloaked).                                                    |
+| `thumbs.rs`                      | Picker thumbnails: monitor one-shot ffmpeg (or the preview's last frame), window WGC one-shots behind a `Semaphore(2)`.                                 |
+| `audio.rs`                       | cpal WASAPI loopback on a dedicated thread + a paced named-pipe writer.                                                                                 |
 
 `GlobalState` holds `stream: Option<StreamSession>`, `preview: Option<PreviewSession>`,
 `capture_source: Option<CaptureSource>` (session-only; the monitor variant also persists as
@@ -147,14 +202,17 @@ spinner — no new FSM state, no event orchestration:
 5. failure → full `stream::shutdown`, delete the never-went-live MP4 stub, restart the preview,
    `Err(msg)`. No `stream-stopped` POST — ready was never set.
 
-The **recording window is Publish → stop/finish** by construction.
+ffmpeg runs Publish → stop/finish, but the **kept** recording window is countdown → finish:
+segments written before `countdown_start_at` are pruned live and the head segment is trimmed at
+assembly, so the gun always lands `countdown_seconds` into the VOD (see Design decisions).
 
 ### The supervisor (`ffmpeg::supervise`)
 
-One task owns audio, the WGC thread (window sources) **and** ffmpeg for the whole session,
-including mid-race restarts:
+One task owns audio, the WGC capture **and** ffmpeg for the whole session, including mid-race
+restarts:
 
-1. (window source) start WGC → video named pipe; start audio → build args → spawn ffmpeg
+1. start WGC capture (`start_capture_for`, re-resolved every attempt — the picked window may
+   have gone fullscreen since) → video named pipe; start audio → build args → spawn ffmpeg
    (Job Object + `kill_on_drop` + `CREATE_NO_WINDOW`).
 2. `run_child` reads ffmpeg's `-progress` on stdout: **first progress block ⇒ live** (emits
    `stream:status live` + fires the publish oneshot). stderr is tailed and logged. No progress
@@ -169,14 +227,14 @@ including mid-race restarts:
 - **StreamSetup / WaitingForStart** death: POST `stream-stopped` (resets ready flags), set
   `AppState::StreamSetup`, emit `error` — the preview auto-restarts there.
 - **RaceInProgress**: **never POST stream-stopped** — the back forfeits the runner on it. Emit
-  `reconnecting`, auto-restart (3 attempts, 5 s apart; each restart writes a new `…_pt{n}.mp4`
-  segment); on success emit `live`, on exhaustion emit `error`.
-- **Back dies mid-race**: nothing to do — `ServerUnavailable`/WS-drop deliberately does *not*
+  `reconnecting`, auto-restart (3 attempts, 5 s apart; each restart opens a new replay run,
+  `r{run}_s{n}.mp4`); on success emit `live`, on exhaustion emit `error`.
+- **Back dies mid-race**: nothing to do — `ServerUnavailable`/WS-drop deliberately does _not_
   touch ffmpeg, so a mid-race server restart never kills the stream.
 
 ### Teardown & orphan prevention
 
-`stream::shutdown` (or `shutdown_spawn`) is the single choke point — preview *and* live —
+`stream::shutdown` (or `shutdown_spawn`) is the single choke point — preview _and_ live —
 called from: logout, `stop_stream`, forfeit, the local finish, WS `PlayerResult`/`LobbyClosed`,
 auth-lost/banned, and app exit. Orphans: a process-lifetime Job Object with
 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` covers hard app deaths (both ffmpegs are assigned);
@@ -184,13 +242,16 @@ auth-lost/banned, and app exit. Orphans: a process-lifetime Job Object with
 
 ## ffmpeg pipeline (`pipeline.rs`)
 
-Video input branches on `CaptureSource`:
+Video input is pipe-first:
 
-- **Monitor** → `-f lavfi -i ddagrab=output_idx={n}:framerate={fps}`; the filter is prefixed
-  `hwdownload,format=bgra,` because ddagrab emits d3d11 *hardware* frames — feeding them
+- **WGC pipe (the normal case, window and monitor)** → `-f rawvideo -pix_fmt bgra
+-video_size {W}x{H} -framerate {fps} -i \\.\pipe\speedrace_video_{nonce}` (CPU BGRA).
+- **ddagrab fallback (monitor sources only, when WGC couldn't start)** →
+  `-f lavfi -i ddagrab=output_idx={n}:framerate={fps}`; the filter is prefixed
+  `hwdownload,format=bgra,` because ddagrab emits d3d11 _hardware_ frames — feeding them
   straight to a software encoder fails with "Impossible to convert between formats".
-- **Window** → `-f rawvideo -pix_fmt bgra -video_size {W}x{H} -framerate {fps}
-  -i \\.\pipe\momentum_video_{nonce}` (CPU BGRA; no hwdownload).
+  ddagrab must never be the primary path: it dies with `DXGI_ERROR_ACCESS_LOST` (887a0026)
+  when a game enters exclusive fullscreen and has no reinit.
 
 Common live tail: `scale=1280:-2:flags=bilinear,format=yuv420p`, x264 veryfast zerolatency
 baseline, `-g 2*fps`, Opus 96k, `-f whip`. With a replay, video/audio fan out through
@@ -203,26 +264,66 @@ pay — AAC 160k, `-movflags +frag_keyframe+empty_moov`).
 overflow the default ~64 KB socket buffer → `EAGAIN` → "Conversion failed". The 4 MB buffer only
 fills during that transient, so it adds no steady-state latency.
 
-### Window capture (`wgc.rs`)
+### Capture (`capture.rs` router → `wgc.rs` / `gamecapture/`)
 
-ffmpeg has no WGC input, so Rust runs the capture (via the `windows-capture` crate) and feeds a
-rawvideo named pipe. Three constraints shape it:
+ffmpeg has no capture input, so Rust captures and feeds a rawvideo named pipe. `capture.rs` is the
+orchestration layer over two peer backends (WGC and injection) and owns window/monitor geometry;
+`wgc.rs` and `gamecapture/` are just backends, and `capture_pipe.rs` is the pipe/writer both share.
+`start_capture_for(source, fps)` (async) routes to the cheapest backend that works — **and never
+reads the screen for a window pick** (hard privacy rule):
+
+- **Window, genuinely windowed** → WGC window capture of that HWND.
+- **Window, fullscreen** (`IsIconic` — SDL/FNA games minimize on focus loss — or the rect covers
+  its monitor) → try WGC first; if a real frame arrives within 1.5 s it's borderless (composited)
+  and WGC is kept. If WGC stays **black** it's true exclusive fullscreen → **escalate to
+  graphics-hook injection** (`gamecapture::start`), which reads the game's own backbuffer
+  window-only. If injection can't deliver (anti-cheat / not rendering) the call **errors → publish
+  is blocked** — we never fall back to the screen.
+- **Monitor{index}** (explicit Fullscreen-tab pick = screen-share consent) → WGC display capture of
+  the matched HMONITOR; on failure returns `None` → in-ffmpeg ddagrab.
+
+Both backends return a `CaptureHandle` (`Wgc | Game`) exposing the same `pipe_name`/`width`/
+`height`/`shutdown`, so `preview.rs` and `ffmpeg.rs` don't know or care which is running.
+
+**Game-capture (`gamecapture/`)** embeds OBS's `win-capture` binaries (vendored by
+`scripts/get-game-capture.ps1`, GPLv2 — see `scripts/README.md`). `protocol.rs` mirrors the OBS
+`hook_info` ABI (size-guarded `== 648`); `inject.rs` loads `graphics-hook{32,64}.dll` (direct
+`LoadLibraryW` remote thread for same-bitness, else `inject-helper` exe — a 64-bit host captures
+32-bit games like Celeste); `offsets.rs` runs `get-graphics-offsets` and parses its INI;
+`session.rs` does the host handshake (keepalive mutex → poll hook objects → write offsets into the
+hook-info mapping → SetEvent init+restart → wait `HookReady`), then opens the shared texture map
+`CaptureHook_Texture_<hwnd>_<map_id>` for `shtex_data.tex_handle`; `frame.rs::SharedTextureReader`
+opens that D3D11 shared texture (legacy `MISC_SHARED`, no keyed mutex — OBS's shtex path) and
+`CopyResource`s it to a CPU-read staging texture each frame, **normalizing whatever format the game
+presents → BGRA** (passthrough for BGRA, R↔B swizzle for RGBA/Dolphin, unpack for 10-bit) so the
+pipe stays fixed BGRA — the conversion is here, not in ffmpeg, because ffmpeg's `-pix_fmt` is locked
+at launch before the game renders; `gamecapture/capture.rs` runs that read loop on a dedicated
+thread into a shared `latest` buffer feeding the shared paced writer/pipe. Teardown drops the
+keepalive mutex only (**never** the hook's global Stop event — it would kill other live sessions) —
+**never touches the game process**. Limits: anti-cheat games block injection (→ blocked publish, by
+design); the game must be rendering for a frame to arrive (a minimized SDL/FNA game presents nothing
+— OBS/Discord freeze too); an unsupported (64-bit float) backbuffer format is rejected → black.
+
+Constraints that shape the WGC implementation:
 
 - `-f rawvideo` demands **one fixed frame size** (a size change alters the per-frame byte count
-  and kills ffmpeg). The size is locked to the window rect at start (rounded even); later frames
-  are **center-cropped/padded** into that target, so a mid-game resize degrades gracefully. The
-  buffer is wiped once per size change to avoid stale borders.
+  and kills ffmpeg). The size is locked at start — window rect (or the monitor size if the
+  window is iconic), monitor rect for displays — rounded even; later frames are
+  **center-cropped/padded** into that target, so a mid-game resize or display mode change
+  degrades gracefully. The buffer is wiped once per size change to avoid stale borders.
 - WGC only delivers frames **on change** — a static menu screen would starve the encoder until
   the stall killer fired. A **paced writer** re-sends the latest frame at constant fps.
-- Window closed ⇒ writer stops ⇒ pipe EOF ⇒ ffmpeg exits ⇒ the normal death branch handles it
-  (mid-race: reconnect attempts; the restart re-resolves the HWND and fails cleanly if the game
-  is gone).
+- WGC sessions can end or stall on display transitions (a game entering exclusive fullscreen).
+  A **session supervisor** task recreates the session whenever it closes or goes stale (>2 s
+  without a frame, session ≥3 s old); the writer keeps pumping the last frame meanwhile, so
+  ffmpeg (and the WHIP/MP4 outputs) never notice. Staleness re-priming on a static screen is
+  harmless. The writer only stops on shutdown (⇒ pipe EOF ⇒ ffmpeg exits ⇒ normal death branch).
 
 ### Audio (`audio.rs`)
 
-cpal WASAPI loopback on a dedicated thread (input stream on the default *output* device),
+cpal WASAPI loopback on a dedicated thread (input stream on the default _output_ device),
 silent-track fallback, a paced writer that pads zeros during digital silence and drops >200 ms
-of backlog, riding `\\.\pipe\momentum_audio_{nonce}`. stdin stays reserved for the `q` quit.
+of backlog, riding `\\.\pipe\speedrace_audio_{nonce}`. stdin stays reserved for the `q` quit.
 
 ## IPC contract
 
@@ -245,7 +346,7 @@ of backlog, riding `\\.\pipe\momentum_audio_{nonce}`. stdin stays reserved for t
   (`{kind:"monitor",index}` / `{kind:"window",hwnd,title}`, const-object mirror in `types/`);
   setting a monitor also persists it.
 - `get_stream_settings()` / `set_stream_settings(...)` — bitrate/framerate/replay knobs only
-  (`tauri_plugin_store`; the source is *not* part of this DTO, so settings edits never churn
+  (`tauri_plugin_store`; the source is _not_ part of this DTO, so settings edits never churn
   the preview).
 - `list_monitors()` / `list_windows()` — picker data.
 - `capture_monitor_thumb(index)` / `capture_window_thumb(hwnd)` — base64 JPEG thumbnails.
@@ -254,7 +355,7 @@ The frontend FSM carries `streamStatus`; `StreamReady` fires only after `publish
 resolves (Rust confirmed live, so the reducer does not re-guard on the possibly-lagging local
 `streamStatus`).
 
-## Back contract (verified in momentum-back)
+## Back contract (verified in speedrace-back)
 
 - `stream-ready` is a **pure boolean flip** (`services/lobby/lobby_service/stream.rs`) — no
   MediaMTX API, no publisher check; the back never knows whether anyone is publishing.
@@ -292,11 +393,38 @@ from the back (LobbySetup / lobby-current), with a `whip→whep` string fallback
 Ranked races always record; casual races record behind the `stream_replay_casual` opt-in
 (default off — recording is driven by the lobby's `race_type`, which the back sends in
 LobbySetup; an old back without it defaults to casual, failing safe). `resolve_replay_base`
-decides at publish time; files land in `stream_replay_dir` (default `Videos\Momentum`) as
-`momentum_{game}_{stamp}.mp4`, auto-deleted after `REPLAY_RETENTION_DAYS` (7) by a best-effort
+decides at publish time; the finished VOD lands in `stream_replay_dir` (default
+`Videos\Speedrace`) as `speedrace_{game}_{stamp}.mp4`, with the working segments in a sibling
+`{stem}.parts/` directory that is deleted once the upload completes. Both the file and any
+orphaned `.parts/` dir are auto-deleted after `REPLAY_RETENTION_DAYS` (7) by a best-effort
 startup sweep when `stream_replay_autodelete` is on. The `Finished` screen shows "replay saved /
 show in folder" whenever a replay was actually recorded. A publish that never went live deletes
-its stub file.
+its stub file **and** its segment directory.
+
+### Replay overlay (timer + last splits, burned live)
+
+The replay leg carries a burned-in race timer and the last 3 split rows; the live WHIP leg,
+preview, and nothing else get it. Implementation (`stream/overlay_live.rs`, knobs in
+`stream/overlay_style.rs`): when recording, `pipeline.rs` splits the video into
+`[vw]` (live, clean) and `[vt]→drawtext…→[vr]` (replay), where each `drawtext` reads a small
+text file with `reload=1` — `overlay_timer.txt` plus `overlay_row{0..2}.txt` in the parts
+dir. A 30 Hz Rust ticker writes the gun-relative clock (negative during the countdown,
+frozen after the finish because writes stop when `race_start_at` clears); split rows are
+rewritten by `record_split` when a split fires.
+
+**Why live and not post-hoc:** the text and the frame meet inside the same ffmpeg at the same
+wall moment, so overlay-vs-content skew is just capture→filter transit (~ms). A post-hoc burn
+was tried first and inherited the wall-clock↔pts anchor bias of the segment CSV (~seconds
+late: encoder lookahead + keyframe-gated segment close + poll), painting correct split times
+at wrong video positions. Live burn also adds zero post-race encode time — the replay leg
+already encodes in real time — so upload starts immediately even for multi-hour runs.
+
+Failure modes all degrade to a clean replay, never a broken stream: missing font, a path the
+graph can't quote, or a sidecar without `drawtext` (pre-`ffmpeg-min-3`, probed once via
+`-filters`) simply skip the chain; the text files are created before every spawn because a
+missing `textfile` fails graph init and would kill the live leg with it. The overlay adds
+zero anti-cheat value (the client owns the pipeline) — it exists so a reviewer can eyeball a
+run against the race clock.
 
 ## Verification drills
 
@@ -312,15 +440,52 @@ re-run:
 - Window source: preview shows only that window; Publish → web viewer confirms; resize /
   minimize / close mid-stream (close mid-race takes the no-forfeit reconnect branch); relaunch →
   window choice gone, monitor fallback works.
-- Ranked run → one playable 720p MP4; casual (opt-out) → no file; hard-killed ffmpeg → the
-  fragmented MP4 still plays; mid-race reconnect → `…_pt2.mp4`, both playable; disk-full/bad
-  dir → WHIP survives, replay error logged.
+- Ranked run → one playable MP4 starting at the countdown, gun exactly `countdown_seconds` in;
+  casual (opt-out) → no file; hard-killed ffmpeg → the fragmented segments still play; mid-race
+  reconnect → a second run, assembled into one continuous file; disk-full/bad dir → WHIP
+  survives, replay error logged.
+- Idle 5+ min in a lobby before starting → `{stem}.parts/` stays at ~2 segments and total disk
+  stays flat. This is the whole point of the segmenting; if it grows, the prune is broken.
 - Stop/forfeit/finish/lobby-close/logout/app-quit → no orphaned ffmpeg (preview or live) or WGC
   session.
 
+## Hardware encoding (NVENC/AMF)
+
+Three layers, `stream/encoder.rs` + `pipeline.rs` + the `supervise` downgrade edge:
+
+1. **Probe** (`encoder::warm`, kicked off from `preview::ensure_for_phase`): a *real* trial
+   encode — 4 black BGRA frames on stdin, **two encoder legs** through `split=2`, output
+   discarded. `ffmpeg -encoders` is useless here: it lists what was **compiled**, not what this
+   machine can open, and the sidecar ships nvenc+amf unconditionally. Two legs, not one, because
+   a GPU with no free session passes a 1-leg probe and then fails live.
+2. **Preference** `stream_encoder` (`auto|nvenc|amf|x264`, default `auto`). An explicit pick is
+   still probed — a forced-but-broken encoder would otherwise fail at publish.
+3. **Downgrade** (`ffmpeg.rs`, top of the `Outcome::Died` arm): `!went_live` + a stderr tail
+   matching the encoder → relaunch on x264, once. Placed **before** the `phase` branch so it
+   covers pre-race and mid-race with no POST, leaving the never-POST-stream-stopped rule intact.
+   `PRELIVE_TIMEOUT_HW` (8 s, vs 20 s) is what makes the retry fit the 25 s publish budget.
+
+**The two legs are separate hardware sessions** — "encode once + `-c copy`" stays ruled out for
+the reason above (the VOD must not pay the live leg's latency tradeoffs).
+
+### Driver floor
+
+The sidecar carries **nv-codec-headers 13.1**, which refuses to open below **NVIDIA driver
+610.00**. Drivers older than that fail the probe with:
+
+```
+[h264_nvenc] Driver does not support the required nvenc API version. Required: 13.1 Found: 13.0
+[h264_nvenc] The minimum required Nvidia driver for nvenc is 610.00 or newer
+```
+
+That is handled, not broken: the probe catches it and the machine stays on x264. Verified live on
+driver 610.74 / RTX 3080 — `h264_nvenc` opens in the real two-leg `split=2` shape. Racers on
+pre-610 drivers silently get x264, which is exactly the pre-hardware behaviour.
+
+**AMF is untested** for lack of an AMD box; on this NVIDIA machine it fails the probe cleanly
+(`DLL amfrt64.dll failed to open`), which is the negative case working.
+
 ## Future work (aspirational — NOT built)
 
-- **Hardware encoding (NVENC/AMF).** Probe `ffmpeg -encoders` and prefer
-  `h264_nvenc`/`h264_amf` over software x264 — the replay's second encode doubles
-  CPU, which is exactly what a hardware encoder absorbs. Both encoders are already
-  compiled into the bundled sidecar, so this is purely an app-side arg change.
+- **Intel QuickSync (`h264_qsv`).** Not compiled into the sidecar; Intel-only laptops stay on
+  x264. Needs a sidecar rebuild.

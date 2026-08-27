@@ -17,7 +17,6 @@ struct SplitResourceResponse {
     updated_at: String,
 }
 
-#[allow(dead_code)]
 pub async fn fetch_split_resource_lss(
     app: &AppHandle,
     category_split_id: &str,

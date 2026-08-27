@@ -5,6 +5,10 @@ import { ActionType, Phase } from "./types";
 import { AuthState, PlayerStatus, type WsStatus } from "../types";
 import { ensureClockFresh, resyncClock } from "../hooks/useClockOffset";
 import { getAutosplitState } from "../lib/commands";
+import {
+  captureSourceKey,
+  effectiveEncoderKey,
+} from "../hooks/useStreamSettings";
 import { playSound, primeCountdown, Sound } from "../lib/sound";
 
 const COUNTDOWN_SOUNDS = [
@@ -18,6 +22,8 @@ import {
   onAppState,
   onWsStatus,
   onStreamStatus,
+  onStreamEncoder,
+  onStreamSource,
   onLobbySetup,
   onLobbyClosed,
   onLobbyStart,
@@ -25,6 +31,7 @@ import {
   onAutosplitProbe,
   onSplitLoaded,
   onSplitFired,
+  onUploadStatus,
 } from "../lib/listeners";
 
 export function AppEventBridge(): null {
@@ -38,7 +45,6 @@ export function AppEventBridge(): null {
         if (payload.state === AuthState.Authenticated) {
           dispatch({ type: ActionType.AuthOk, user: payload.user });
         } else {
-          // Rust owns ffmpeg teardown on logout.
           dispatch({ type: ActionType.Logout });
         }
       }),
@@ -47,7 +53,6 @@ export function AppEventBridge(): null {
         dispatch({ type: ActionType.WsStatus, ws_status: ws_status });
       }),
 
-      // ffmpeg pipeline lifecycle (connecting/live/reconnecting/error/stopped)
       onStreamStatus((payload) => {
         dispatch({
           type: ActionType.StreamStatusChanged,
@@ -55,10 +60,16 @@ export function AppEventBridge(): null {
         });
       }),
 
-      // Only the connection-level terminal phases; other app:state emits are driven by dedicated events.
+      onStreamSource((source) => {
+        qc.setQueryData(captureSourceKey, source);
+      }),
+
+      onStreamEncoder((payload) => {
+        qc.setQueryData(effectiveEncoderKey, payload);
+      }),
+
       onAppState((phase) => {
         if (phase === Phase.ServerUnavailable) {
-          // ffmpeg stays alive across a back outage.
           dispatch({ type: ActionType.ServerUnavailable });
         } else if (phase === Phase.Banned) {
           dispatch({ type: ActionType.Banned });
@@ -87,7 +98,6 @@ export function AppEventBridge(): null {
       }),
 
       onLobbyStart((payload) => {
-        // resync the clock
         void resyncClock(qc);
         dispatch({
           type: ActionType.LobbyStart,
@@ -111,6 +121,10 @@ export function AppEventBridge(): null {
 
       onSplitLoaded(() => {
         void qc.invalidateQueries({ queryKey: ["split-segments"] });
+      }),
+
+      onUploadStatus((status) => {
+        dispatch({ type: ActionType.UploadStatus, status });
       }),
 
       onSplitFired((p) => {

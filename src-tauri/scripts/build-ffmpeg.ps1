@@ -5,8 +5,7 @@
 # that get-ffmpeg.ps1 downloads; this script is only needed to (re)produce that asset,
 # not by regular clones or CI.
 #
-# The component list below mirrors exactly what the app uses (see docs/SPEC_FFMPEG.md
-# and src-tauri/src/stream/pipeline.rs). WHIP needs ffmpeg 8.x with a real DTLS backend:
+# The component list below mirrors exactly what the app uses. WHIP needs ffmpeg 8.x with a real DTLS backend:
 # we use GnuTLS (the suite's GPL license choice disables OpenSSL; GnuTLS matches the
 # proven Gyan pin). Never --enable-nonfree: the output must stay redistributable.
 # Suite license prompt: answer 2 (GPLv3 - keeps gmp, which GnuTLS needs); 64-bit only.
@@ -109,6 +108,10 @@ $FfmpegOptions = @"
 --enable-libopus
 --enable-gnutls
 
+# drawtext deps for the VOD overlay burn (configure requires BOTH since ffmpeg 6.1)
+--enable-libfreetype
+--enable-libharfbuzz
+
 # Hardware (d3d11va is a ddagrab dependency; nvenc/amf are header-only, compiled in
 # for the planned hw-encode follow-up). ffnvcodec is explicit because --disable-autodetect
 # also stops the suite from installing the nv-codec-headers nvenc needs.
@@ -125,23 +128,29 @@ $FfmpegOptions = @"
 --enable-encoder=aac
 --enable-encoder=mjpeg
 
-# Decoders (the app never decodes h264/aac; inputs are raw pipes). The lavfi indev
-# wraps its outputs: ddagrab frames arrive as wrapped_avframe, anullsrc as pcm_u8.
+# Decoders. Capture inputs are raw pipes, but replay assembly re-encodes the head
+# segment to trim it to the countdown, so h264/aac decode is required.
 --enable-decoder=rawvideo
 --enable-decoder=pcm_f32le
 --enable-decoder=wrapped_avframe
 --enable-decoder=pcm_u8
+--enable-decoder=h264
+--enable-decoder=aac
 
-# Muxers
+# Muxers (segment = the replay branch; it also pulls in stream_segment/ssegment)
 --enable-muxer=whip
 --enable-muxer=mp4
 --enable-muxer=mpjpeg
 --enable-muxer=mjpeg
+--enable-muxer=segment
 
-# Input: lavfi indev (ddagrab/anullsrc via -f lavfi) + raw pipes
+# Input: lavfi indev (ddagrab/anullsrc via -f lavfi) + raw pipes.
+# concat+mov read the replay segments back to assemble the VOD.
 --enable-indev=lavfi
 --enable-demuxer=rawvideo
 --enable-demuxer=pcm_f32le
+--enable-demuxer=concat
+--enable-demuxer=mov
 
 # Parsers
 --enable-parser=h264
@@ -168,10 +177,14 @@ $FfmpegOptions = @"
 --enable-filter=scale
 --enable-filter=aresample
 --enable-filter=anullsrc
+--enable-filter=color
 --enable-filter=split
 --enable-filter=asplit
 --enable-filter=null
 --enable-filter=anull
+# VOD overlay burn (timer + splits card on the uploaded replay)
+--enable-filter=drawtext
+--enable-filter=drawbox
 
 # Bitstream filters
 --enable-bsf=h264_mp4toannexb
@@ -280,7 +293,8 @@ Write-Host "  & `"$TargetBinary`" -hide_banner -buildconf   # expect --enable-gn
 Write-Host "  & `"$TargetBinary`" -hide_banner -protocols   # expect BOTH dtls and srtp"
 Write-Host "  & `"$TargetBinary`" -hide_banner -muxers 2>&1    | Select-String 'whip|mp4|mpjpeg'"
 Write-Host "  & `"$TargetBinary`" -hide_banner -encoders 2>&1  | Select-String 'libx264|libopus|aac|mjpeg|nvenc|amf'"
-Write-Host "  & `"$TargetBinary`" -hide_banner -filters 2>&1   | Select-String 'ddagrab|hwdownload|split|aresample'"
+Write-Host "  & `"$TargetBinary`" -hide_banner -filters 2>&1   | Select-String 'ddagrab|hwdownload|split|aresample|drawtext|drawbox'"
+Write-Host "  & `"$TargetBinary`" -hide_banner -buildconf 2>&1  | Select-String 'libfreetype|libharfbuzz'"
 Write-Host ""
 Write-Host "Then run the runtime drills in docs/SPEC_FFMPEG.md (preview, Publish, MP4 replay)."
 Write-Host "Once verified, zip + upload as the pinned release asset and re-pin get-ffmpeg.ps1."

@@ -4,7 +4,9 @@ import {
   APP_STATE,
   WS_STATUS,
   STREAM_STATUS,
+  STREAM_ENCODER,
   STREAM_PREVIEW,
+  STREAM_SOURCE,
   WS_LOBBY_SETUP,
   WS_LOBBY_CLOSED,
   WS_LOBBY_START,
@@ -13,6 +15,7 @@ import {
   SPLIT_LOADED,
   SPLIT_FIRED,
   AUTOSPLIT_PROBE,
+  UPLOAD_STATUS,
 } from "./events";
 import type {
   AuthStatePayload,
@@ -24,7 +27,10 @@ import type {
   AutosplitState,
   SplitFiredPayload,
   StreamStatusPayload,
+  EncoderStatusPayload,
   StreamPreviewPayload,
+  UploadStatusPayload,
+  CaptureSource,
 } from "../types";
 import type { Phase } from "../store/types";
 
@@ -50,8 +56,12 @@ export const onWsStatus = (cb: (p: WsStatus) => void) =>
   safeListen<WsStatus>(WS_STATUS, cb);
 export const onStreamStatus = (cb: (p: StreamStatusPayload) => void) =>
   safeListen<StreamStatusPayload>(STREAM_STATUS, cb);
+export const onStreamEncoder = (cb: (p: EncoderStatusPayload) => void) =>
+  safeListen<EncoderStatusPayload>(STREAM_ENCODER, cb);
 export const onStreamPreview = (cb: (p: StreamPreviewPayload) => void) =>
   safeListen<StreamPreviewPayload>(STREAM_PREVIEW, cb);
+export const onStreamSource = (cb: (p: CaptureSource) => void) =>
+  safeListen<CaptureSource>(STREAM_SOURCE, cb);
 export const onLobbySetup = (cb: (p: LobbySetup) => void) =>
   safeListen<LobbySetup>(WS_LOBBY_SETUP, cb);
 export const onLobbyClosed = (cb: (p: LobbyClosedPayload) => void) =>
@@ -68,3 +78,5 @@ export const onSplitFired = (cb: (p: SplitFiredPayload) => void) =>
   safeListen<SplitFiredPayload>(SPLIT_FIRED, cb);
 export const onAutosplitProbe = (cb: (p: AutosplitState) => void) =>
   safeListen<AutosplitState>(AUTOSPLIT_PROBE, cb);
+export const onUploadStatus = (cb: (p: UploadStatusPayload) => void) =>
+  safeListen<UploadStatusPayload>(UPLOAD_STATUS, cb);

@@ -33,7 +33,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { data, error } = await tryCatch(
         Promise.all([getCurrentUser(), getLobbyState()]),
       );
-      if (error) return; // App starts unauthenticated
+      if (error) return;
       if (cancelled) return;
 
       const [user, clientState] = data;

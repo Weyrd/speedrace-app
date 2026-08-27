@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
-import { useCaptureSource } from "../hooks/useStreamSettings";
+import { useCaptureSource, useStreamSettings } from "../hooks/useStreamSettings";
 import { CaptureSourceKind } from "../types";
 import { tryCatch } from "../lib/tryCatch";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
 import { PreviewCanvas } from "./ui/PreviewCanvas";
+import { CopyLogsButton } from "./ui/CopyLogsButton";
 import SourcePicker from "./SourcePicker";
 import { Button } from "./ui/button";
 
@@ -16,6 +17,8 @@ export default function StreamSetup() {
   const actions = useActions();
   const { t } = useTranslation("app");
   const { data: captureSource } = useCaptureSource();
+  const { data: streamSettings } = useStreamSettings();
+  const debugStream = streamSettings?.debug_stream ?? false;
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -44,7 +47,7 @@ export default function StreamSetup() {
   const { lobby } = state;
 
   return (
-    <div className="h-full flex flex-col gap-3 px-4 py-4">
+    <div className="h-full flex flex-col gap-3 px-4 py-4 overflow-y-auto">
       <LobbyHeader
         gameName={lobby.game_name}
         categories={lobby.category_name}
@@ -54,14 +57,15 @@ export default function StreamSetup() {
         earlyStartDetected={state.autosplit?.run_in_progress}
       />
 
-      <PreviewCanvas
-        onClick={publishing ? undefined : () => setPickerOpen(true)}
-      />
+      <div className="relative shrink-0">
+        <PreviewCanvas
+          onClick={publishing ? undefined : () => setPickerOpen(true)}
+        />
+        {debugStream && <CopyLogsButton className="absolute bottom-2 right-2" />}
+      </div>
       <p className="text-2xs text-dim font-mono tracking-wide text-center -mt-1">
         {t("stream.change_source_hint")}
-        {sourceLabel && (
-          <span className="text-text"> ({sourceLabel})</span>
-        )}
+        {sourceLabel && <span className="text-text"> ({sourceLabel})</span>}
       </p>
 
       {lobby.split_resource_updated_at && <SplitList />}
@@ -73,10 +77,11 @@ export default function StreamSetup() {
       )}
 
       <Button
-        variant="destructive"
+        variant="primary"
+        size="lg"
         onClick={() => handlePublish(lobby.lobby_id)}
         disabled={publishing}
-        className="w-full py-3.5 mt-auto"
+        className="w-full mt-auto"
       >
         {publishing && <Loader2 size={14} className="animate-spin" />}
         {publishing ? t("stream.publishing") : t("stream.publish")}

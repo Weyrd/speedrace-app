@@ -1,7 +1,18 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { WhepClient } from "../../stream/whep";
-import { StreamStatus } from "../../types";
+import {
+  EncoderPref,
+  ENCODER_LABELS,
+  PreviewState,
+  StreamStatus,
+} from "../../types";
+import {
+  useEffectiveEncoder,
+  useStreamSettings,
+} from "../../hooks/useStreamSettings";
+import { useStreamPreviewFrame } from "../../hooks/useStreamPreviewFrame";
+import { CopyLogsButton } from "./CopyLogsButton";
 
 export function WhepPreview({
   whepUrl,
@@ -13,6 +24,18 @@ export function WhepPreview({
   const videoRef = useRef<HTMLVideoElement>(null);
   const { t } = useTranslation("app");
   const live = streamStatus === StreamStatus.Live;
+  const { data: effectiveEncoder } = useEffectiveEncoder();
+  const { data: streamSettings } = useStreamSettings();
+  const debugStream = streamSettings?.debug_stream ?? false;
+  const { status: localPreviewStatus, attachImg: attachLocalPreview } =
+    useStreamPreviewFrame();
+  const fellBackToEncoder =
+    effectiveEncoder &&
+    effectiveEncoder.preferred !== EncoderPref.Auto &&
+    effectiveEncoder.preferred !== effectiveEncoder.effective
+      ? (ENCODER_LABELS[effectiveEncoder.preferred as EncoderPref] ??
+        effectiveEncoder.preferred)
+      : null;
 
   useEffect(() => {
     if (!live) return;
@@ -31,7 +54,7 @@ export function WhepPreview({
   }, [whepUrl, live]);
 
   return (
-    <div className="bg-black border border-border rounded aspect-1920/1080 w-full overflow-hidden relative">
+    <div className="bg-black border border-border rounded-sm aspect-video w-full shrink-0 overflow-hidden relative">
       <video
         ref={videoRef}
         autoPlay
@@ -39,7 +62,7 @@ export function WhepPreview({
         playsInline
         className="w-full h-full object-cover"
       />
-      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/70 rounded px-2 py-1">
+      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/70 rounded-sm px-2 py-1">
         {live ? (
           <>
             <span className="w-1.5 h-1.5 rounded-full bg-green shrink-0 animate-pulse" />
@@ -49,8 +72,8 @@ export function WhepPreview({
           </>
         ) : (
           <>
-            <span className="w-1.5 h-1.5 rounded-full bg-orange shrink-0 animate-pulse" />
-            <span className="text-2xs text-orange font-mono tracking-wide">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 animate-pulse" />
+            <span className="text-2xs text-accent font-mono tracking-wide">
               {streamStatus === StreamStatus.Reconnecting
                 ? t("stream.reconnecting")
                 : t("stream.stream_lost")}
@@ -58,6 +81,32 @@ export function WhepPreview({
           </>
         )}
       </div>
+      {fellBackToEncoder && (
+        <div className="absolute top-2 left-2 bg-black/70 rounded-sm px-2 py-1">
+          <span className="text-2xs text-accent font-mono tracking-wide">
+            {t("stream.encoder_fallback_hint", { encoder: fellBackToEncoder })}
+          </span>
+        </div>
+      )}
+      {debugStream && (
+        <div
+          className={`absolute top-2 right-2 w-[30%] aspect-video rounded-sm overflow-hidden border border-border/60 bg-black ${
+            localPreviewStatus === PreviewState.Live ? "" : "hidden"
+          }`}
+        >
+          <img
+            ref={attachLocalPreview}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+          <span className="absolute bottom-0.5 left-1 text-3xs font-mono tracking-wide text-white/80 bg-black/50 px-1 rounded-sm">
+            {t("stream.local_capture_label")}
+          </span>
+        </div>
+      )}
+      {debugStream && (
+        <CopyLogsButton className="absolute bottom-2 right-2" />
+      )}
     </div>
   );
 }

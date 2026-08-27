@@ -5,7 +5,6 @@ pub const BACKEND_URL: &str = match option_env!("BACKEND_URL") {
 
 pub const WS_PATH: &str = "/ws/app";
 
-// OAuth desktop routes
 pub const AUTH_DESKTOP_PATH: &str = "/auth/desktop";
 pub const AUTH_TOKEN_PATH: &str = "/api/v1/auth/token";
 pub const AUTH_REFRESH_PATH: &str = "/api/v1/auth/desktop/refresh";
@@ -16,7 +15,6 @@ const DEEP_LINK_SCHEME: &str = match option_env!("DEEP_LINK_SCHEME") {
     None => "speedrace",
 };
 
-// OAuth client constants
 pub const OAUTH_CLIENT_ID: &str = "tauri_desktop";
 
 pub fn oauth_redirect_uri() -> &'static str {
@@ -50,6 +48,14 @@ pub fn lobby_forfeit_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/forfeit")
 }
 
+pub fn lobby_vod_complete_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/vod-complete")
+}
+
+pub fn lobby_request_upload_ticket_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/request-upload-ticket")
+}
+
 pub fn split_resource_path(category_split_id: &str) -> String {
     format!("/api/v1/split-resources/{category_split_id}")
 }
@@ -70,17 +76,14 @@ pub fn lobby_counter_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/counter")
 }
 
-// WS reconnect - exponential back-off bounds
 pub const WS_RECONNECT_BASE_SECS: u64 = 1;
 pub const WS_RECONNECT_MAX_SECS: u64 = 30;
-// Consecutive transient failures before giving up and showing the maintenance screen
 pub const WS_MAX_RETRIES: u32 = 3;
 
-// OAuth grant type strings
 pub const GRANT_TYPE_AUTH_CODE: &str = "authorization_code";
 pub const GRANT_TYPE_REFRESH: &str = "refresh_token";
 
-pub const TOKEN_REFRESH_MARGIN_SECS: u64 = 60; // refresh 60s before expiry
+pub const TOKEN_REFRESH_MARGIN_SECS: u64 = 60;
 
 pub fn ws_url() -> String {
     let host = BACKEND_URL

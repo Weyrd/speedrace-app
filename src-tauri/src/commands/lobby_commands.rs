@@ -5,14 +5,14 @@ use crate::events::WS_PLAYER_RESULT;
 use crate::logging::{mlog, LogCat};
 use crate::models::lobby::PlayerStatus;
 use crate::models::{AppState, AutosplitState, ClientState};
-use crate::state::{PendingFinish, SharedState};
+use crate::state::{LockGlobalState, PendingFinish, SharedState};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[tauri::command]
 pub fn get_split_segments(state: State<SharedState>) -> Vec<String> {
-    let guard = state.lock().unwrap();
+    let guard = state.lock_state();
     guard
         .split_run
         .as_ref()
@@ -25,31 +25,25 @@ pub fn get_split_segments(state: State<SharedState>) -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn get_current_split_index(state: State<SharedState>) -> u32 {
-    state.lock().unwrap().current_split_index
-}
-
-#[tauri::command]
 pub fn get_autosplit_state(state: State<SharedState>) -> crate::ws::handler::AutosplitProbePayload {
     crate::ws::handler::current_autosplit_probe(&state)
 }
 
 #[tauri::command]
 pub fn get_lobby_state(state: State<SharedState>) -> Result<ClientState, String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
+    let guard = state.lock_state();
     Ok(ClientState {
         app_state: guard.app_state.clone(),
         lobby: guard.lobby.clone(),
         autosplit: AutosplitState {
-            wasm: guard.wasm_attached,
-            livesplit: guard.livesplit_connected,
-            splits_match: guard.livesplit_splits_match,
+            wasm: guard.autosplit.wasm_attached,
+            livesplit: guard.autosplit.livesplit_connected,
+            splits_match: guard.autosplit.livesplit_splits_match,
             run_in_progress: guard.run_active,
         },
     })
 }
 
-// retry/queue if backend not availiable
 pub fn start_durable_finish(
     app: &AppHandle,
     state: &SharedState,
@@ -57,19 +51,16 @@ pub fn start_durable_finish(
     finishing_time_ms: u64,
 ) {
     {
-        let mut guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let mut guard = state.lock_state();
         guard.pending_finish = Some(PendingFinish {
             lobby_id,
             finishing_time_ms,
             run_started_at_ms: guard.run_start_instant,
         });
-        if guard.finish_retry_running {
-            return; // an existing task will pick up the pending finish
+        if guard.retry.finish {
+            return;
         }
-        guard.finish_retry_running = true;
+        guard.retry.finish = true;
     }
     let app = app.clone();
     let state = state.clone();
@@ -81,10 +72,9 @@ pub fn start_durable_finish(
 async fn durable_finish_loop(app: AppHandle, state: SharedState) {
     let mut backoff = Duration::from_secs(crate::config::WS_RECONNECT_BASE_SECS);
     while let Some(pending) = {
-        let g = state.lock().unwrap();
+        let g = state.lock_state();
         g.pending_finish.clone()
     } {
-        // Ship buffered counters first so the acked attempt also archives them
         crate::counter::flush_all_counter_buffers(&app, &state, &pending.lobby_id).await;
 
         match api::lobby::submit_finish(
@@ -100,9 +90,14 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
                 break;
             }
             PostOutcome::Rejected => {
-                // Already recorded on the back
+                mlog!(
+                    LogCat::Api,
+                    "[finish] server rejected finish for lobby {}: local time {}ms not confirmed",
+                    pending.lobby_id,
+                    pending.finishing_time_ms
+                );
                 let result = PlayerResult {
-                    player_status: PlayerStatus::Finished,
+                    player_status: PlayerStatus::Forfeited,
                     finishing_time_ms: Some(pending.finishing_time_ms),
                     finish_position: None,
                 };
@@ -120,19 +115,13 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
             }
         }
     }
-    if let Ok(mut g) = state.lock() {
-        g.finish_retry_running = false;
-    }
+    state.lock_state().retry.finish = false;
 }
 
 fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result: PlayerResult) {
     let username;
     {
-        let mut guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
-        // Bail if a newer finish or a race-ending event superseded this one.
+        let mut guard = state.lock_state();
         match &guard.pending_finish {
             Some(p) if p.lobby_id == lobby_id => {}
             _ => return,
@@ -144,7 +133,6 @@ fn finalize_finish(app: &AppHandle, state: &SharedState, lobby_id: &str, result:
         guard.autosplitter_cancel.store(true, Ordering::SeqCst);
         username = guard.user.as_ref().map(|u| u.username.clone());
     }
-    // If a long outage bounced us to the maintenance screen got o idle before sending to keep reesult
     if let Some(username) = username {
         crate::auth::oauth::emit_auth_state(
             app,
@@ -189,7 +177,7 @@ pub async fn send_player_forfeited(
     crate::counter::flush_all_counter_buffers(&app, state.inner(), &lobby_id).await;
     let result = api::lobby::post_player_forfeited(&app, &lobby_id).await?;
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.app_state = AppState::Finished;
         guard.race_start_at = None;
         guard.run_start_instant = None;
@@ -201,7 +189,10 @@ pub async fn send_player_forfeited(
 
 #[tauri::command]
 pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
+    if guard.upload.is_some() {
+        return Err("upload in progress".into());
+    }
     guard.autosplitter_cancel.store(true, Ordering::SeqCst);
     guard.autosplitter_runtime = None;
     guard.app_state = crate::models::AppState::Idle;
@@ -210,5 +201,38 @@ pub fn acknowledge_results(state: State<SharedState>) -> Result<(), String> {
     guard.current_split_index = 0;
     guard.segment_start_ms = 0;
     crate::state::reset_run_start(&mut guard);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn abandon_upload(state: State<SharedState>) -> Result<(), String> {
+    let guard = state.lock_state();
+    if let Some(u) = guard.upload.as_ref() {
+        u.cancel.store(true, Ordering::SeqCst);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn retry_upload(app: AppHandle, state: State<'_, SharedState>) -> Result<(), String> {
+    let lobby_id = {
+        let guard = state.lock_state();
+        if guard.upload.is_some() {
+            return Err("upload already running".into());
+        }
+        guard
+            .lobby
+            .as_ref()
+            .map(|l| l.lobby_id.clone())
+            .ok_or("no race to upload for")?
+    };
+    let ticket = api::lobby::post_request_upload_ticket(&app, &lobby_id).await?;
+    crate::upload::spawn(
+        &app,
+        state.inner(),
+        lobby_id,
+        ticket.upload_ticket,
+        ticket.resumable_url,
+    );
     Ok(())
 }

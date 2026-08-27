@@ -17,7 +17,7 @@ pub struct UserData {
 pub struct Tokens {
     pub access_token: String,
     pub refresh_token: String,
-    pub expires_at: String, // ISO 8601 / RFC 3339
+    pub expires_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

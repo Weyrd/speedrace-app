@@ -38,7 +38,7 @@ pub fn start_audio() -> AudioHandle {
 
     let stop: StopFlag = Arc::new(AtomicBool::new(false));
 
-    let pipe_name = format!(r"\\.\pipe\momentum_audio_{:016x}", rand::random::<u64>());
+    let pipe_name = format!(r"\\.\pipe\speedrace_audio_{:016x}", rand::random::<u64>());
     let server = match ServerOptions::new()
         .first_pipe_instance(true)
         .create(&pipe_name)
@@ -55,7 +55,6 @@ pub fn start_audio() -> AudioHandle {
 
     let ring: Arc<Mutex<VecDeque<f32>>> = Arc::new(Mutex::new(VecDeque::new()));
 
-    // cpal Stream is !Send
     let (fmt_tx, fmt_rx) = std::sync::mpsc::channel::<Result<(u32, u16), String>>();
     let ring_thread = ring.clone();
     let stop_thread = stop.clone();
@@ -83,8 +82,7 @@ pub fn start_audio() -> AudioHandle {
         let channels = config.channels();
         let stream_config: cpal::StreamConfig = config.into();
 
-        // Buil  input stream on OUTPUT device => cpal WASAPI loopback.
-        let cap = (rate as usize * channels as usize) / 5; // ~200ms
+        let cap = (rate as usize * channels as usize) / 5;
         let ring_cb = ring_thread.clone();
         let stream = device.build_input_stream(
             stream_config,
@@ -144,12 +142,11 @@ pub fn start_audio() -> AudioHandle {
 
     let bytes_per_sec = rate as u64 * channels as u64 * 4;
     let frame = channels as usize * 4;
-    let cap_samples = (rate as usize * channels as usize) / 5; // ~200ms
+    let cap_samples = (rate as usize * channels as usize) / 5;
     let stop_writer = stop.clone();
     let ring_writer = ring.clone();
 
     let writer = tauri::async_runtime::spawn(async move {
-        // Wait for ffmpeg to open the pipe
         if server.connect().await.is_err() {
             return;
         }
@@ -182,7 +179,6 @@ pub fn start_audio() -> AudioHandle {
                     r.pop_front();
                 }
             }
-            // Pad zeros WASAPI loopback no callback
             if buf.len() < need {
                 buf.resize(need, 0);
             }

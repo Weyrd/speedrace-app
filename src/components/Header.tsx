@@ -18,8 +18,8 @@ const LOBBY_PHASES: ReadonlySet<string> = new Set([
   Phase.RaceInProgress,
 ]);
 
-// Manual resync is rate-limited to once a minute (matches momentum-web).
 const CLOCK_RESYNC_COOLDOWN_MS = 60_000;
+const CLOCK_OFFSET_BAD_MS = 250;
 
 export default function Header() {
   const state = useAppState();
@@ -37,6 +37,7 @@ export default function Header() {
     : 0;
   const onCooldown = remainingMs > 0;
   const clockDisabled = isSyncing || onCooldown;
+  const clockBad = isSynced && Math.abs(offsetMs) > CLOCK_OFFSET_BAD_MS;
 
   const username = "user" in state ? state.user.username : null;
   const isAuthenticated = username != null;
@@ -46,7 +47,7 @@ export default function Header() {
     wsStatus === WsStatus.Connected
       ? "bg-green"
       : wsStatus === WsStatus.Connecting
-        ? "bg-orange animate-pulse"
+        ? "bg-accent animate-pulse"
         : "bg-red";
 
   const hasLobby = LOBBY_PHASES.has(state.phase);
@@ -59,8 +60,7 @@ export default function Header() {
   }
 
   return (
-    <div className="px-4 py-3 flex items-center justify-between border-b border-border">
-      {/* Left: connection status */}
+    <div className="px-4 py-3 flex items-center justify-between">
       <span className="flex items-center gap-1.5">
         <span className={`w-2 h-2 rounded-full ${dotColor}`} />
         <span className="text-xs font-mono tracking-wide text-muted">
@@ -68,7 +68,6 @@ export default function Header() {
         </span>
       </span>
 
-      {/* Right: action buttons */}
       <span className="flex items-center gap-1">
         <Tooltip
           content={
@@ -92,17 +91,13 @@ export default function Header() {
             size="icon"
             onClick={() => resync()}
             disabled={clockDisabled}
-            className="gap-1"
             aria-label={tApp("header.clock_syncing")}
           >
             {isSyncing ? (
-              <Loader2 size={13} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin" />
             ) : (
-              <Clock size={13} />
+              <Clock size={14} className={clockBad ? "text-red" : undefined} />
             )}
-            <span className="text-2xs font-mono tracking-wide tabular-nums">
-              {isSynced ? formatOffset(offsetMs) : "—"}
-            </span>
           </Button>
         </Tooltip>
 
@@ -114,7 +109,7 @@ export default function Header() {
               onClick={handleOpenLobby}
               aria-label={tApp("header.open_lobby")}
             >
-              <ExternalLink size={15} />
+              <ExternalLink size={14} />
             </Button>
           </Tooltip>
         )}
@@ -127,12 +122,11 @@ export default function Header() {
             disabled={!isAuthenticated}
             aria-label={tSettings("tooltip")}
           >
-            <Settings size={15} />
+            <Settings size={14} />
           </Button>
         </Tooltip>
       </span>
 
-      {/* Settings panel overlay */}
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   );

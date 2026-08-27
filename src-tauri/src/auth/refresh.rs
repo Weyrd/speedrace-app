@@ -7,7 +7,7 @@ use crate::auth::token_store::{seconds_until_expiry, TokenStore, Tokens};
 use crate::config;
 use crate::logging::{mlog, LogCat};
 use crate::models::AuthStatePayload;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 
 pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
     let store = TokenStore::new(app.clone());
@@ -44,10 +44,7 @@ pub async fn token_refresh_loop(app: AppHandle, shared_state: SharedState) {
         }
     }
 
-    // Reset guard on exit
-    if let Ok(mut guard) = shared_state.lock() {
-        guard.refresh_loop_running = false;
-    }
+    shared_state.lock_state().refresh_loop_running = false;
 }
 
 pub async fn do_refresh(refresh_token: &str) -> Result<Tokens, String> {
@@ -62,7 +59,6 @@ fn logout_and_notify(app: &AppHandle, store: &TokenStore) {
     emit_auth_state(app, AuthStatePayload::Unauthenticated);
 }
 
-/// POST /api/v1/auth/desktop/refresh
 async fn refresh_access_token(refresh_token: &str) -> Result<Tokens, String> {
     #[derive(serde::Serialize)]
     struct RefreshRequest<'a> {

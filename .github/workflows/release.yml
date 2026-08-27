@@ -113,6 +113,11 @@ jobs:
         shell: pwsh
         run: ./src-tauri/scripts/get-ffmpeg.ps1
 
+      - name: Fetch game-capture binaries
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: ./src-tauri/scripts/get-game-capture.ps1
+
       - name: Set version from tag
         shell: bash
         env:
@@ -132,6 +137,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          WEB_BASE_URL: ${{ secrets.WEB_BASE_URL }}
           WS_DEBUG: ${{ vars.WS_DEBUG }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
