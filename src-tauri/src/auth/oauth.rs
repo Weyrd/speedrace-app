@@ -4,7 +4,7 @@ use crate::config;
 use crate::events::AUTH_STATE;
 use crate::logging::{mlog, LogCat};
 use crate::models::{AuthStatePayload, AuthUser, LoginError};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
             );
 
             {
-                let mut guard = shared_state.lock().unwrap();
+                let mut guard = shared_state.lock_state();
                 guard.user = Some(stored.user.clone());
                 guard.app_state = crate::models::AppState::Connecting;
             }
@@ -148,17 +148,9 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
                 },
             );
 
-            crate::lifecycle::start_background_loops(&app, &shared_state);
-
-            {
-                let mut guard = shared_state.lock().unwrap();
-                if guard.ws_status == crate::models::WsStatus::Connected
-                    && guard.app_state == crate::models::AppState::Connecting
-                {
-                    guard.app_state = crate::models::AppState::Idle;
-                    drop(guard);
-                    let _ = app.emit(crate::events::APP_STATE, crate::models::AppState::Idle);
-                }
+            let spawned_ws = crate::lifecycle::start_background_loops(&app, &shared_state);
+            if !spawned_ws {
+                crate::lifecycle::sync_current_lobby(&app, &shared_state).await;
             }
         }
 
@@ -169,7 +161,6 @@ pub async fn handle_callback(app: AppHandle, url: String, shared_state: SharedSt
     }
 }
 
-// Helper
 fn clear_pending_verifier() {
     if let Ok(mut pending) = PENDING_PKCE_VERIFIER.lock() {
         *pending = None;

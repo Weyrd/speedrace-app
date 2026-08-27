@@ -1,14 +1,24 @@
-// ffmpeg streaming sidecar (Windows-only)
-
 mod audio;
+pub(crate) mod capture;
+#[cfg(windows)]
+pub(crate) mod capture_pipe;
+pub mod encoder;
 mod ffmpeg;
+pub(crate) mod gamecapture;
 mod monitors;
+mod overlay_live;
+mod overlay_style;
 mod pipeline;
 pub mod preview;
+pub(crate) mod replay;
 mod thumbs;
 mod types;
 pub(crate) mod wgc;
 mod window_list;
+
+pub(crate) use ffmpeg::{ffmpeg_command, NULL_SINK};
+pub(crate) use overlay_live::record_split;
+pub(crate) use pipeline::replay_encoder_args;
 
 pub use monitors::*;
 pub use thumbs::*;
@@ -19,31 +29,67 @@ use crate::events::STREAM_STATUS;
 use crate::logging::{mlog, LogCat};
 use crate::models::lobby::RaceType;
 use crate::models::AppState;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::watch;
 
-const PUBLISH_LIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(25);
+const PUBLISH_LIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
 
 pub fn emit_status(app: &AppHandle, state: StreamState, message: Option<String>) {
     let _ = app.emit(STREAM_STATUS, StreamStatusPayload { state, message });
 }
 
 pub fn current_source(app: &AppHandle, state: &SharedState) -> CaptureSource {
-    let session = state.lock().ok().and_then(|g| g.capture_source.clone());
+    let session = state.lock_state().capture_source.clone();
     session.unwrap_or(CaptureSource::Monitor {
         index: crate::settings::load_stream_settings(app).monitor_index,
     })
 }
 
+// try to preselect windows based on wasm process attached
+#[cfg(windows)]
+pub(crate) async fn auto_select_game_window(app: &AppHandle, state: &SharedState, pid: u32) {
+    let current = {
+        let g = state.lock_state();
+        if g.stream.is_some() {
+            return;
+        }
+        g.capture_source.clone()
+    };
+    let Some((hwnd, title)) = window_list::game_window_for_pid(pid) else {
+        return;
+    };
+    if let Some(CaptureSource::Window { hwnd: cur, .. }) = current {
+        if cur == hwnd {
+            return;
+        }
+    }
+    let source = CaptureSource::Window { hwnd, title };
+    {
+        let mut g = state.lock_state();
+        if g.stream.is_some() {
+            return;
+        }
+        g.capture_source = Some(source.clone());
+    }
+    mlog!(
+        LogCat::Stream,
+        "[source] auto-selected game window {hwnd:#x} for pid {pid}"
+    );
+    let _ = app.emit(crate::events::STREAM_SOURCE, &source);
+    if let Err(e) = preview::restart(app, state).await {
+        mlog!(LogCat::Stream, "[source] preview restart: {e}");
+    }
+}
+
 pub async fn start(
     app: &AppHandle,
     state: &SharedState,
-    live_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    live_tx: Option<tokio::sync::oneshot::Sender<Result<(), String>>>,
 ) -> Result<Option<PathBuf>, String> {
-    let (whip_url, session_source, race_type, game_name) = {
-        let guard = state.lock().map_err(|e| e.to_string())?;
+    let (whip_url, session_source, race_type, game_name, category_name, username) = {
+        let guard = state.lock_state();
         if guard.app_state != AppState::StreamSetup {
             return Err("stream can only start from StreamSetup".into());
         }
@@ -59,15 +105,36 @@ pub async fn start(
             guard.capture_source.clone(),
             lobby.race_type,
             lobby.game_name.clone(),
+            lobby.category_name.clone(),
+            guard.user.as_ref().map(|u| u.username.clone()),
         )
     };
     let settings = load_settings(app, session_source);
 
     let ffmpeg_path = ffmpeg::resolve_ffmpeg_path()?;
-    let replay_base = resolve_replay_base(app, race_type, &game_name);
+    let replay_base = resolve_replay_base(
+        app,
+        race_type,
+        &game_name,
+        &category_name,
+        username.as_deref(),
+    );
     let replay_out = replay_base.clone();
 
+    let pref_raw = crate::settings::load_stream_settings(app).encoder;
+    let pref = Encoder::parse(&pref_raw);
+    let encoder = encoder::resolve(pref, replay_base.is_some()).await;
+    let fallback = (encoder != Encoder::X264).then_some(Encoder::X264);
+    mlog!(
+        LogCat::Stream,
+        "[stream] encoder: {} (preferred={pref_raw})",
+        encoder.name()
+    );
+
     let (stop_tx, stop_rx) = watch::channel(false);
+    if replay_base.is_some() {
+        overlay_live::spawn_ticker(state.clone(), stop_tx.subscribe());
+    }
     let app_c = app.clone();
     let state_c = state.clone();
     let whip = whip_url.clone();
@@ -82,6 +149,9 @@ pub async fn start(
                 whip_url: whip,
                 settings,
                 replay_base,
+                encoder,
+                fallback,
+                preferred: pref_raw,
             },
             stop_rx,
             live_tx,
@@ -90,8 +160,9 @@ pub async fn start(
     });
 
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.stream = Some(StreamSession { stop_tx, join });
+        guard.replay_base = replay_out.clone();
     }
 
     emit_status(app, StreamState::Connecting, None);
@@ -101,7 +172,7 @@ pub async fn start(
 pub async fn publish(app: &AppHandle, state: &SharedState, lobby_id: &str) -> Result<(), String> {
     preview::stop(state).await;
 
-    let (live_tx, live_rx) = tokio::sync::oneshot::channel::<()>();
+    let (live_tx, live_rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
     let replay = match start(app, state, Some(live_tx)).await {
         Ok(r) => r,
         Err(e) => {
@@ -110,9 +181,10 @@ pub async fn publish(app: &AppHandle, state: &SharedState, lobby_id: &str) -> Re
         }
     };
 
-    let live = tokio::time::timeout(PUBLISH_LIVE_TIMEOUT, live_rx).await;
-    if !matches!(live, Ok(Ok(()))) {
-        return publish_fail(app, state, replay, "stream did not go live").await;
+    match tokio::time::timeout(PUBLISH_LIVE_TIMEOUT, live_rx).await {
+        Ok(Ok(Ok(()))) => {}
+        Ok(Ok(Err(reason))) => return publish_fail(app, state, replay, &reason).await,
+        _ => return publish_fail(app, state, replay, "stream did not go live").await,
     }
 
     if let Err(e) = crate::api::lobby::post_stream_ready(app, lobby_id).await {
@@ -120,7 +192,7 @@ pub async fn publish(app: &AppHandle, state: &SharedState, lobby_id: &str) -> Re
     }
 
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.app_state = AppState::WaitingForStart;
     }
     Ok(())
@@ -135,22 +207,34 @@ async fn publish_fail(
     shutdown(app, state, true).await;
     if let Some(p) = replay {
         let _ = std::fs::remove_file(&p);
+        if let Some(a) = replay::ReplayArtifacts::open(&p) {
+            a.discard();
+        }
+        {
+            let mut g = state.lock_state();
+            g.replay_base = None;
+            g.countdown_start_at_ms = None;
+        }
     }
     let _ = preview::start(app, state).await;
     mlog!(LogCat::Stream, "[publish] failed: {msg}");
     Err(msg.to_string())
 }
 
-// Graceful stop; also the single choke point that kills any local preview
 pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
     preview::stop(state).await;
     let session = {
-        match state.lock() {
-            Ok(mut g) => g.stream.take(),
-            Err(_) => return,
+        let mut g = state.lock_state();
+        let s = g.stream.take();
+        if s.is_some() {
+            g.stream_finalizing = true;
         }
+        s
     };
-    let Some(session) = session else { return };
+    let Some(session) = session else {
+        await_finalized(state).await;
+        return;
+    };
 
     let _ = session.stop_tx.send(true);
 
@@ -159,11 +243,21 @@ pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
     } else {
         session.join.abort();
     }
+    state.lock_state().stream_finalizing = false;
     mlog!(
         LogCat::Stream,
         "[stream] shutdown complete (graceful={graceful})"
     );
     let _ = app;
+}
+
+async fn await_finalized(state: &SharedState) {
+    for _ in 0..300 {
+        if !state.lock_state().stream_finalizing {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
 }
 
 pub fn shutdown_spawn(app: &AppHandle, state: &SharedState) {
@@ -174,6 +268,10 @@ pub fn shutdown_spawn(app: &AppHandle, state: &SharedState) {
     });
 }
 
+pub(crate) fn ffmpeg_path() -> Result<PathBuf, String> {
+    ffmpeg::resolve_ffmpeg_path()
+}
+
 fn load_settings(app: &AppHandle, session_source: Option<CaptureSource>) -> StreamSettings {
     let s = crate::settings::load_stream_settings(app);
     StreamSettings {
@@ -182,11 +280,40 @@ fn load_settings(app: &AppHandle, session_source: Option<CaptureSource>) -> Stre
         }),
         bitrate_kbps: s.bitrate_kbps,
         framerate: s.framerate,
+        resolution: s.resolution,
     }
 }
 
-// Ranked race have a VOD automatic
-fn resolve_replay_base(app: &AppHandle, race_type: RaceType, game_name: &str) -> Option<PathBuf> {
+fn sanitize(s: &str) -> String {
+    s.chars()
+        .filter(|c| *c != '\'')
+        .map(|c| {
+            if r#"<>:"/\|?*"#.contains(c) || c.is_control() {
+                '-'
+            } else {
+                c
+            }
+        })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+fn title_category(category_name: &[String]) -> Option<String> {
+    match category_name {
+        [] => None,
+        [only] => Some(only.clone()),
+        [.., parent, leaf] => Some(format!("{parent} ({leaf})")),
+    }
+}
+
+fn resolve_replay_base(
+    app: &AppHandle,
+    race_type: RaceType,
+    game_name: &str,
+    category_name: &[String],
+    username: Option<&str>,
+) -> Option<PathBuf> {
     let settings = crate::settings::load_stream_settings(app);
     if race_type != RaceType::Ranked && !settings.replay_casual {
         return None;
@@ -200,25 +327,41 @@ fn resolve_replay_base(app: &AppHandle, race_type: RaceType, game_name: &str) ->
         );
         return None;
     }
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let game: String = game_name
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect();
-    Some(dir.join(format!("momentum_{game}_{stamp}.mp4")))
+    let stamp = chrono::Local::now().format("%d-%m-%Y %Hh%Mm%Ss");
+
+    let mut parts = vec![sanitize(game_name)];
+    parts.extend(title_category(category_name).map(|c| sanitize(&c)));
+    parts.extend(username.map(sanitize));
+    parts.retain(|p| !p.is_empty());
+    parts.push(stamp.to_string());
+
+    Some(dir.join(format!("speedrace_{}.mp4", parts.join(" - "))))
 }
 
-// Mid-race restarts cant append a ended MP4
-pub(crate) fn segment_path(base: &std::path::Path, attempt: u32) -> PathBuf {
-    if attempt == 0 {
-        return base.to_path_buf();
+pub(crate) const SEGMENT_SECS: u32 = 5;
+
+#[derive(Clone)]
+pub(crate) struct ReplayRun {
+    pub dir: PathBuf,
+    pub pattern: PathBuf,
+    pub list: PathBuf,
+}
+
+pub(crate) fn replay_run(base: &std::path::Path, run: u32) -> Option<ReplayRun> {
+    let dir = replay::parts_dir(base)?;
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        mlog!(
+            LogCat::Stream,
+            "[replay] cannot create {}: {e}",
+            dir.display()
+        );
+        return None;
     }
-    let stem = base.file_stem().map(|s| s.to_string_lossy().into_owned());
-    let ext = base.extension().map(|s| s.to_string_lossy().into_owned());
-    match (base.parent(), stem, ext) {
-        (Some(dir), Some(stem), Some(ext)) => dir.join(format!("{stem}_pt{}.{ext}", attempt + 1)),
-        _ => base.to_path_buf(),
-    }
+    Some(ReplayRun {
+        pattern: dir.join(replay::segment_pattern(run)),
+        list: dir.join(replay::list_name(run)),
+        dir,
+    })
 }
 
 pub fn sweep_old_replays(app: &AppHandle) {
@@ -235,7 +378,8 @@ pub fn sweep_old_replays(app: &AppHandle) {
     };
     for e in entries.flatten() {
         let p = e.path();
-        if p.extension().and_then(|x| x.to_str()) != Some("mp4") {
+        let is_parts_dir = replay::is_parts_dir(&p);
+        if !is_parts_dir && p.extension().and_then(|x| x.to_str()) != Some("mp4") {
             continue;
         }
         let expired = e
@@ -245,7 +389,12 @@ pub fn sweep_old_replays(app: &AppHandle) {
             .map(|mt| mt < cutoff)
             .unwrap_or(false);
         if expired {
-            match std::fs::remove_file(&p) {
+            let removed = if is_parts_dir {
+                std::fs::remove_dir_all(&p)
+            } else {
+                std::fs::remove_file(&p)
+            };
+            match removed {
                 Ok(()) => mlog!(LogCat::Stream, "[replay] auto-deleted {}", p.display()),
                 Err(err) => mlog!(
                     LogCat::Stream,

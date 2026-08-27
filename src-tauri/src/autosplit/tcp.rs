@@ -1,6 +1,6 @@
 use crate::autosplit::now_epoch_ms;
 use crate::logging::{mlog, LogCat};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -35,8 +35,6 @@ pub async fn connect() -> Option<tokio::net::TcpStream> {
         }
     };
     let _ = stream.set_nodelay(true);
-    // A TCP handshake alone proves nothing: a WebSocket server (or anything else)
-    // can squat on 16834. Require a valid getsplitindex reply before trusting it.
     if !probe_protocol(&mut stream).await {
         mlog!(
             LogCat::LiveSplit,
@@ -82,16 +80,15 @@ pub async fn poll_loop(
     let mut saw_not_running = false;
     let mut tick: u32 = 0;
 
-    let mut was_committed = {
-        state.lock().unwrap().autosplit_source == Some(crate::state::AutosplitSource::LiveSplit)
-    };
+    let mut was_committed =
+        { state.lock_state().autosplit.source == Some(crate::state::AutosplitSource::LiveSplit) };
 
     loop {
         if cancel.load(Ordering::SeqCst) {
             break;
         }
 
-        let phase = state.lock().unwrap().app_state.clone();
+        let phase = state.lock_state().app_state.clone();
         if !matches!(
             phase,
             crate::models::AppState::StreamSetup
@@ -102,7 +99,7 @@ pub async fn poll_loop(
         }
 
         crate::ws::handler::maybe_commit_source(&state);
-        let source = state.lock().unwrap().autosplit_source;
+        let source = state.lock_state().autosplit.source;
         if source == Some(crate::state::AutosplitSource::Wasm) {
             mlog!(
                 LogCat::LiveSplit,
@@ -110,7 +107,6 @@ pub async fn poll_loop(
             );
             break;
         }
-        // Fire splits only when LiveSplit is the committed source; otherwise just track position.
         let fire = phase == crate::models::AppState::RaceInProgress
             && source == Some(crate::state::AutosplitSource::LiveSplit);
 
@@ -162,13 +158,10 @@ pub async fn poll_loop(
         }
         tick = tick.wrapping_add(1);
 
-        // start : NotRunning→Running.  None if getcurrenttime fails or elapsed
         if index < 0 {
             saw_not_running = true;
             if run_start_captured {
-                if let Ok(mut g) = state.lock() {
-                    crate::state::reset_run_start(&mut g);
-                }
+                crate::state::reset_run_start(&mut state.lock_state());
                 run_start_captured = false;
                 crate::ws::handler::report_autosplit_state(&app, &state).await;
             }
@@ -203,12 +196,10 @@ pub async fn poll_loop(
             }
         }
 
-        // If LiveSplit is our source but the runners timer never started  force
-        // it so getcurrentsplitname becomes readable and we can verify the splits => + 1 attemps on liveeplsit
         if fire && index < 0 && !forced_start {
             mlog!(
                 LogCat::LiveSplit,
-                "[livesplit-tcp] timer NotRunning at race time — sending starttimer"
+                "[livesplit-tcp] timer NotRunning at race time, sending starttimer"
             );
             if let Err(e) = writer.write_all(b"starttimer\r\n").await {
                 mlog!(
@@ -224,7 +215,6 @@ pub async fn poll_loop(
             if last_index < 0 && index >= 0 {
                 if index > 0 {
                     if just_committed {
-                        //  happened before the gun -> emit each as a 0/0 pre-gun
                         mlog!(
                             LogCat::LiveSplit,
                             "[livesplit-tcp] pre-gun early start: {index} completed split(s) -> 0/0"
@@ -233,7 +223,6 @@ pub async fn poll_loop(
                             crate::autosplit::split::fire_prestart_split(&app, &state);
                         }
                     } else {
-                        // Mid-race reconnect (loop re-entered already-committed)
                         mlog!(
                             LogCat::LiveSplit,
                             "[livesplit-tcp] reconnect catch-up {index} split(s), no 0/0"
@@ -257,7 +246,6 @@ pub async fn poll_loop(
                 crate::autosplit::split::fire_split(&app, &state);
                 last_index = index;
             } else if index < last_index {
-                // Runner reset their timer
                 mlog!(
                     LogCat::LiveSplit,
                     "[livesplit-tcp] index reset {last_index} → {index}, re-arming"
@@ -266,10 +254,9 @@ pub async fn poll_loop(
             }
         }
 
-        // check if split match our name
         if index >= 0 && index != name_checked_index {
             let expected = {
-                let g = state.lock().unwrap();
+                let g = state.lock_state();
                 g.split_run.as_ref().and_then(|r| {
                     let i = index as usize;
                     (i < r.len()).then(|| r.segment(i).name().to_string())
@@ -288,7 +275,6 @@ pub async fn poll_loop(
                     .await;
                     if let Ok(Ok(n)) = name_res {
                         let actual = line.trim();
-                        // "-" LiveSplit has no current split yet check alter
                         if n > 0 && actual != "-" {
                             let matches = actual.eq_ignore_ascii_case(expected.trim());
                             if !matches {
@@ -297,9 +283,9 @@ pub async fn poll_loop(
                                 );
                             }
                             let changed = {
-                                let mut g = state.lock().unwrap();
-                                let prev = g.livesplit_splits_match;
-                                g.livesplit_splits_match = Some(matches);
+                                let mut g = state.lock_state();
+                                let prev = g.autosplit.livesplit_splits_match;
+                                g.autosplit.livesplit_splits_match = Some(matches);
                                 prev != Some(matches)
                             };
                             if changed {

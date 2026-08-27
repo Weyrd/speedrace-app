@@ -9,7 +9,6 @@ pub struct MonitorInfo {
     pub device_name: String,
 }
 
-// Outputs of DXGI adapter 0, in EnumOutputs order
 #[cfg(windows)]
 #[tauri::command]
 pub fn list_monitors() -> Result<Vec<MonitorInfo>, String> {

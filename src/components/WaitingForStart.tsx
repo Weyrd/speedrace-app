@@ -18,7 +18,7 @@ export default function WaitingForStart() {
   const whepUrl = lobby.whep_url || lobby.whip_url.replace(/\/whip$/, "/whep");
 
   return (
-    <div className="h-full flex flex-col gap-3 px-4 py-4">
+    <div className="h-full flex flex-col gap-3 px-4 py-4 overflow-y-auto">
       <LobbyHeader
         gameName={lobby.game_name}
         categories={lobby.category_name}
@@ -32,15 +32,15 @@ export default function WaitingForStart() {
 
       {lobby.split_resource_updated_at && <SplitList />}
 
-      {/* Waiting message */}
       <p className="text-2xs text-dim font-mono tracking-wide text-center leading-relaxed whitespace-pre-line">
         {t("waiting.waiting_host")}
       </p>
 
       <Button
         variant="outline"
+        size="lg"
         onClick={() => setShowModal(true)}
-        className="w-full py-3.5 mt-auto border-dim"
+        className="w-full mt-auto border-dim"
       >
         {t("stream.stop_stream")}
       </Button>

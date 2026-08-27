@@ -13,10 +13,26 @@ pub struct ApiResponse<T> {
     pub data: T,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ApiErrorCode {
+    UploadNotEligible,
+    RaceHistoryNotFound,
+    LobbyNotFound,
+    PlayerNotInLobby,
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApiError {
+    pub error_code: ApiErrorCode,
+}
+
 pub enum PostOutcome<R> {
     Ok(R),
-    Rejected,  // 4xx: won't change on retry (already done / gone / bad request)
-    Transient, // network error, 5xx, or no token yet: worth retrying
+    Rejected,
+    Transient,
 }
 
 impl<R> PostOutcome<R> {
@@ -29,7 +45,6 @@ impl<R> PostOutcome<R> {
     }
 }
 
-// Sends a request; returns None on 404, non-2xx, or network error.
 async fn send_check(req: reqwest::RequestBuilder, log_tag: &str) -> Option<Response> {
     let resp = req
         .send()
@@ -50,7 +65,6 @@ async fn send_check(req: reqwest::RequestBuilder, log_tag: &str) -> Option<Respo
     Some(resp)
 }
 
-// Sends a POST with body; maps 2xx→Ok(resp), 5xx/network→Transient, 4xx→Rejected.
 async fn send_outcome<B: Serialize>(
     app: &AppHandle,
     path: &str,
@@ -58,7 +72,7 @@ async fn send_outcome<B: Serialize>(
     log_tag: &str,
 ) -> PostOutcome<Response> {
     let Some(authed) = ApiClient::new(app).authenticated() else {
-        return PostOutcome::Transient; // no token yet; a refresh may restore it
+        return PostOutcome::Transient;
     };
     let resp = match authed.post(path).json(body).send().await {
         Ok(r) => r,
@@ -87,8 +101,6 @@ async fn parse_json<T: DeserializeOwned>(resp: Response, log_tag: &str) -> Optio
         .map(|b| b.data)
 }
 
-// --- Public API ---
-
 pub async fn authed_get_json<T: DeserializeOwned>(
     app: &AppHandle,
     path: &str,
@@ -98,7 +110,6 @@ pub async fn authed_get_json<T: DeserializeOwned>(
     parse_json(resp, log_tag).await
 }
 
-#[allow(dead_code)]
 pub async fn authed_get_bytes(app: &AppHandle, path: &str, log_tag: &str) -> Option<Vec<u8>> {
     let resp = send_check(ApiClient::new(app).authenticated()?.get(path), log_tag).await?;
     resp.bytes()
@@ -162,7 +173,11 @@ pub async fn authed_post_body_json_outcome<B: Serialize, R: DeserializeOwned>(
     }
 }
 
-// --- Client structs ---
+static HTTP: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+
+fn shared_http() -> reqwest::Client {
+    HTTP.get_or_init(reqwest::Client::new).clone()
+}
 
 pub struct ApiClient {
     http: reqwest::Client,
@@ -172,7 +187,7 @@ pub struct ApiClient {
 impl ApiClient {
     pub fn new(app: &AppHandle) -> Self {
         Self {
-            http: reqwest::Client::new(),
+            http: shared_http(),
             app: app.clone(),
         }
     }
@@ -202,11 +217,6 @@ impl AuthenticatedClient {
 
     pub fn post(&self, path: &str) -> reqwest::RequestBuilder {
         self.request(reqwest::Method::POST, path)
-    }
-
-    #[allow(dead_code)]
-    pub fn delete(&self, path: &str) -> reqwest::RequestBuilder {
-        self.request(reqwest::Method::DELETE, path)
     }
 
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {

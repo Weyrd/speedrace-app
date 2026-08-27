@@ -2,7 +2,7 @@ use super::{ffmpeg, pipeline, PreviewEvent, PreviewSession};
 use crate::events::STREAM_PREVIEW;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use base64::Engine;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{AppHandle, Emitter};
@@ -16,8 +16,15 @@ fn emit(app: &AppHandle, ev: PreviewEvent) {
 }
 
 pub fn ensure_for_phase(app: &AppHandle, state: &SharedState) {
+    let setup = state.lock_state().app_state == AppState::StreamSetup;
     let app = app.clone();
     let state = state.clone();
+    if setup {
+        tauri::async_runtime::spawn(async {
+            super::encoder::warm(true).await;
+            super::encoder::warm(false).await;
+        });
+    }
     tauri::async_runtime::spawn(async move {
         if let Err(e) = start(&app, &state).await {
             mlog!(LogCat::Stream, "[preview] auto-start failed: {e}");
@@ -34,32 +41,40 @@ pub async fn start(app: &AppHandle, state: &SharedState) -> Result<(), String> {
 }
 
 async fn start_inner(app: &AppHandle, state: &SharedState) -> Result<(), String> {
-    {
-        let guard = state.lock().map_err(|e| e.to_string())?;
+    let my_gen = {
+        let mut guard = state.lock_state();
         if guard.app_state != AppState::StreamSetup {
             return Ok(());
         }
-        if guard.preview.is_some() {
+        if guard.preview.is_some() || guard.preview_starting {
             return Ok(());
         }
         if guard.stream.is_some() {
             return Err("cannot preview while the stream is live".into());
         }
-    }
+        guard.preview_starting = true;
+        guard.preview_gen
+    };
 
+    let started = start_capture_and_session(app, state, my_gen).await;
+    if started.is_err() {
+        state.lock_state().preview_starting = false;
+    }
+    started
+}
+
+async fn start_capture_and_session(
+    app: &AppHandle,
+    state: &SharedState,
+    my_gen: u64,
+) -> Result<(), String> {
     let source = super::current_source(app, state);
     let ffmpeg_path = ffmpeg::resolve_ffmpeg_path()?;
-    let wgc = match &source {
-        super::CaptureSource::Window { hwnd, .. } => Some(super::wgc::start_window_capture(
-            *hwnd,
-            pipeline::PREVIEW_FPS,
-        )?),
-        _ => None,
-    };
+    let wgc = super::capture::start_capture_for(&source, pipeline::PREVIEW_FPS).await?;
     let video_pipe = wgc.as_ref().map(|w| pipeline::VideoPipe {
-        path: &w.pipe_name,
-        width: w.width,
-        height: w.height,
+        path: w.pipe_name(),
+        width: w.width(),
+        height: w.height(),
     });
     let args = match pipeline::build_preview_args(&source, video_pipe.as_ref()) {
         Ok(a) => a,
@@ -83,19 +98,24 @@ async fn start_inner(app: &AppHandle, state: &SharedState) -> Result<(), String>
         }
     });
 
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
-    if guard.preview.is_some() {
-        let _ = stop_tx.send(true);
-        return Ok(());
+    {
+        let mut guard = state.lock_state();
+        guard.preview_starting = false;
+        if guard.preview.is_none() && guard.preview_gen == my_gen {
+            guard.preview = Some(PreviewSession { id, stop_tx, join });
+            return Ok(());
+        }
     }
-    guard.preview = Some(PreviewSession { id, stop_tx, join });
+    let _ = stop_tx.send(true);
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), join).await;
     Ok(())
 }
 
 pub async fn stop(state: &SharedState) {
-    let session = match state.lock() {
-        Ok(mut g) => g.preview.take(),
-        Err(_) => return,
+    let session = {
+        let mut g = state.lock_state();
+        g.preview_gen = g.preview_gen.wrapping_add(1);
+        g.preview.take()
     };
     let Some(session) = session else { return };
     let _ = session.stop_tx.send(true);
@@ -147,6 +167,9 @@ async fn drive_preview(
         return;
     };
     let mut reader = BufReader::new(stdout);
+    let mut stat_since = tokio::time::Instant::now();
+    let mut stat_count: u32 = 0;
+    let mut stat_bytes: u64 = 0;
 
     loop {
         tokio::select! {
@@ -160,13 +183,24 @@ async fn drive_preview(
             frame = read_mpjpeg_frame(&mut reader) => {
                 match frame {
                     Some(jpeg) => {
-                        let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg);
-                        if let Ok(mut g) = state.lock() {
-                            g.preview_last_jpeg = Some(jpeg);
+                        stat_count += 1;
+                        stat_bytes += jpeg.len() as u64;
+                        let elapsed = stat_since.elapsed();
+                        if elapsed >= std::time::Duration::from_secs(5) {
+                            mlog!(
+                                LogCat::Stream,
+                                "[preview] {stat_count} frames in {:.1}s, avg {:.1} KB/frame",
+                                elapsed.as_secs_f64(),
+                                stat_bytes as f64 / stat_count.max(1) as f64 / 1024.0
+                            );
+                            stat_since = tokio::time::Instant::now();
+                            stat_count = 0;
+                            stat_bytes = 0;
                         }
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg);
+                        state.lock_state().preview_last_jpeg = Some(jpeg);
                         emit(app, PreviewEvent::Frame { frame: b64 });
                     }
-                    // stdout closed => ffmpeg exited
                     None => {
                         let _ = child.wait().await;
                         mlog!(LogCat::Stream, "[preview] ffmpeg ended unexpectedly");
@@ -181,20 +215,21 @@ async fn drive_preview(
 }
 
 fn clear_own_session(state: &SharedState, id: u64) {
-    if let Ok(mut g) = state.lock() {
-        if g.preview.as_ref().map(|p| p.id) == Some(id) {
-            g.preview = None;
-        }
+    let mut g = state.lock_state();
+    if g.preview.as_ref().map(|p| p.id) == Some(id) {
+        g.preview = None;
     }
 }
 
-async fn read_mpjpeg_frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -> Option<Vec<u8>> {
+pub(crate) async fn read_mpjpeg_frame<R: tokio::io::AsyncBufRead + Unpin>(
+    reader: &mut R,
+) -> Option<Vec<u8>> {
     let mut content_length: Option<usize> = None;
     loop {
         let mut line = String::new();
         let n = reader.read_line(&mut line).await.ok()?;
         if n == 0 {
-            return None; // EOF
+            return None;
         }
         let line = line.trim();
         if let Some(v) = line
@@ -205,7 +240,6 @@ async fn read_mpjpeg_frame<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -
             content_length = v.parse().ok();
         } else if line.is_empty() {
             if let Some(len) = content_length.take() {
-                // 8 MB cap
                 if len == 0 || len > 8 * 1024 * 1024 {
                     return None;
                 }

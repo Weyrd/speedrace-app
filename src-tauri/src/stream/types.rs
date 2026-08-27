@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
+#[cfg(windows)]
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -21,6 +23,12 @@ pub struct StreamStatusPayload {
     pub message: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct EncoderStatusPayload {
+    pub preferred: String,
+    pub effective: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CaptureSource {
@@ -33,6 +41,7 @@ pub struct StreamSettings {
     pub source: CaptureSource,
     pub bitrate_kbps: u32,
     pub framerate: u32,
+    pub resolution: u32,
 }
 
 pub struct LaunchSpec {
@@ -40,11 +49,14 @@ pub struct LaunchSpec {
     pub whip_url: String,
     pub settings: StreamSettings,
     pub replay_base: Option<PathBuf>,
+    pub encoder: Encoder,
+    pub fallback: Option<Encoder>,
+    pub preferred: String,
 }
 
 pub(crate) enum Outcome {
-    Stopped, // external graceful stop requested
-    Died,    // ffmpeg exited or stalled unexpectedly
+    Stopped,
+    Died,
 }
 
 pub struct StreamSession {
@@ -58,7 +70,6 @@ pub struct PreviewSession {
     pub(crate) join: tauri::async_runtime::JoinHandle<()>,
 }
 
-// "stream:preview" payload
 #[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub(crate) enum PreviewEvent {
@@ -71,38 +82,112 @@ pub struct WindowInfo {
     pub hwnd: u64,
     pub title: String,
     pub process_name: String,
+    pub iconic: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Encoder {
+    X264,
+    Nvenc,
+    Amf,
+}
+
+impl Encoder {
+    pub const ALL: [Encoder; 3] = [Encoder::X264, Encoder::Nvenc, Encoder::Amf];
+
+    fn names(self) -> (&'static str, &'static str) {
+        match self {
+            Encoder::X264 => ("libx264", "x264"),
+            Encoder::Nvenc => ("h264_nvenc", "nvenc"),
+            Encoder::Amf => ("h264_amf", "amf"),
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        self.names().0
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+        Self::ALL.into_iter().find(|e| {
+            let (a, b) = e.names();
+            a == s || b == s
+        })
+    }
 }
 
 pub enum AudioSource {
     #[cfg(windows)]
     Pipe(String),
-    Silent, // fallback when WASAPI loopback is unavailable
+    Silent,
 }
 
 pub(crate) type StopFlag = Arc<AtomicBool>;
 
-// WGC window capture -> fixed-size BGRA letterbox
+pub enum CaptureHandle {
+    #[cfg_attr(not(windows), allow(dead_code))]
+    Wgc(WgcHandle),
+    #[cfg(windows)]
+    Game(super::gamecapture::GameCaptureHandle),
+}
+
+impl CaptureHandle {
+    pub fn pipe_name(&self) -> &str {
+        match self {
+            CaptureHandle::Wgc(w) => &w.pipe_name,
+            #[cfg(windows)]
+            CaptureHandle::Game(g) => &g.pipe_name,
+        }
+    }
+    pub fn width(&self) -> u32 {
+        match self {
+            CaptureHandle::Wgc(w) => w.width,
+            #[cfg(windows)]
+            CaptureHandle::Game(g) => g.width,
+        }
+    }
+    pub fn height(&self) -> u32 {
+        match self {
+            CaptureHandle::Wgc(w) => w.height,
+            #[cfg(windows)]
+            CaptureHandle::Game(g) => g.height,
+        }
+    }
+    pub async fn shutdown(self) {
+        match self {
+            CaptureHandle::Wgc(w) => w.shutdown().await,
+            #[cfg(windows)]
+            CaptureHandle::Game(g) => g.shutdown().await,
+        }
+    }
+}
+
 pub struct WgcHandle {
     pub pipe_name: String,
     pub width: u32,
     pub height: u32,
     #[cfg(windows)]
-    pub(crate) control: Option<windows_capture::capture::CaptureControl<WgcCapture, WgcError>>,
+    pub(crate) session: Option<tauri::async_runtime::JoinHandle<()>>,
     #[cfg(windows)]
     pub(crate) writer: Option<tauri::async_runtime::JoinHandle<()>>,
     #[cfg(windows)]
     pub(crate) stop: StopFlag,
+    #[cfg(windows)]
+    pub(crate) primed: StopFlag,
 }
 
 #[cfg(windows)]
 pub(crate) type WgcError = Box<dyn std::error::Error + Send + Sync>;
 
 #[cfg(windows)]
+#[derive(Clone)]
 pub(crate) struct WgcFlags {
     pub(crate) target_w: u32,
     pub(crate) target_h: u32,
     pub(crate) latest: Arc<std::sync::Mutex<Vec<u8>>>,
     pub(crate) closed: StopFlag,
+    pub(crate) primed: StopFlag,
+    pub(crate) last_frame_ms: Arc<AtomicU64>,
 }
 
 #[cfg(windows)]
@@ -111,5 +196,7 @@ pub(crate) struct WgcCapture {
     pub(crate) target_h: u32,
     pub(crate) latest: Arc<std::sync::Mutex<Vec<u8>>>,
     pub(crate) closed: StopFlag,
+    pub(crate) primed: StopFlag,
+    pub(crate) last_frame_ms: Arc<AtomicU64>,
     pub(crate) last_dims: (u32, u32),
 }

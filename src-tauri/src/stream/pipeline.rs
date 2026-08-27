@@ -1,23 +1,132 @@
-use super::{AudioSource, CaptureSource, StreamSettings};
-use std::path::Path;
+use super::{AudioSource, CaptureSource, Encoder, ReplayRun, StreamSettings};
 
-const SCALE_TAIL: &str = "scale=1280:-2:flags=bilinear,format=yuv420p";
 const AUDIO_FILTER: &str = "aresample=async=1:first_pts=0";
+
+fn owned(v: &[&str]) -> Vec<String> {
+    v.iter().map(|s| s.to_string()).collect()
+}
+
+pub(crate) fn live_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
+    let mut a = vec!["-c:v".into(), enc.name().to_string()];
+    a.extend(match enc {
+        Encoder::X264 => owned(&["-preset", "veryfast", "-tune", "zerolatency"]),
+        Encoder::Nvenc => owned(&[
+            "-preset",
+            "p1",
+            "-tune",
+            "ull",
+            "-rc",
+            "cbr",
+            "-zerolatency",
+            "1",
+            "-delay",
+            "0",
+        ]),
+        Encoder::Amf => owned(&[
+            "-usage",
+            "lowlatency",
+            "-quality",
+            "speed",
+            "-rc",
+            "cbr",
+            "-forced_idr",
+            "1",
+        ]),
+    });
+    a.extend(owned(&[
+        "-profile:v",
+        match enc {
+            Encoder::Amf => "main",
+            _ => "baseline",
+        },
+        "-bf",
+        "0",
+    ]));
+    let (maxrate, bufsize) = match enc {
+        Encoder::X264 => (kbps * 5 / 4, kbps),
+        _ => (kbps, kbps),
+    };
+    a.extend(owned(&[
+        "-g",
+        &(2 * fps).to_string(),
+        "-r",
+        &fps.to_string(),
+        "-b:v",
+        &format!("{kbps}k"),
+        "-maxrate",
+        &format!("{maxrate}k"),
+        "-bufsize",
+        &format!("{bufsize}k"),
+    ]));
+    a
+}
+
+pub(crate) fn replay_encoder_args(enc: Encoder, fps: u32, kbps: u32) -> Vec<String> {
+    let mut a = vec!["-c:v".into(), enc.name().to_string()];
+    a.extend(match enc {
+        Encoder::X264 => owned(&["-preset", "veryfast"]),
+        Encoder::Nvenc => owned(&[
+            "-preset",
+            "p5",
+            "-tune",
+            "hq",
+            "-rc",
+            "vbr",
+            "-maxrate",
+            &format!("{}k", kbps * 5 / 4),
+            "-bufsize",
+            &format!("{}k", kbps * 2),
+        ]),
+        Encoder::Amf => owned(&[
+            "-usage",
+            "transcoding",
+            "-quality",
+            "quality",
+            "-rc",
+            "vbr_peak",
+            "-maxrate",
+            &format!("{}k", kbps * 5 / 4),
+            "-bufsize",
+            &format!("{}k", kbps * 2),
+        ]),
+    });
+    a.extend(owned(&[
+        "-profile:v",
+        "high",
+        "-pix_fmt",
+        "yuv420p",
+        "-g",
+        &(2 * fps).to_string(),
+        "-r",
+        &fps.to_string(),
+        "-b:v",
+        &format!("{kbps}k"),
+    ]));
+    a
+}
+
+fn scale_tail(resolution: u32) -> String {
+    let height = resolution.max(360);
+    let width = (height * 16 / 9) & !1;
+    format!(
+        "scale='min(iw,{width})':'min(ih,{height})':force_original_aspect_ratio=decrease:force_divisible_by=2:flags=bilinear,format=yuv420p"
+    )
+}
 
 pub const PREVIEW_FPS: u32 = 15;
 const PREVIEW_TAIL: &str = "scale=640:-2:flags=bilinear,format=yuvj420p";
 
-// Window capture
 pub struct VideoPipe<'a> {
     pub path: &'a str,
     pub width: u32,
     pub height: u32,
 }
 
-fn video_filter(source: &CaptureSource, tail: &str) -> String {
-    match source {
-        CaptureSource::Monitor { .. } => format!("hwdownload,format=bgra,{tail}"),
-        CaptureSource::Window { .. } => tail.to_string(),
+fn video_filter(piped: bool, tail: &str) -> String {
+    if piped {
+        tail.to_string()
+    } else {
+        format!("hwdownload,format=bgra,{tail}")
     }
 }
 
@@ -28,30 +137,31 @@ fn push_video_input(
     video_pipe: Option<&VideoPipe>,
 ) -> Result<(), String> {
     let mut push = |s: &str| a.push(s.to_string());
+    if let Some(pipe) = video_pipe {
+        push("-f");
+        push("rawvideo");
+        push("-pix_fmt");
+        push("bgra");
+        push("-video_size");
+        push(&format!("{}x{}", pipe.width, pipe.height));
+        push("-framerate");
+        push(&fps.to_string());
+        push("-thread_queue_size");
+        push("64");
+        push("-i");
+        push(pipe.path);
+        return Ok(());
+    }
     match source {
         CaptureSource::Monitor { index } => {
             push("-f");
             push("lavfi");
             push("-i");
             push(&format!("ddagrab=output_idx={index}:framerate={fps}"));
+            Ok(())
         }
-        CaptureSource::Window { .. } => {
-            let pipe = video_pipe.ok_or("window capture needs a video pipe")?;
-            push("-f");
-            push("rawvideo");
-            push("-pix_fmt");
-            push("bgra");
-            push("-video_size");
-            push(&format!("{}x{}", pipe.width, pipe.height));
-            push("-framerate");
-            push(&fps.to_string());
-            push("-thread_queue_size");
-            push("64");
-            push("-i");
-            push(pipe.path);
-        }
+        CaptureSource::Window { .. } => Err("window capture needs a video pipe".into()),
     }
-    Ok(())
 }
 
 pub fn build_preview_args(
@@ -66,7 +176,7 @@ pub fn build_preview_args(
 
     push_video_input(&mut a, source, PREVIEW_FPS, video_pipe)?;
 
-    let vf = video_filter(source, PREVIEW_TAIL);
+    let vf = video_filter(video_pipe.is_some(), PREVIEW_TAIL);
     let mut push = |s: &str| a.push(s.to_string());
     push("-vf");
     push(&vf);
@@ -85,8 +195,10 @@ pub fn build_args(
     settings: &StreamSettings,
     whip_url: &str,
     audio: &AudioSource,
-    replay_path: Option<&Path>,
+    replay: Option<&ReplayRun>,
     video_pipe: Option<&VideoPipe>,
+    encoder: Encoder,
+    live_preview_pipe: Option<&str>,
 ) -> Result<Vec<String>, String> {
     let fps = settings.framerate.max(1);
     let kbps = settings.bitrate_kbps.max(500);
@@ -94,8 +206,9 @@ pub fn build_args(
 
     for s in [
         "-hide_banner",
+        "-y",
         "-loglevel",
-        "info",
+        "verbose",
         "-nostats",
         "-progress",
         "pipe:1",
@@ -107,10 +220,9 @@ pub fn build_args(
 
     push_video_input(&mut a, &settings.source, fps, video_pipe)?;
 
-    let vf = video_filter(&settings.source, SCALE_TAIL);
+    let vf = video_filter(video_pipe.is_some(), &scale_tail(settings.resolution));
     let mut push = |s: &str| a.push(s.to_string());
 
-    // Audio input
     match audio {
         #[cfg(windows)]
         AudioSource::Pipe(path) => {
@@ -135,47 +247,40 @@ pub fn build_args(
         }
     }
 
-    let (vmap, amap) = if replay_path.is_some() {
+    let overlay =
+        replay.and_then(|r| super::overlay_live::filter_chain(&r.dir, settings.resolution));
+    let (vmap, amap) = if replay.is_some() {
         push("-filter_complex");
-        push(&format!(
-            "[0:v]{vf},split=2[vw][vr];[1:a]{AUDIO_FILTER},asplit=2[aw][ar]"
-        ));
+        match overlay {
+            Some(chain) => push(&format!(
+                "[0:v]{vf},split=2[vw][vt];[vt]{chain}[vr];[1:a]{AUDIO_FILTER},asplit=2[aw][ar]"
+            )),
+            None => push(&format!(
+                "[0:v]{vf},split=2[vw][vr];[1:a]{AUDIO_FILTER},asplit=2[aw][ar]"
+            )),
+        }
         ("[vw]", "[aw]")
     } else {
         ("0:v", "1:a")
     };
 
-    // Output 1 - WHIP (live)
     push("-map");
     push(vmap);
     push("-map");
     push(amap);
-    if replay_path.is_none() {
+    if replay.is_none() {
         push("-vf");
         push(&vf);
         push("-af");
         push(AUDIO_FILTER);
     }
-    push("-c:v");
-    push("libx264");
-    push("-preset");
-    push("veryfast");
-    push("-tune");
-    push("zerolatency");
-    push("-profile:v");
-    push("baseline");
-    push("-bf");
-    push("0");
-    push("-g");
-    push(&(2 * fps).to_string());
-    push("-r");
-    push(&fps.to_string());
-    push("-b:v");
-    push(&format!("{kbps}k"));
-    push("-maxrate");
-    push(&format!("{}k", kbps * 5 / 4));
-    push("-bufsize");
-    push(&format!("{}k", kbps * 2));
+    for s in live_encoder_args(encoder, fps, kbps) {
+        push(&s);
+    }
+    if encoder == Encoder::Amf {
+        push("-force_key_frames");
+        push("expr:gte(t,n_forced*2)");
+    }
     push("-c:a");
     push("libopus");
     push("-b:a");
@@ -190,26 +295,14 @@ pub fn build_args(
     push("whip");
     push(whip_url);
 
-    // MP4 replay VOD
-    if let Some(path) = replay_path {
+    if let Some(run) = replay {
         push("-map");
         push("[vr]");
         push("-map");
         push("[ar]");
-        push("-c:v");
-        push("libx264");
-        push("-preset");
-        push("veryfast");
-        push("-profile:v");
-        push("high");
-        push("-pix_fmt");
-        push("yuv420p");
-        push("-g");
-        push(&(2 * fps).to_string());
-        push("-r");
-        push(&fps.to_string());
-        push("-b:v");
-        push(&format!("{kbps}k"));
+        for s in replay_encoder_args(encoder, fps, kbps) {
+            push(&s);
+        }
         push("-c:a");
         push("aac");
         push("-b:a");
@@ -218,10 +311,43 @@ pub fn build_args(
         push("48000");
         push("-ac");
         push("2");
-        push("-movflags");
-        push("+frag_keyframe+empty_moov");
-        push(&path.to_string_lossy());
+        push("-f");
+        push("segment");
+        push("-segment_time");
+        push(&super::SEGMENT_SECS.to_string());
+        push("-segment_format");
+        push("mp4");
+        push("-segment_format_options");
+        push("movflags=+frag_keyframe+empty_moov");
+        push("-reset_timestamps");
+        push("1");
+        push("-segment_list");
+        push(&run.list.to_string_lossy());
+        push("-segment_list_type");
+        push("csv");
+        push("-segment_list_flags");
+        push("+live");
+        push(&run.pattern.to_string_lossy());
+    }
+
+    if let Some(pipe) = live_preview_pipe {
+        push("-map");
+        push("0:v");
+        push("-vf");
+        push(&video_filter(video_pipe.is_some(), PREVIEW_TAIL));
+        push("-r");
+        push("2");
+        push("-c:v");
+        push("mjpeg");
+        push("-q:v");
+        push("7");
+        push("-f");
+        push("mpjpeg");
+        push(pipe);
     }
 
     Ok(a)
 }
+
+#[cfg(test)]
+mod tests;

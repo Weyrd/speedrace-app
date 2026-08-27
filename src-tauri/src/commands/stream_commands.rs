@@ -1,7 +1,7 @@
 use crate::api;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use crate::stream;
 use serde::Serialize;
 use tauri::Emitter;
@@ -19,7 +19,6 @@ pub async fn publish_stream(
     stream::publish(&app, &state, &lobby_id).await
 }
 
-// Graceful stop from setup/waiting
 #[tauri::command]
 pub async fn stop_stream(
     lobby_id: String,
@@ -40,7 +39,7 @@ pub async fn stop_stream(
     }
 
     {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut guard = state.lock_state();
         guard.app_state = AppState::StreamSetup;
         guard.race_start_at = None;
     }
@@ -53,9 +52,13 @@ pub async fn stop_stream(
 pub struct StreamSettingsDto {
     pub bitrate_kbps: u32,
     pub framerate: u32,
+    pub resolution: u32,
+    pub encoder: String,
     pub replay_dir: String,
     pub replay_autodelete: bool,
     pub replay_casual: bool,
+    pub replay_delete_uploaded: bool,
+    pub debug_stream: bool,
 }
 
 #[tauri::command]
@@ -64,22 +67,30 @@ pub fn get_stream_settings(app: AppHandle) -> StreamSettingsDto {
     StreamSettingsDto {
         bitrate_kbps: s.bitrate_kbps,
         framerate: s.framerate,
+        resolution: s.resolution,
+        encoder: s.encoder,
         replay_dir: s.replay_dir,
         replay_autodelete: s.replay_autodelete,
         replay_casual: s.replay_casual,
+        replay_delete_uploaded: s.replay_delete_uploaded,
+        debug_stream: s.debug_stream,
     }
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn set_stream_settings(
     bitrate_kbps: u32,
     framerate: u32,
+    resolution: u32,
+    encoder: String,
     replay_dir: String,
     replay_autodelete: bool,
     replay_casual: bool,
+    replay_delete_uploaded: bool,
+    debug_stream: bool,
     app: AppHandle,
 ) -> Result<(), String> {
-    // Monitor index is owned by set_capture_source; preserve the stored value
     let monitor_index = crate::settings::load_stream_settings(&app).monitor_index;
     crate::settings::save_stream_settings(
         &app,
@@ -87,11 +98,34 @@ pub fn set_stream_settings(
             monitor_index,
             bitrate_kbps,
             framerate,
+            resolution,
+            encoder,
             replay_dir,
             replay_autodelete,
             replay_casual,
+            replay_delete_uploaded,
+            debug_stream,
         },
     )
+}
+
+#[tauri::command]
+pub async fn get_detected_encoder() -> String {
+    if stream::encoder::detected().is_none() {
+        stream::encoder::warm(true).await;
+    }
+    stream::encoder::detected()
+        .map(|e| e.name().to_string())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn list_encoders() -> Vec<String> {
+    stream::encoder::available(true)
+        .await
+        .into_iter()
+        .map(|e| e.name().to_string())
+        .collect()
 }
 
 #[tauri::command]
@@ -113,7 +147,7 @@ pub fn set_capture_source(
     if let stream::CaptureSource::Monitor { index } = source {
         crate::settings::save_monitor_index(&app, index)?;
     }
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     guard.capture_source = Some(source);
     Ok(())
 }

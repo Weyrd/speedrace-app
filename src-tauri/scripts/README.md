@@ -4,8 +4,10 @@ The app streams via ffmpeg's native `-f whip` muxer, which requires **ffmpeg 8.x
 DTLS-SRTP backend** (GnuTLS, OpenSSL, or mbedTLS). We ship our own **minimal from-source
 build** (~10 MB exe, `--enable-gnutls`, GPLv3) as a Tauri sidecar — hosted as a pinned GitHub
 **prerelease** asset on this repo, downloaded by `get-ffmpeg.ps1`, reproduced by
-`build-ffmpeg.ps1`. Current pin: `ffmpeg-min-1` (git master `8bea614d98`), verified against
-MediaMTX live.
+`build-ffmpeg.ps1`. Current pin: `ffmpeg-min-3` (git master `86940d45af`, built from the
+GitHub mirror), adds libfreetype/libharfbuzz + drawtext/drawbox for the live replay overlay
+(`stream/overlay_live.rs`). `min-2` (git master `9bc73ba344`) was the last pin without them —
+on it the app probes `-filters`, logs a skip, and records the replay without the overlay.
 
 > **Do not substitute a Windows SChannel build** (BtbN's default `win64-gpl` is SChannel-only).
 > SChannel compiles the whip muxer but its DTLS handshake fails against MediaMTX at runtime
@@ -123,23 +125,30 @@ handshake is the real gate), ranked MP4 playable, stop → preview restart.
 
 | Category      | Components                                                       | Purpose                                         |
 | ------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
-| **Encoders**  | libx264, libopus, aac, mjpeg (+ h264_nvenc, h264_amf)            | WHIP + MP4 + preview/thumb JPEG (+ future hw)   |
-| **Decoders**  | rawvideo, pcm_f32le, wrapped_avframe, pcm_u8                     | Raw pipes + lavfi wrapping (never h264)         |
-| **Muxers**    | whip, mp4, mpjpeg, mjpeg                                         | Live + replay + preview stream + one-shot thumb |
-| **Inputs**    | lavfi indev, rawvideo + pcm_f32le demuxers                       | ddagrab/anullsrc via `-f lavfi` + raw pipes     |
-| **Filters**   | ddagrab, hwdownload, format, scale, aresample, anullsrc, (a)split | Capture → scale → dual output                  |
+| **Encoders**  | libx264, libopus, aac, mjpeg (+ h264_nvenc, h264_amf)            | WHIP + MP4 + preview/thumb JPEG + hw encode     |
+| **Decoders**  | rawvideo, pcm_f32le, wrapped_avframe, pcm_u8, h264, aac          | Raw pipes + lavfi wrapping + replay head trim   |
+| **Muxers**    | whip, mp4, mpjpeg, mjpeg, segment                                | Live + segmented replay + preview + thumb       |
+| **Inputs**    | lavfi indev, rawvideo/pcm_f32le/concat/mov demuxers              | Capture + raw pipes + replay assembly           |
+| **Filters**   | ddagrab, hwdownload, format, scale, aresample, anullsrc, color, (a)split, drawtext, drawbox | Capture → scale → dual output + gap filler + VOD overlay burn |
 | **Protocols** | file, pipe, http(s), tcp, udp, tls, dtls, srtp, rtp, crypto      | Pipes + WHIP POST + WebRTC transport            |
 | **BSFs**      | h264_mp4toannexb, aac_adtstoasc, extract_extradata               | Payload/container conversion                    |
 | **Hw/TLS**    | d3d11va (ddagrab dep), ffnvcodec + amf headers, GnuTLS           | Capture + future hw encode + DTLS               |
+| **Text**      | libfreetype + libharfbuzz (drawtext deps)                        | Timer/splits card burned into the uploaded VOD  |
 
-Deliberately absent: gdigrab/dshow (dead since the WGC rework), h264/aac **de**coders,
-qsv/libmfx (deprecated upstream, would need libvpl), dxva2, mov/concat demuxers, UPX.
+Deliberately absent: gdigrab/dshow (dead since the WGC rework), qsv/libmfx (deprecated
+upstream, would need libvpl), dxva2, the `null` muxer, UPX. The h264/aac decoders and the
+mov/concat demuxers **are** present — the replay is written as segments and reassembled at
+upload time, which needs to read them back and re-encode the head.
 
-Licensing: `--enable-gpl --enable-version3` + GnuTLS is redistributable as GPLv3 —
-`--enable-nonfree` is never allowed (it would make the binary legally non-redistributable),
-and the suite's GPL license choice disables OpenSSL anyway. HW encoder headers are build-time
-only; at runtime NVENC/AMF use the user's GPU driver, and the app currently only invokes
-libx264 anyway.
+Licensing: `--enable-gpl` + GnuTLS, `--enable-nonfree` is never allowed (it would make the
+binary legally non-redistributable), and the suite's GPL license choice disables OpenSSL anyway.
+HW encoder headers are build-time only; at runtime NVENC/AMF use the user's GPU driver.
+
+> **Known discrepancy.** `build-ffmpeg.ps1` asks for `--enable-version3`, but the suite does not
+> pass it through — shipped binaries report `--enable-gpl` alone (true of `min-1` and `min-2`).
+> `min-1`'s release notes nevertheless claimed GPLv3. Since GnuTLS pulls in gmp (LGPLv3), whether
+> the build *should* be version3 needs a decision; until then release notes must describe what
+> `-buildconf` actually reports, not what the script requests.
 
 ## Fallback: Gyan prebuilt full build
 
@@ -147,3 +156,34 @@ If the minimal pin is ever broken, the previously shipped Gyan GPL `full_build` 
 same GnuTLS backend, proven against MediaMTX) can be re-pinned in `get-ffmpeg.ps1`:
 `https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-full_build.zip`
 (sha256 `b8cdefab5f50590a076c27c2b56b0294a0e6154faded28ba1ba05ebc4f801f57`).
+
+---
+
+# OBS game-capture helpers
+
+Exclusive-fullscreen games (Celeste etc.) are not DWM-composited, so WGC window capture returns
+black and ddagrab loses the display at the mode flip. The only way to grab such a game's pixels
+**without reading the whole screen** is graphics-API hook injection — the OBS Game Capture model.
+We reuse OBS Studio's proven `win-capture` binaries; our own Rust client
+(`src/stream/gamecapture/`) drives them over the documented shared-memory/event protocol.
+
+`get-game-capture.ps1` (run once after clone, like `get-ffmpeg.ps1`) downloads the pinned OBS
+portable zip, SHA256-verifies it, and extracts six files into `binaries/gamecapture/`
+(shipped via `tauri.conf.json` → `bundle.resources`):
+`graphics-hook{32,64}.dll`, `inject-helper{32,64}.exe`, `get-graphics-offsets{32,64}.exe`.
+Both bitnesses ship — a 64-bit host must still capture 32-bit games.
+
+**Current pin:** OBS **32.1.2** (hook ABI `HOOK_VER 1.8`). The `struct hook_info` layout mirrored
+in `gamecapture/protocol.rs` is the OBS win-capture ABI (`sizeof == 648`, guarded by a
+compile-time assert). It is stable across OBS releases but not guaranteed forever — **when you
+bump the pin, re-verify `protocol.rs` against `shared/obs-hook-config/graphics-hook-info.h` at
+the new tag.** Asset digests: `gh api repos/obsproject/obs-studio/releases/tags/<tag>
+--jq '.assets[] | "\(.name) \(.digest)"'`.
+
+**Licensing (GPLv2).** These are unmodified OBS Studio binaries redistributed as separate helper
+executables + an injected DLL — mere aggregation; our app links none of their code. Corresponding
+source is OBS's own public tag, which is also where `get-game-capture.ps1` downloads from:
+`https://github.com/obsproject/obs-studio/tree/32.1.2` (this pointer is the written source offer).
+Keep this reference and the pin in sync. Note: a **user-facing** third-party-notices surface for
+the shipped app (covering both this and the GPLv3 ffmpeg sidecar) is a separate, broader
+compliance task not specific to this feature.

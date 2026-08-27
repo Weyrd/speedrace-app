@@ -6,7 +6,7 @@ pub fn parse_livesplit_time_ms(s: &str) -> Option<i64> {
     let neg = s.starts_with('-');
     let body = s.strip_prefix('-').unwrap_or(s);
     let mut secs = 0f64;
-    let mut unit = 1f64; // seconds, then minutes (×60), then hours (×60)
+    let mut unit = 1f64;
     for part in body.split(':').rev() {
         let v: f64 = part.parse().ok()?;
         secs += v * unit;
