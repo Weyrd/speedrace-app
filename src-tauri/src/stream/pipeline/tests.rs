@@ -31,11 +31,17 @@ fn amf_live_args_use_lowlatency_and_avoid_the_broken_ultralowlatency_preset() {
     assert!(!args.contains(&"-header_spacing".to_string()));
     assert!(!args.contains(&"-async_depth".to_string()));
     let usage_at = args.iter().position(|a| a == "-usage");
-    assert_eq!(usage_at.and_then(|i| args.get(i + 1)), Some(&"lowlatency".to_string()));
+    assert_eq!(
+        usage_at.and_then(|i| args.get(i + 1)),
+        Some(&"lowlatency".to_string())
+    );
     let idr_at = args.iter().position(|a| a == "-forced_idr");
     assert_eq!(idr_at.and_then(|i| args.get(i + 1)), Some(&"1".to_string()));
     let profile_at = args.iter().position(|a| a == "-profile:v");
-    assert_eq!(profile_at.and_then(|i| args.get(i + 1)), Some(&"main".to_string()));
+    assert_eq!(
+        profile_at.and_then(|i| args.get(i + 1)),
+        Some(&"main".to_string())
+    );
 }
 
 #[test]
@@ -104,7 +110,9 @@ fn live_preview_output_is_only_added_when_debug_is_enabled() {
     )
     .expect("valid args");
     assert!(with_debug.contains(&TEST_PREVIEW_PIPE.to_string()));
-    assert!(with_debug.windows(2).any(|w| w[0] == "-f" && w[1] == "mpjpeg"));
+    assert!(with_debug
+        .windows(2)
+        .any(|w| w[0] == "-f" && w[1] == "mpjpeg"));
 
     let without_debug = build_args(
         &test_settings(),
