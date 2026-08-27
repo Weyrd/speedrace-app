@@ -1,11 +1,13 @@
 use super::pipeline;
 use super::{
-    audio, emit_status, Encoder, EncoderStatusPayload, LaunchSpec, Outcome, PreviewEvent,
-    ReplayRun, StreamState,
+    audio, emit_status, Encoder, EncoderStatusPayload, LaunchSpec, Outcome, ReplayRun, StreamState,
 };
+#[cfg(windows)]
+use super::PreviewEvent;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::{LockGlobalState, SharedState};
+#[cfg(windows)]
 use base64::Engine;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
