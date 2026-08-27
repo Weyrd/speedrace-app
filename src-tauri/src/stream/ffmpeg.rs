@@ -1,9 +1,9 @@
 use super::pipeline;
+#[cfg(windows)]
+use super::PreviewEvent;
 use super::{
     audio, emit_status, Encoder, EncoderStatusPayload, LaunchSpec, Outcome, ReplayRun, StreamState,
 };
-#[cfg(windows)]
-use super::PreviewEvent;
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::{LockGlobalState, SharedState};
