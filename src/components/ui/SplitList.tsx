@@ -1,7 +1,7 @@
 import { useRef, useLayoutEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
 import { formatTime } from "../../lib/formatTime";
+import { getSplitSegments } from "../../lib/commands";
 import {
   groupSegments,
   hasSubsplitStructure,
@@ -23,7 +23,7 @@ export function SplitList({
 }: SplitListProps) {
   const { data: segments = [] } = useQuery({
     queryKey: ["split-segments"],
-    queryFn: () => invoke<string[]>("get_split_segments"),
+    queryFn: getSplitSegments,
     staleTime: Infinity,
   });
 
@@ -69,7 +69,7 @@ export function SplitList({
         <span
           className={`text-xs font-mono tracking-wide truncate ${
             grouped && split.isSubsplit ? "pl-4" : ""
-          } ${isActive ? "text-orange" : isCompleted ? "text-text" : "text-dim"}`}
+          } ${isActive ? "text-accent" : isCompleted ? "text-text" : "text-dim"}`}
         >
           {isActive ? "> " : "  "}
           {split.label}
@@ -89,7 +89,7 @@ export function SplitList({
         <div key={si} className="flex flex-col">
           {grouped && section.name && (
             <div className="px-3 py-1 bg-bg2/60 border-b border-border">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-dim">
+              <span className="text-2xs font-mono uppercase tracking-wider text-dim">
                 {section.name}
               </span>
             </div>

@@ -48,6 +48,14 @@ pub fn lobby_forfeit_path(lobby_id: &str) -> String {
     format!("/api/v1/lobby/{lobby_id}/forfeit")
 }
 
+pub fn lobby_vod_complete_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/vod-complete")
+}
+
+pub fn lobby_request_upload_ticket_path(lobby_id: &str) -> String {
+    format!("/api/v1/lobby/{lobby_id}/request-upload-ticket")
+}
+
 pub fn split_resource_path(category_split_id: &str) -> String {
     format!("/api/v1/split-resources/{category_split_id}")
 }
@@ -75,7 +83,7 @@ pub const WS_MAX_RETRIES: u32 = 3;
 pub const GRANT_TYPE_AUTH_CODE: &str = "authorization_code";
 pub const GRANT_TYPE_REFRESH: &str = "refresh_token";
 
-pub const TOKEN_REFRESH_MARGIN_SECS: u64 = 60; // refresh 60s before expiry
+pub const TOKEN_REFRESH_MARGIN_SECS: u64 = 60;
 
 pub fn ws_url() -> String {
     let host = BACKEND_URL

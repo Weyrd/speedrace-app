@@ -5,6 +5,10 @@ import { ActionType, Phase } from "./types";
 import { AuthState, PlayerStatus, type WsStatus } from "../types";
 import { ensureClockFresh, resyncClock } from "../hooks/useClockOffset";
 import { getAutosplitState } from "../lib/commands";
+import {
+  captureSourceKey,
+  effectiveEncoderKey,
+} from "../hooks/useStreamSettings";
 import { playSound, primeCountdown, Sound } from "../lib/sound";
 
 const COUNTDOWN_SOUNDS = [
@@ -18,6 +22,8 @@ import {
   onAppState,
   onWsStatus,
   onStreamStatus,
+  onStreamEncoder,
+  onStreamSource,
   onLobbySetup,
   onLobbyClosed,
   onLobbyStart,
@@ -25,6 +31,7 @@ import {
   onAutosplitProbe,
   onSplitLoaded,
   onSplitFired,
+  onUploadStatus,
 } from "../lib/listeners";
 
 export function AppEventBridge(): null {
@@ -51,6 +58,14 @@ export function AppEventBridge(): null {
           type: ActionType.StreamStatusChanged,
           status: payload.state,
         });
+      }),
+
+      onStreamSource((source) => {
+        qc.setQueryData(captureSourceKey, source);
+      }),
+
+      onStreamEncoder((payload) => {
+        qc.setQueryData(effectiveEncoderKey, payload);
       }),
 
       onAppState((phase) => {
@@ -106,6 +121,10 @@ export function AppEventBridge(): null {
 
       onSplitLoaded(() => {
         void qc.invalidateQueries({ queryKey: ["split-segments"] });
+      }),
+
+      onUploadStatus((status) => {
+        dispatch({ type: ActionType.UploadStatus, status });
       }),
 
       onSplitFired((p) => {

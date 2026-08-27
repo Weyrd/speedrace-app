@@ -4,12 +4,35 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
-    LobbySetup(Box<LobbySetup>), //  lobbySetup donc pas de typeMsg (match WS AppEvent::LobbySetup ET get lobby/current response pour n'avoir qu'une struct)
+    LobbySetup(Box<LobbySetup>),
     LobbyStart(LobbyStartMsg),
     LobbyClosed(LobbyClosedMsg),
     PlayerResult(PlayerResultPayload),
     EarlyStartWarning { active: bool },
+    UploadReady(UploadReadyMsg),
+    UploadUnavailable(UploadUnavailableMsg),
     Ping,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct UploadReadyMsg {
+    pub lobby_id: String,
+    pub upload_ticket: String,
+    pub resumable_url: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct UploadUnavailableMsg {
+    pub lobby_id: String,
+    pub reason: UploadUnavailableReason,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum UploadUnavailableReason {
+    QuotaExhausted,
+    #[serde(other)]
+    Error,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -24,6 +47,8 @@ pub struct LobbyStartMsg {
     pub expires_at: i64,
     #[serde(default)]
     pub start_delay_ms: u64,
+    #[serde(default)]
+    pub countdown_start_at: Option<i64>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

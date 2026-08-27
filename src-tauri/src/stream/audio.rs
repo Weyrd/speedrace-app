@@ -38,7 +38,7 @@ pub fn start_audio() -> AudioHandle {
 
     let stop: StopFlag = Arc::new(AtomicBool::new(false));
 
-    let pipe_name = format!(r"\\.\pipe\momentum_audio_{:016x}", rand::random::<u64>());
+    let pipe_name = format!(r"\\.\pipe\speedrace_audio_{:016x}", rand::random::<u64>());
     let server = match ServerOptions::new()
         .first_pipe_instance(true)
         .create(&pipe_name)
@@ -82,7 +82,7 @@ pub fn start_audio() -> AudioHandle {
         let channels = config.channels();
         let stream_config: cpal::StreamConfig = config.into();
 
-        let cap = (rate as usize * channels as usize) / 5; // ~200ms
+        let cap = (rate as usize * channels as usize) / 5;
         let ring_cb = ring_thread.clone();
         let stream = device.build_input_stream(
             stream_config,
@@ -142,7 +142,7 @@ pub fn start_audio() -> AudioHandle {
 
     let bytes_per_sec = rate as u64 * channels as u64 * 4;
     let frame = channels as usize * 4;
-    let cap_samples = (rate as usize * channels as usize) / 5; // ~200ms
+    let cap_samples = (rate as usize * channels as usize) / 5;
     let stop_writer = stop.clone();
     let ring_writer = ring.clone();
 

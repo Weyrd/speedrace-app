@@ -2,12 +2,12 @@ use crate::auth::oauth::{emit_auth_state, open_browser_login};
 use crate::auth::token_store::TokenStore;
 use crate::config;
 use crate::models::{AppState, AuthStatePayload, LoginError};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub fn get_app_state(state: State<SharedState>) -> Result<AppState, String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
+    let guard = state.lock_state();
     Ok(guard.app_state.clone())
 }
 
@@ -25,7 +25,7 @@ pub fn open_login(app: AppHandle) -> Result<(), LoginError> {
 
 #[tauri::command]
 pub fn get_current_user(state: State<SharedState>) -> Result<Option<CurrentUser>, String> {
-    let guard = state.lock().map_err(|e| e.to_string())?;
+    let guard = state.lock_state();
     Ok(guard.user.as_ref().map(|u| CurrentUser {
         username: u.username.clone(),
     }))
@@ -45,13 +45,18 @@ pub async fn logout(app: AppHandle, state: State<'_, SharedState>) -> Result<(),
 
     crate::stream::shutdown(&app, state.inner(), true).await;
 
-    {
-        let mut guard = state.lock().map_err(|e| e.to_string())?;
+    let ws_shutdown = {
+        let mut guard = state.lock_state();
         guard.app_state = AppState::Unauthenticated;
         guard.user = None;
         guard.lobby = None;
         guard.race_start_at = None;
-    }
+        guard.ws_gen = guard.ws_gen.wrapping_add(1);
+        guard.ws_loop_running = false;
+        guard.ws_status = crate::models::WsStatus::Disconnected;
+        guard.ws_shutdown.clone()
+    };
+    ws_shutdown.notify_waiters();
 
     emit_auth_state(&app, AuthStatePayload::Unauthenticated);
 

@@ -1,22 +1,96 @@
-@import url("https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&display=swap");
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Fira Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/fira-mono-400-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Fira Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/fira-mono-400-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Fira Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/fira-mono-500-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Fira Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/fira-mono-500-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Fira Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/fira-mono-700-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+    U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Fira Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/fira-mono-700-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 @theme {
-  --color-bg0: #252320;
-  --color-bg1: #2e2b25;
-  --color-bg2: #3a3731;
-  --color-bg3: #4a4640;
-  --color-orange: #e8622a;
-  --color-red: #e24b4a;
-  --color-green: #4caf7d;
-  --color-text: #f0ece4;
-  --color-muted: #a09890;
-  --color-dim: #6a6460;
-  --color-border: #4a4640;
+  --color-bg0: oklch(0.257 0.006 78.2);
+  --color-bg1: oklch(0.29 0.011 84.6);
+  --color-bg2: oklch(0.338 0.011 84.6);
+  --color-bg3: oklch(0.396 0.011 78.2);
+  --color-accent: oklch(0.700 0.080 58);
+  --color-accent-hover: oklch(0.750 0.100 58);
+  --color-on-accent: oklch(0.257 0.010 70);
+  --color-red: oklch(0.630 0.100 20);
+  --color-green: oklch(0.780 0.075 148);
+  --color-text: oklch(0.944 0.012 84.6);
+  --color-muted: oklch(0.684 0.015 67.6);
+  --color-dim: oklch(0.507 0.01 56.2);
+  --color-border: oklch(0.396 0.011 78.2);
 
   --font-mono: "Fira Mono", monospace;
 
-  --text-2xs: 0.625rem;
+  --radius-sm: 0.375rem;
+  --text-2xs: 0.6875rem;
+  --text-3xs: 0.625rem;
+
+  --z-index-modal: 40;
+  --z-index-dev: 50;
+  --z-index-panel: 100;
+  --z-index-tooltip: 9999;
 }
 
 @layer base {
@@ -27,7 +101,7 @@
   body {
     background: transparent;
     font-family: "Fira Mono", monospace;
-    color: #f0ece4;
+    color: var(--color-text);
   }
 
   ::-webkit-scrollbar {
@@ -39,31 +113,31 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #4a4640;
+    background: var(--color-bg3);
     border-radius: 2px;
   }
 }
 
-@utility bg-orange-dim {
-  background-color: rgba(232, 98, 42, 0.15);
+@utility bg-accent-dim {
+  background-color: --alpha(var(--color-accent) / 15%);
 }
 
-@utility border-orange-dim {
-  border-color: rgba(232, 98, 42, 0.4);
+@utility border-accent-dim {
+  border-color: --alpha(var(--color-accent) / 40%);
 }
 
 @utility bg-red-dim {
-  background-color: rgba(226, 75, 74, 0.08);
+  background-color: --alpha(var(--color-red) / 8%);
 }
 
 @utility border-red-dim {
-  border-color: rgba(226, 75, 74, 0.25);
+  border-color: --alpha(var(--color-red) / 25%);
 }
 
 @utility bg-green-dim {
-  background-color: rgba(76, 175, 125, 0.1);
+  background-color: --alpha(var(--color-green) / 10%);
 }
 
 @utility border-green-dim {
-  border-color: rgba(76, 175, 125, 0.3);
+  border-color: --alpha(var(--color-green) / 30%);
 }

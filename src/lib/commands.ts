@@ -7,6 +7,7 @@ import type {
   WindowInfo,
   StreamSettings,
   CaptureSource,
+  EncoderPref,
 } from "../types";
 
 import type { Phase } from "../store/types";
@@ -49,6 +50,10 @@ export async function listWindows(): Promise<WindowInfo[]> {
   return invoke<WindowInfo[]>("list_windows");
 }
 
+export async function captureSupported(): Promise<boolean> {
+  return invoke<boolean>("capture_supported");
+}
+
 export async function captureMonitorThumb(index: number): Promise<string> {
   return invoke<string>("capture_monitor_thumb", { index });
 }
@@ -64,17 +69,33 @@ export async function getStreamSettings(): Promise<StreamSettings> {
 export async function setStreamSettings(
   bitrateKbps: number,
   framerate: number,
+  resolution: number,
+  encoder: EncoderPref,
   replayDir: string,
   replayAutodelete: boolean,
   replayCasual: boolean,
+  replayDeleteUploaded: boolean,
+  debugStream: boolean,
 ): Promise<void> {
   return invoke("set_stream_settings", {
     bitrateKbps,
     framerate,
+    resolution,
+    encoder,
     replayDir,
     replayAutodelete,
     replayCasual,
+    replayDeleteUploaded,
+    debugStream,
   });
+}
+
+export async function getDetectedEncoder(): Promise<EncoderPref> {
+  return invoke<EncoderPref>("get_detected_encoder");
+}
+
+export async function listEncoders(): Promise<EncoderPref[]> {
+  return invoke<EncoderPref[]>("list_encoders");
 }
 
 export async function getCaptureSource(): Promise<CaptureSource> {
@@ -116,6 +137,14 @@ export async function acknowledgeResults(): Promise<void> {
   return invoke("acknowledge_results");
 }
 
+export async function abandonUpload(): Promise<void> {
+  return invoke("abandon_upload");
+}
+
+export async function retryUpload(): Promise<void> {
+  return invoke("retry_upload");
+}
+
 export async function getFinishHotkey(): Promise<string> {
   return invoke<string>("get_finish_hotkey");
 }
@@ -149,10 +178,10 @@ export async function getSplitSegments(): Promise<string[]> {
   return invoke<string[]>("get_split_segments");
 }
 
-export async function getCurrentSplitIndex(): Promise<number> {
-  return invoke<number>("get_current_split_index");
-}
-
 export async function getAutosplitState(): Promise<AutosplitState> {
   return invoke<AutosplitState>("get_autosplit_state");
+}
+
+export async function collectDebugReport(): Promise<string> {
+  return invoke<string>("collect_debug_report");
 }

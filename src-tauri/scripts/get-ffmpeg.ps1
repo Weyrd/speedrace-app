@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Fetch the bundled ffmpeg sidecar (Momentum minimal build, win64, ~10 MB).
+  Fetch the bundled ffmpeg sidecar (Speedrace minimal build, win64, ~10 MB).
 
 .DESCRIPTION
   Downloads our pinned minimal from-source ffmpeg (built by scripts/build-ffmpeg.ps1,
@@ -39,8 +39,8 @@ param([switch]$Force)
 $ErrorActionPreference = 'Stop'
 
 # --- Pin -------------------------------------------------------------------
-$Url           = 'https://github.com/Weyrd/momentum-app/releases/download/ffmpeg-min-1/ffmpeg-min-win64.zip'
-$ExpectedSha256 = '9b92d54352e0457a951fe07d7cd7a2d28707db7dca1dc8c2a429b64931a0ae90'
+$Url           = 'https://github.com/Weyrd/speedrace-app/releases/download/ffmpeg-min-3/ffmpeg-min-win64.zip'
+$ExpectedSha256 = '49229197bb26705ed600a022f53eb45dd5a1f5dfd922bc90c6969c3439129734'
 # ---------------------------------------------------------------------------
 
 # Tauri sidecar naming: binaries/<name>-<target-triple>.exe
@@ -76,7 +76,7 @@ SHA256 mismatch for the downloaded ffmpeg build.
   actual:   $actual
 The pinned $Url changed unexpectedly (release assets should be immutable — bumps
 get a new tag). Only update `$ExpectedSha256 after confirming the asset is a legit
-Momentum minimal build with a DTLS backend: ffmpeg -buildconf shows --enable-gnutls,
+Speedrace minimal build with a DTLS backend: ffmpeg -buildconf shows --enable-gnutls,
 and ffmpeg -protocols lists both dtls and srtp.
 "@
     }
