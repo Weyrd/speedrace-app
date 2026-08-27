@@ -61,7 +61,10 @@ fn spawn_preview_reader(
         let mut reader = BufReader::new(server);
         while let Some(jpeg) = super::preview::read_mpjpeg_frame(&mut reader).await {
             let b64 = base64::engine::general_purpose::STANDARD.encode(&jpeg);
-            let _ = app.emit(crate::events::STREAM_PREVIEW, PreviewEvent::Frame { frame: b64 });
+            let _ = app.emit(
+                crate::events::STREAM_PREVIEW,
+                PreviewEvent::Frame { frame: b64 },
+            );
         }
     })
 }
@@ -110,20 +113,18 @@ async fn run_supervisor(
         let replay = replay_base
             .as_ref()
             .and_then(|b| super::replay_run(b, segment));
-        let wgc = match super::capture::start_capture_for(
-            &settings.source,
-            settings.framerate.max(1),
-        )
-        .await
-        {
-            Ok(h) => h,
-            Err(e) => {
-                mlog!(LogCat::Stream, "[ffmpeg] capture failed: {e}");
-                emit_status(&app, StreamState::Error, Some(e));
-                clear_session(&state);
-                return;
-            }
-        };
+        let wgc =
+            match super::capture::start_capture_for(&settings.source, settings.framerate.max(1))
+                .await
+            {
+                Ok(h) => h,
+                Err(e) => {
+                    mlog!(LogCat::Stream, "[ffmpeg] capture failed: {e}");
+                    emit_status(&app, StreamState::Error, Some(e));
+                    clear_session(&state);
+                    return;
+                }
+            };
         let audio = audio::start_audio();
         let video_pipe = wgc.as_ref().map(|w| pipeline::VideoPipe {
             path: w.pipe_name(),
