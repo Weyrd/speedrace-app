@@ -5,7 +5,7 @@ use tauri::AppHandle;
 
 use crate::api::counter_config::{CounterCadence, CounterConfig, CounterMode};
 use crate::logging::{mlog, LogCat};
-use crate::state::SharedState;
+use crate::state::{LockGlobalState, SharedState};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CounterSample {
@@ -95,10 +95,7 @@ pub async fn flush_counter_buffers(
     only: Option<CounterCadence>,
 ) {
     let batches: Vec<(String, Vec<CounterSample>)> = {
-        let mut guard = match state.lock() {
-            Ok(g) => g,
-            Err(_) => return,
-        };
+        let mut guard = state.lock_state();
         let config = guard.counter_config.clone();
         let names: Vec<String> = guard.counter_buffers.keys().cloned().collect();
         let mut out = Vec::new();

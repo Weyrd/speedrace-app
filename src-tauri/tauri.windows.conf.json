@@ -1,6 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
-    "externalBin": ["binaries/ffmpeg"]
+    "externalBin": ["binaries/ffmpeg"],
+    "resources": {
+      "binaries/gamecapture/*": "gamecapture/",
+      "resources/fonts/*": "fonts/"
+    }
   }
 }

@@ -1,35 +1,20 @@
-import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { onStreamPreview } from "../../lib/listeners";
+import { useStreamPreviewFrame } from "../../hooks/useStreamPreviewFrame";
 import { PreviewState } from "../../types";
+import { Button } from "./button";
 
 export function PreviewCanvas({ onClick }: { onClick?: () => void }) {
   const { t } = useTranslation("app");
-  const [status, setStatus] = useState<PreviewState>(PreviewState.Starting);
-  const statusRef = useRef(status);
-  statusRef.current = status;
-  const unlistenRef = useRef<(() => void) | null>(null);
-
-  const attachImg = useCallback((node: HTMLImageElement | null) => {
-    unlistenRef.current?.();
-    unlistenRef.current = null;
-    if (!node) return;
-    unlistenRef.current = onStreamPreview((p) => {
-      if (p.frame) {
-        node.src = `data:image/jpeg;base64,${p.frame}`;
-        if (statusRef.current !== PreviewState.Live)
-          setStatus(PreviewState.Live);
-      } else if (p.error) {
-        if (statusRef.current !== PreviewState.Error)
-          setStatus(PreviewState.Error);
-      }
-    });
-  }, []);
+  const { status, attachImg } = useStreamPreviewFrame();
 
   return (
-    <div
+    <Button
+      type="button"
+      variant="ghost"
       onClick={onClick}
-      className={`bg-black border border-border rounded aspect-1920/1080 w-full overflow-hidden relative ${onClick ? "cursor-pointer" : ""}`}
+      disabled={!onClick}
+      aria-label={t("stream.change_source_hint")}
+      className="relative aspect-video w-full shrink-0 overflow-hidden rounded-sm border border-border bg-black p-0"
     >
       <img
         ref={attachImg}
@@ -39,7 +24,7 @@ export function PreviewCanvas({ onClick }: { onClick?: () => void }) {
       {status !== PreviewState.Live && (
         <div className="absolute inset-0 flex items-center justify-center">
           <span
-            className={`text-sm font-mono tracking-wide ${status === PreviewState.Error ? "text-red" : "text-orange"}`}
+            className={`text-sm font-mono tracking-wide ${status === PreviewState.Error ? "text-red" : "text-accent"}`}
           >
             {status === PreviewState.Error
               ? t("stream.preview_error")
@@ -47,6 +32,6 @@ export function PreviewCanvas({ onClick }: { onClick?: () => void }) {
           </span>
         </div>
       )}
-    </div>
+    </Button>
   );
 }

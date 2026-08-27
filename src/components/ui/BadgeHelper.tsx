@@ -31,26 +31,30 @@ export function LobbyHeader({
   return (
     <div className="border border-border rounded-sm bg-bg1 px-3.5 py-3 flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        {live ? (
-          <span className="inline-flex items-center gap-1.5 text-2xs font-mono tracking-wider uppercase text-red font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-red animate-pulse" />
-            LIVE
+        <div className="flex items-center gap-2">
+          {live ? (
+            <span className="text-2xs font-mono tracking-wider uppercase text-red font-bold">
+              LIVE
+            </span>
+          ) : (
+            <span className="text-2xs font-mono tracking-wider uppercase text-dim">
+              {label}
+            </span>
+          )}
+          <span className="text-2xs font-mono tracking-wider">
+            <span className="text-dim">{codePrefix}</span>
+            <span className="font-medium text-accent">{codeSuffix}</span>
           </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-2xs font-mono tracking-wider uppercase text-dim">
-            <span className="text-orange">»</span>
-            {label}
-          </span>
-        )}
+        </div>
 
         <div className="flex items-center gap-2">
           {autosplit?.wasm && (
-            <Tooltip content="WASM autosplitter connected" side="top">
+            <Tooltip content={t("autosplit.wasm_connected_tooltip")} side="top">
               <MonitorCheck className="w-3.5 h-3.5 text-green" />
             </Tooltip>
           )}
           {autosplit?.livesplit && (
-            <Tooltip content="LiveSplit connected" side="top">
+            <Tooltip content={t("autosplit.livesplit_connected_tooltip")} side="top">
               <img
                 src={livesplitIcon}
                 alt="LiveSplit"
@@ -65,16 +69,12 @@ export function LobbyHeader({
           )}
           {autosplit?.splits_match === false && (
             <Tooltip
-              content="LiveSplit splits differ from the race's — splits won't be recorded"
+              content={t("autosplit.splits_mismatch_tooltip")}
               side="top"
             >
               <TriangleAlert className="w-3.5 h-3.5 text-red" />
             </Tooltip>
           )}
-          <span className="bg-bg2 border border-border rounded-sm px-2 py-0.5 text-2xs font-mono tracking-wider">
-            <span className="text-muted">{codePrefix}</span>
-            <span className="text-orange">{codeSuffix}</span>
-          </span>
         </div>
       </div>
 

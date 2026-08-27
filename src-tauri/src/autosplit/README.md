@@ -18,8 +18,8 @@ can't attach to the game.
 1. **LobbySetup** -> `handler.rs::init_lobby_resources`: load the `.lss` split file, then start
    **both** supervisors (WASM only if a `.wasm` was fetched).
 2. Both run through setup/waiting. Each maintains its own connection flag in `GlobalState`
-   (`wasm_attached`, `livesplit_connected`) and reports via `report_autosplit_state`.
-3. **Race start** (`race_start_at` reached): `maybe_commit_source` locks `autosplit_source` to
+   (`autosplit.wasm_attached`, `autosplit.livesplit_connected`) and reports via `report_autosplit_state`.
+3. **Race start** (`race_start_at` reached): `maybe_commit_source` locks `autosplit.source` to
    `Wasm` if attached, else `LiveSplit` if connected. **Sticky** for the race.
 4. The loser stops; only the committed source fires splits.
 
@@ -29,8 +29,8 @@ can't attach to the game.
 via `current_split_index`/`split()`; LiveSplit via `getsplitindex`/`last_index`. Mixing them
 double-fires or desyncs the index. Firing is gated:
 
-- `timer.rs split()` fires only if `autosplit_source == Wasm`.
-- `tcp.rs poll_loop` fires only if `autosplit_source == LiveSplit`.
+- `timer.rs split()` fires only if `autosplit.source == Wasm`.
+- `tcp.rs poll_loop` fires only if `autosplit.source == LiveSplit`.
 
 ## WASM settings (per-category splits in one per-game .wasm)
 
