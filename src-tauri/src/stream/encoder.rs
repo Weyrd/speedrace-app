@@ -35,7 +35,7 @@ fn remember(enc: Encoder, legs: u8, ok: bool) {
 
 fn synthetic_frame(width: u32, height: u32, seed: u32) -> Vec<u8> {
     let mut buf = vec![0u8; (width * height * 4) as usize];
-    for (i, px) in buf.chunks_exact_mut(4).enumerate() {
+    for (i, px) in buf.as_chunks_mut::<4>().0.iter_mut().enumerate() {
         let x = i as u32 % width;
         let y = i as u32 / width;
         let v = (x ^ y).wrapping_add(seed).wrapping_mul(37) as u8;
