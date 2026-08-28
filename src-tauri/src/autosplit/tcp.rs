@@ -38,7 +38,7 @@ pub async fn connect() -> Option<tokio::net::TcpStream> {
     if !probe_protocol(&mut stream).await {
         mlog!(
             LogCat::LiveSplit,
-            "[livesplit-tcp] 16834 open but not LiveSplit Server protocol — ignoring"
+            "[livesplit-tcp] 16834 open but not LiveSplit Server protocol, ignoring"
         );
         return None;
     }
@@ -103,7 +103,7 @@ pub async fn poll_loop(
         if source == Some(crate::state::AutosplitSource::Wasm) {
             mlog!(
                 LogCat::LiveSplit,
-                "[livesplit-tcp] WASM locked in as source — yielding"
+                "[livesplit-tcp] WASM locked in as source, yielding"
             );
             break;
         }
@@ -130,7 +130,7 @@ pub async fn poll_loop(
             Err(_) => {
                 mlog!(
                     LogCat::LiveSplit,
-                    "[livesplit-tcp] read timeout — reconnecting"
+                    "[livesplit-tcp] read timeout, reconnecting"
                 );
                 break;
             }
