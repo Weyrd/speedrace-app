@@ -230,7 +230,7 @@ async fn run_supervisor(
                     .iter()
                     .find(|l| l.contains("Error splitting the argument list"))
                 {
-                    let msg = format!("ffmpeg rejected its own arguments ({bad_args}) — this is a bug, please report it");
+                    let msg = format!("ffmpeg rejected its own arguments ({bad_args}), this is a bug, please report it");
                     mlog!(LogCat::Stream, "[ffmpeg] {msg}");
                     if let Some(tx) = live_tx.take() {
                         let _ = tx.send(Err(msg.clone()));
@@ -268,7 +268,7 @@ async fn run_supervisor(
                         reason.clone().map(|r| format!(": {r}")).unwrap_or_default()
                     );
                     let msg = format!(
-                        "{} couldn't start{} — pick a different encoder in settings",
+                        "{} couldn't start{}, pick a different encoder in settings",
                         encoder.name(),
                         reason.map(|r| format!(": {r}")).unwrap_or_default()
                     );

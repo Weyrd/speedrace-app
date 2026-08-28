@@ -70,7 +70,7 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
             if raw_end_ms < 0 {
                 mlog!(
                     LogCat::Autosplit,
-                    "[split] negative elapsed at split (raw={raw_end_ms}ms) — clamping to 0, clock offset likely stale"
+                    "[split] negative elapsed at split (raw={raw_end_ms}ms), clamping to 0, clock offset likely stale"
                 );
             }
             let end_ms = raw_end_ms.max(0) as u64;
@@ -90,7 +90,7 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
             if end_ms < start_ms {
                 mlog!(
                     LogCat::Autosplit,
-                    "[split] segment {index} end_ms={end_ms} before start_ms={start_ms} — clamping, segment time is unreliable"
+                    "[split] segment {index} end_ms={end_ms} before start_ms={start_ms}, clamping, segment time is unreliable"
                 );
             }
             let end_ms = end_ms.max(start_ms);

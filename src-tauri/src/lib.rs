@@ -73,7 +73,7 @@ fn fire_finish_hotkey(app: &tauri::AppHandle) {
         if elapsed < 0 {
             mlog!(
                 LogCat::Lifecycle,
-                "[hotkey] negative elapsed at finish (raw={elapsed}ms) — ignoring finish press"
+                "[hotkey] negative elapsed at finish (raw={elapsed}ms), ignoring finish press"
             );
             return;
         }

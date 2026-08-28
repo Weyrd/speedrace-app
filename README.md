@@ -10,7 +10,6 @@
 
 </div>
 
-
 ## What is it?
 
 Speedrace is a speedrun racing platform (in RTA). This app is the client a runner installs on their
@@ -22,9 +21,7 @@ Once you're in a lobby, the app:
 - capture your games windows or screen
 - if an autosplitter is linked it will handle the timer for youw
 
-
 (see [How it works](#how-it-works) below).
-
 
 ## Download & install
 
@@ -90,10 +87,10 @@ open src-tauri/target/debug/bundle/macos/Speedrace.app
 
 </details>
 
-
 ## How it works
 
 The app is a small state machine.
+
 ### 1. Log in
 
 Launch the app and sign in. **Login via web** opens your browser, you authenticate there, and
@@ -127,7 +124,6 @@ Hit **Finish** the moment you're done or **Forfeit** to drop out.
 When you finish, the app shows your **position** and **final time**.
 
 <img src="docs/screenshots/05-finished.png" alt="Finish  position and time" width="320" />
-
 
 ## Tech stack
 
@@ -166,7 +162,6 @@ Generate automatically git diff
 [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`...).
 for each release it creating a Cahngelog.md automatically
 
-
 </details>
 
 ## AI
@@ -178,6 +173,7 @@ Copilot inline suggestions (tab-tab) used pretty much everywhere
 AI generation used for:
 
 **App:**
+
 - almost all documentation (in skills)
 - ffmpeg recompile to build it smaller (pull + build script, `src-tauri/scripts/ffmpeg_build.sh`)
   <img src="docs/screenshots/fmpeg.png" alt="" width="320" />
@@ -187,6 +183,7 @@ AI generation used for:
 - the architecture for loading autosplitter/livesplit + counters (disable via api, etc). It's a bit of a mess honestly, not sure it was worth it
 
 **API:**
+
 - global architecture / separation of concerns (first time using rust)
   <details><summary>spoiler</summary>I should've just followed the dotnet conventions i already knew, find it cleaner..if a rust dev wants to help or propose refactor yes but be readyn to suffer</details>
 - all tests generated
@@ -194,8 +191,11 @@ AI generation used for:
 - import route / category editor batch route
 - assisted on event stats triggers get called everywhere they need to be
 - probably a few debug sessions too
+- similarity algorithm for bingo goals (see `src/services/bingo/similarity.rs`)
 
 **Web:**
+
+- translation i18n
 - almost all admin/mod stats components (heatmap, graphs, etc), generated (disclaimer on the page)
   <img src="docs/screenshots/admin_stats.png" alt="" width="320" />
 - assisted on category editor batch
@@ -206,7 +206,7 @@ AI generation used for:
 
 ⚠️ Also used for maquettes/mockups on complex layout & UX: timeline results, old lobby creation (redone by hand later, complete rework by hand since then execpt setting row), lobby waiting screen, how to "fold" streams in `/live` view.
 
-Figma hates me whenever I try to use it, comes out looking horrible. If you want to help with mockups or design ideas, i`d  love that.
+Figma hates me whenever I try to use it, comes out looking horrible. If you want to help with mockups or design ideas, i`d love that.
 
 Web scaffolding was fully automated by the x2pip CLI (vite, tailwind, i18n, react router/query, shadcn primitives, table primitives, zod, navbar...), no AI there
 
