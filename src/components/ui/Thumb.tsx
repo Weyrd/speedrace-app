@@ -17,7 +17,7 @@ export function Thumb({
   if (isError) {
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <span className="text-2xs text-dim font-mono">—</span>
+        <span className="text-2xs text-dim font-mono">-</span>
       </div>
     );
   }

@@ -57,7 +57,7 @@ impl Timer for SpeedraceTimer {
             if raw_at_ms < 0 {
                 mlog!(
                     LogCat::Autosplit,
-                    "[autosplit] negative elapsed at counter sample (raw={raw_at_ms}ms) — clamping to 0"
+                    "[autosplit] negative elapsed at counter sample (raw={raw_at_ms}ms), clamping to 0"
                 );
             }
             let at_ms = raw_at_ms.max(0) as u64;
@@ -114,7 +114,7 @@ impl Timer for SpeedraceTimer {
         g.current_split_index -= 1;
         mlog!(
             LogCat::Autosplit,
-            "[wasm] undo_split: local index now {} — the split already reported to the back cannot be retracted",
+            "[wasm] undo_split: local index now {}, the split already reported to the back cannot be retracted",
             g.current_split_index
         );
     }
