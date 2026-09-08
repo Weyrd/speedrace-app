@@ -34,6 +34,7 @@ export type LobbyStatus = (typeof LobbyStatus)[keyof typeof LobbyStatus];
 export const RaceType = {
   Casual: "casual",
   Ranked: "ranked",
+  Bingo: "bingo",
 } as const;
 export type RaceType = (typeof RaceType)[keyof typeof RaceType];
 
@@ -76,7 +77,7 @@ export interface LobbySetup {
   race_start_at: number | null;
   expires_at: number;
   game_id: string;
-  category_id: string;
+  category_id: string | null;
   category_split_id: string | null;
   split_resource_updated_at: string | null;
   autosplitter_updated_at: string | null;
