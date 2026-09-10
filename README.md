@@ -194,6 +194,7 @@ AI generation used for:
 - import route / category editor batch route
 - assisted on event stats triggers get called everywhere they need to be
 - probably a few debug sessions too
+- generate schema of requests automatically via openapi to check them in bruno
 
 **Web:**
 - almost all admin/mod stats components (heatmap, graphs, etc), generated (disclaimer on the page)
