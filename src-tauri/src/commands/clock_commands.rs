@@ -6,7 +6,7 @@ use crate::settings;
 use crate::state::{LockGlobalState, SharedState};
 
 const CLOCK_CACHE_TTL_MS: i64 = 24 * 60 * 60 * 1000;
-const SAMPLE_COUNT: usize = 5;
+const SAMPLE_COUNT: usize = 3;
 
 #[derive(Serialize)]
 pub struct ClockOffset {
