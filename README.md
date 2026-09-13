@@ -192,8 +192,9 @@ AI generation used for:
 - assisted on event stats triggers get called everywhere they need to be
 - probably a few debug sessions too
 - similarity algorithm for bingo goals (see `src/services/bingo/similarity.rs`)
+- bingo PlayerSlot ident system (lookup mongodb) typed builder
 
-**Web:**
+  **Web:**
 
 - translation i18n
 - almost all admin/mod stats components (heatmap, graphs, etc), generated (disclaimer on the page)
