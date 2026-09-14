@@ -193,6 +193,7 @@ AI generation used for:
 - probably a few debug sessions too
 - similarity algorithm for bingo goals (see `src/services/bingo/similarity.rs`)
 - bingo PlayerSlot ident system (lookup mongodb) typed builder
+- generate schema of requests automatically via openapi to check them in bruno
 
   **Web:**
 
@@ -204,6 +205,7 @@ AI generation used for:
 - debugged RaceTimeline results (scale-to-time button/limit/readable, bezier lines...)
 - roadmap & leaderboard placeholders
 - cat picker: had two versions, AI merged them
+- algorithm to sort team bingo in right and left collum depening of size, number of player, number of team..
 
 ⚠️ Also used for maquettes/mockups on complex layout & UX: timeline results, old lobby creation (redone by hand later, complete rework by hand since then execpt setting row), lobby waiting screen, how to "fold" streams in `/live` view.
 

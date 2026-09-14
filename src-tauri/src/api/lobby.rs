@@ -40,7 +40,7 @@ pub struct LobbyCurrentResponse {
     #[serde(default)]
     pub game_id: String,
     #[serde(default)]
-    pub category_id: String,
+    pub category_id: Option<String>,
     #[serde(default)]
     pub category_split_id: Option<String>,
     #[serde(default)]
