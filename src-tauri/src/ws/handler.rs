@@ -37,7 +37,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             let payload = *payload;
             mlog!(
                 LogCat::Ws,
-                "[ws] LobbySetup: lobby={} game_id={} cat_id={} split_id={:?} split_updated_at={:?} autosplitter_updated_at={:?}",
+                "[ws] LobbySetup: lobby={} game_id={} cat_id={:?} split_id={:?} split_updated_at={:?} autosplitter_updated_at={:?}",
                 payload.lobby_id,
                 payload.game_id,
                 payload.category_id,
@@ -205,6 +205,7 @@ pub fn init_lobby_resources(
     if lobby.split_resource_updated_at.is_none() {
         return;
     }
+    let is_bingo = lobby.race_type == crate::models::lobby::RaceType::Bingo;
     {
         let app = app.clone();
         let state = state.clone();
@@ -240,17 +241,19 @@ pub fn init_lobby_resources(
             if let Some(cfg) = cfg {
                 state.lock_state().counter_config = Some(cfg);
             }
-            let (has_wasm, cancel) = {
-                let g = state.lock_state();
-                (
-                    g.autosplitter_wasm.is_some(),
-                    Arc::clone(&g.autosplitter_cancel),
-                )
-            };
-            if has_wasm {
-                crate::autosplit::wasm::start(app.clone(), state.clone(), cancel).await;
+            if !is_bingo {
+                let (has_wasm, cancel) = {
+                    let g = state.lock_state();
+                    (
+                        g.autosplitter_wasm.is_some(),
+                        Arc::clone(&g.autosplitter_cancel),
+                    )
+                };
+                if has_wasm {
+                    crate::autosplit::wasm::start(app.clone(), state.clone(), cancel).await;
+                }
+                spawn_livesplit_supervisor(&app, &state);
             }
-            spawn_livesplit_supervisor(&app, &state);
             state.lock_state().probe_running = false;
         });
     }
@@ -274,13 +277,22 @@ pub(crate) fn resume_lobby_resources(
 }
 
 async fn start_autosplitter(app: AppHandle, state: SharedState) {
-    let (has_wasm, cancel) = {
+    let (has_wasm, cancel, is_bingo) = {
         let g = state.lock_state();
+        let bingo = g
+            .lobby
+            .as_ref()
+            .map(|l| l.race_type == crate::models::lobby::RaceType::Bingo)
+            .unwrap_or(false);
         (
             g.autosplitter_wasm.is_some(),
             Arc::clone(&g.autosplitter_cancel),
+            bingo,
         )
     };
+    if is_bingo {
+        return;
+    }
     if has_wasm {
         crate::autosplit::wasm::start(app.clone(), state.clone(), cancel).await;
     }
