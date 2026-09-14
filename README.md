@@ -179,8 +179,11 @@ AI generation used for:
   <img src="docs/screenshots/fmpeg.png" alt="" width="320" />
   <details><summary>wth is that</summary></details>
 - a few debug sessions, like keybind matching physical keycode + layout stuff (azerty, qwerty, mac keyboard...)
+- write logs
 - debug AMD encoder (black screen)
 - the architecture for loading autosplitter/livesplit + counters (disable via api, etc). It's a bit of a mess honestly, not sure it was worth it
+- clock resync match web
+- CI/CD
 
 **API:**
 
