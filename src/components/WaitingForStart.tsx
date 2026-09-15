@@ -30,7 +30,7 @@ export default function WaitingForStart() {
 
       <WhepPreview whepUrl={whepUrl} streamStatus={state.streamStatus} />
 
-      {lobby.split_resource_updated_at && <SplitList />}
+      {lobby.race_config?.split_resource_updated_at && <SplitList />}
 
       <p className="text-2xs text-dim font-mono tracking-wide text-center leading-relaxed whitespace-pre-line">
         {t("waiting.waiting_host")}

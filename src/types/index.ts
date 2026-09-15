@@ -62,6 +62,13 @@ export function autosplitDrivesFinish(autosplit?: AutosplitState): boolean {
   );
 }
 
+export interface RaceConfig {
+  category_split_id: string | null;
+  split_resource_updated_at: string | null;
+  autosplitter_updated_at: string | null;
+  counter_config_updated_at: string | null;
+}
+
 export interface LobbySetup {
   lobby_id: string;
   lobby_status: LobbyStatus;
@@ -78,9 +85,7 @@ export interface LobbySetup {
   expires_at: number;
   game_id: string;
   category_id: string | null;
-  category_split_id: string | null;
-  split_resource_updated_at: string | null;
-  autosplitter_updated_at: string | null;
+  race_config: RaceConfig | null;
 }
 export interface PlayerResult {
   player_status: PlayerStatus;
