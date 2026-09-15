@@ -37,13 +37,11 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             let payload = *payload;
             mlog!(
                 LogCat::Ws,
-                "[ws] LobbySetup: lobby={} game_id={} cat_id={:?} split_id={:?} split_updated_at={:?} autosplitter_updated_at={:?}",
+                "[ws] LobbySetup: lobby={} game_id={} cat_id={:?} race_config={:?}",
                 payload.lobby_id,
                 payload.game_id,
                 payload.category_id,
-                payload.category_split_id,
-                payload.split_resource_updated_at,
-                payload.autosplitter_updated_at,
+                payload.race_config,
             );
             mlog!(
                 LogCat::Ws,
@@ -199,17 +197,20 @@ pub fn init_lobby_resources(
     state: &SharedState,
     lobby: &crate::models::LobbySetup,
 ) {
-    let Some(category_split_id) = lobby.category_split_id.clone() else {
+    let Some(race_config) = lobby.race_config.as_ref() else {
         return;
     };
-    if lobby.split_resource_updated_at.is_none() {
+    let Some(category_split_id) = race_config.category_split_id.clone() else {
+        return;
+    };
+    if race_config.split_resource_updated_at.is_none() {
         return;
     }
     let is_bingo = lobby.race_type == crate::models::lobby::RaceType::Bingo;
     {
         let app = app.clone();
         let state = state.clone();
-        let updated_at = lobby.split_resource_updated_at.clone();
+        let updated_at = race_config.split_resource_updated_at.clone();
         tauri::async_runtime::spawn(async move {
             load_split_resource(&app, &state, &category_split_id, updated_at.as_deref()).await;
         });
@@ -227,8 +228,8 @@ pub fn init_lobby_resources(
         let app = app.clone();
         let state = state.clone();
         let game_id = lobby.game_id.clone();
-        let updated_at = lobby.autosplitter_updated_at.clone();
-        let counter_updated_at = lobby.counter_config_updated_at.clone();
+        let updated_at = race_config.autosplitter_updated_at.clone();
+        let counter_updated_at = race_config.counter_config_updated_at.clone();
         tauri::async_runtime::spawn(async move {
             let (_, cfg) = tokio::join!(
                 crate::autosplit::wasm::fetch(&app, &state, &game_id, updated_at.as_deref()),

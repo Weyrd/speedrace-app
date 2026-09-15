@@ -3,7 +3,7 @@ use tauri::AppHandle;
 
 use crate::counter::CounterSample;
 use crate::logging::{mlog, LogCat};
-use crate::models::lobby::{PlayerStatus, RaceType};
+use crate::models::lobby::{PlayerStatus, RaceConfig, RaceType};
 use crate::models::LobbySetup;
 use crate::{config, models::LobbyStatus};
 
@@ -42,13 +42,7 @@ pub struct LobbyCurrentResponse {
     #[serde(default)]
     pub category_id: Option<String>,
     #[serde(default)]
-    pub category_split_id: Option<String>,
-    #[serde(default)]
-    pub split_resource_updated_at: Option<String>,
-    #[serde(default)]
-    pub autosplitter_updated_at: Option<String>,
-    #[serde(default)]
-    pub counter_config_updated_at: Option<String>,
+    pub race_config: Option<RaceConfig>,
 }
 
 pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
@@ -71,10 +65,7 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         expires_at: l.expires_at,
         game_id: l.game_id,
         category_id: l.category_id,
-        category_split_id: l.category_split_id,
-        split_resource_updated_at: l.split_resource_updated_at,
-        autosplitter_updated_at: l.autosplitter_updated_at,
-        counter_config_updated_at: l.counter_config_updated_at,
+        race_config: l.race_config,
     })
 }
 

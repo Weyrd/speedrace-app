@@ -68,7 +68,7 @@ export default function StreamSetup() {
         {sourceLabel && <span className="text-text"> ({sourceLabel})</span>}
       </p>
 
-      {lobby.split_resource_updated_at && <SplitList />}
+      {lobby.race_config?.split_resource_updated_at && <SplitList />}
 
       {error && (
         <p className="text-2xs text-red font-mono tracking-wide leading-relaxed">
