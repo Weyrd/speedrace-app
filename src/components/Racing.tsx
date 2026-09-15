@@ -109,7 +109,7 @@ export default function Racing() {
           {display}
         </span>
       </div>
-      {lobby.split_resource_updated_at && (
+      {lobby.race_config?.split_resource_updated_at && (
         <SplitList
           currentIndex={splitIndex}
           completedTimes={completedSegmentTimes}

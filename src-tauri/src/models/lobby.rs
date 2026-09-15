@@ -36,6 +36,18 @@ impl LobbyStatus {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RaceConfig {
+    #[serde(default)]
+    pub category_split_id: Option<String>,
+    #[serde(default)]
+    pub split_resource_updated_at: Option<String>,
+    #[serde(default)]
+    pub autosplitter_updated_at: Option<String>,
+    #[serde(default)]
+    pub counter_config_updated_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LobbySetup {
     pub lobby_id: String,
@@ -58,13 +70,7 @@ pub struct LobbySetup {
     #[serde(default)]
     pub category_id: Option<String>,
     #[serde(default)]
-    pub category_split_id: Option<String>,
-    #[serde(default)]
-    pub split_resource_updated_at: Option<String>,
-    #[serde(default)]
-    pub autosplitter_updated_at: Option<String>,
-    #[serde(default)]
-    pub counter_config_updated_at: Option<String>,
+    pub race_config: Option<RaceConfig>,
 }
 
 #[derive(Debug, Serialize, Default)]
