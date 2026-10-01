@@ -211,6 +211,7 @@ AI generation used for:
 - algorithm to sort team bingo in right and left collum depening of size, number of player, number of team..
 - refactor domain separation lobby (codebase)
 - ci check dtos drift cron against back openapi
+- component tier coverage picker for bingo goal
 
 ⚠️ Also used for maquettes/mockups on complex layout & UX: timeline results, old lobby creation (redone by hand later, complete rework by hand since then execpt setting row), lobby waiting screen, how to "fold" streams in `/live` view.
 
