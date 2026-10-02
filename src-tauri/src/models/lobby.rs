@@ -58,6 +58,12 @@ pub struct LobbySetup {
     #[serde(default)]
     pub category_id: Option<String>,
     #[serde(default)]
+    pub race_config: Option<RaceLobbyConfig>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RaceLobbyConfig {
+    #[serde(default)]
     pub category_split_id: Option<String>,
     #[serde(default)]
     pub split_resource_updated_at: Option<String>,

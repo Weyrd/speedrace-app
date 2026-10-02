@@ -66,7 +66,7 @@ spawns `api::lobby::post_player_counter`.
 rewrite the cache. Returns `None` when the stamp is `None`. Called once at race start in
 `ws/handler.rs::init_lobby_resources`, stored in `SharedState.counter_config:
 Option<Vec<CounterConfig>>` (`state.rs`). The stamp arrives on the lobby setup payload
-(`LobbyCurrentResponse.counter_config_updated_at` → `LobbySetup`).
+(`LobbyCurrentResponse.race_config.counter_config_updated_at` → `LobbySetup.race_config`).
 
 `CounterConfig` (app-side model) = `{ counter_name, enabled, mode, cadence, label, icon,
 display_order }` — a subset of the back's `GameCounterConfig` (no ids/timestamps/targets).

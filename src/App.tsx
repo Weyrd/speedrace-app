@@ -24,7 +24,7 @@ function hasSplits(state: ReturnType<typeof useAppState>): boolean {
     (state.phase === Phase.StreamSetup ||
       state.phase === Phase.WaitingForStart ||
       state.phase === Phase.RaceInProgress) &&
-    state.lobby.split_resource_updated_at != null
+    state.lobby.race_config?.split_resource_updated_at != null
   );
 }
 
