@@ -20,6 +20,12 @@ pub struct PlayerResult {
     pub finish_position: Option<u32>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct LobbyCurrentHandicap {
+    #[serde(default)]
+    pub start_delay_ms: i64,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct LobbyCurrentResponse {
     pub lobby_id: String,
@@ -36,6 +42,8 @@ pub struct LobbyCurrentResponse {
     pub category_name: Vec<String>,
     pub max_duration_minutes: u32,
     pub race_start_at: Option<i64>,
+    #[serde(default)]
+    pub handicap: Option<LobbyCurrentHandicap>,
     pub expires_at: i64,
     #[serde(default)]
     pub game_id: String,
@@ -61,7 +69,9 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         game_name: l.game_name,
         category_name: l.category_name,
         max_duration_minutes: l.max_duration_minutes,
-        race_start_at: l.race_start_at,
+        race_start_at: l
+            .race_start_at
+            .map(|s| s + l.handicap.unwrap_or_default().start_delay_ms),
         expires_at: l.expires_at,
         game_id: l.game_id,
         category_id: l.category_id,
