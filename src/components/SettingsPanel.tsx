@@ -213,7 +213,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
                   : " "
                 : hotkey
                   ? formatAccelerator(hotkey)
-                  : "—"}
+                  : "-"}
             </Button>
             <Button
               variant="ghost"
