@@ -99,7 +99,7 @@ export default function Racing() {
         code={lobby.code}
         live
         autosplit={state.autosplit}
-        earlyStartDetected={state.autosplit?.run_in_progress}
+        earlyStartDetected={negative && state.autosplit?.run_in_progress}
       />
       <WhepPreview whepUrl={whepUrl} streamStatus={state.streamStatus} />
       <div className="flex justify-center py-2">
