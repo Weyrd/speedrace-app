@@ -4,5 +4,6 @@ const base = import.meta.env.DEV
 
 export const webUrls = {
   lobby: (code: string) => `${base}/${code}`,
+  history: (code: string) => `${base}/history/${code}`,
   createLobby: `${base}/live`,
 } as const;

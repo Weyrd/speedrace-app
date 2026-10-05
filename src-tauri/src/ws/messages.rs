@@ -60,4 +60,17 @@ pub struct PlayerResultPayload {
     pub player_status: String,
     pub finishing_time_ms: Option<i64>,
     pub finish_position: Option<i32>,
+    #[serde(default)]
+    pub bingo: Option<BingoResultPayload>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct BingoResultPayload {
+    pub outcome: String,
+    pub claimed_squares: u32,
+    pub total_squares: u32,
+    pub duration_ms: i64,
+    pub lobby_code: String,
+    #[serde(default)]
+    pub winners: Vec<String>,
 }
