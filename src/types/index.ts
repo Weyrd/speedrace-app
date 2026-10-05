@@ -38,6 +38,13 @@ export const RaceType = {
 } as const;
 export type RaceType = (typeof RaceType)[keyof typeof RaceType];
 
+export const BingoOutcome = {
+  Won: "won",
+  Lost: "lost",
+  Draw: "draw",
+} as const;
+export type BingoOutcome = (typeof BingoOutcome)[keyof typeof BingoOutcome];
+
 export const LobbyClosedReason = {
   Left: "Left",
   Deleted: "Deleted",
@@ -87,10 +94,19 @@ export interface LobbySetup {
   category_id: string | null;
   race_config: RaceConfig | null;
 }
+export interface BingoResult {
+  outcome: BingoOutcome;
+  claimed_squares: number;
+  total_squares: number;
+  duration_ms: number;
+  lobby_code: string;
+  winners: string[];
+}
 export interface PlayerResult {
   player_status: PlayerStatus;
   finishing_time_ms: number | null;
   finish_position: number | null;
+  bingo?: BingoResult;
 }
 export interface SplitFiredPayload {
   index: number;

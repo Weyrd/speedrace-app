@@ -59,6 +59,15 @@
     "position_ordinal_few": "{{count}}rd",
     "position_ordinal_other": "{{count}}th"
   },
+  "bingo": {
+    "won": "Victory",
+    "lost": "Defeat",
+    "draw": "Draw",
+    "won_by": "Won by {{names}}",
+    "squares": "Squares claimed",
+    "duration": "Duration",
+    "view_results": "View results"
+  },
   "replay": {
     "saved": "Replay saved to your computer",
     "show_in_folder": "Show in folder"
