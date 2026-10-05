@@ -6,6 +6,7 @@ import { PlayerStatus, RaceType, UploadPhase } from "../types";
 import { openReplayDir } from "../lib/commands";
 import { useStreamSettings } from "../hooks/useStreamSettings";
 import { Button } from "./ui/button";
+import BingoResult from "./BingoResult";
 
 const UPLOAD_ACTIVE = new Set<UploadPhase>([
   UploadPhase.Preparing,
@@ -51,48 +52,63 @@ export default function Finished() {
 
   return (
     <div className="h-full flex flex-col items-center justify-center gap-6 px-6 py-10">
-      <div className="flex flex-col items-center gap-1">
-        {finished && positionLabel ? (
-          <>
-            <span className="text-4xl font-bold font-mono tracking-wide text-text">
-              {positionLabel}
-            </span>
-            <span className="text-2xs text-dim font-mono tracking-wide">
-              {t("race.finish_position")}
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="text-4xl font-bold font-mono tracking-wide text-muted">
-              {positionLabel
-                ? `${t("race.status_dnf")} - ${positionLabel}`
-                : t("race.status_dnf")}
-            </span>
-            <span className="text-2xs text-dim font-mono tracking-wide">
-              {t("race.status_forfeited")}
-            </span>
-          </>
-        )}
-      </div>
+      {result.bingo ? (
+        <BingoResult bingo={result.bingo} />
+      ) : (
+        <>
+          <div className="flex flex-col items-center gap-1">
+            {finished && positionLabel ? (
+              <>
+                <span className="text-4xl font-bold font-mono tracking-wide text-text">
+                  {positionLabel}
+                </span>
+                <span className="text-2xs text-dim font-mono tracking-wide">
+                  {t("race.finish_position")}
+                </span>
+              </>
+            ) : finished ? (
+              <>
+                <span className="text-4xl font-bold font-mono tracking-wide text-text">
+                  {t("race.finished_title")}
+                </span>
+                <span className="text-2xs text-dim font-mono tracking-wide">
+                  {t("race.finished_subtitle")}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-4xl font-bold font-mono tracking-wide text-muted">
+                  {positionLabel
+                    ? `${t("race.status_dnf")} - ${positionLabel}`
+                    : t("race.status_dnf")}
+                </span>
+                <span className="text-2xs text-dim font-mono tracking-wide">
+                  {t("race.status_forfeited")}
+                </span>
+              </>
+            )}
+          </div>
 
-      {result.finishing_time_ms != null && (
-        <div className="flex flex-col items-center gap-1">
+          {result.finishing_time_ms != null && (
+            <div className="flex flex-col items-center gap-1">
+              <span
+                className={`text-2xl font-bold font-mono tracking-wide ${finished ? "text-text" : "text-muted"}`}
+              >
+                {formatTime(result.finishing_time_ms)}
+              </span>
+              <span className="text-2xs text-dim font-mono tracking-wide">
+                {t("race.finish_time")}
+              </span>
+            </div>
+          )}
+
           <span
-            className={`text-2xl font-bold font-mono tracking-wide ${finished ? "text-text" : "text-muted"}`}
+            className={`text-xs font-mono tracking-wider uppercase ${finished ? "text-green" : "text-red"}`}
           >
-            {formatTime(result.finishing_time_ms)}
+            {finished ? t("race.status_finished") : t("race.status_dnf")}
           </span>
-          <span className="text-2xs text-dim font-mono tracking-wide">
-            {t("race.finish_time")}
-          </span>
-        </div>
+        </>
       )}
-
-      <span
-        className={`text-xs font-mono tracking-wider uppercase ${finished ? "text-green" : "text-red"}`}
-      >
-        {finished ? t("race.status_finished") : t("race.status_dnf")}
-      </span>
 
       {upload && (
         <div className="flex w-full flex-col items-center gap-2">
