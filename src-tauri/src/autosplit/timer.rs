@@ -50,7 +50,7 @@ impl Timer for SpeedraceTimer {
 
         let post = {
             let mut guard = self.state.lock_state();
-            if guard.run_forfeited {
+            if guard.run_forfeited || guard.pending_finish.is_some() {
                 return;
             }
             let Some(race_start_at) = guard.race_start_at else {
