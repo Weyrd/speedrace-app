@@ -14,10 +14,6 @@ pub struct CounterSample {
     pub at_ms: u64,
 }
 
-pub fn clamp_split_index(current: u32, seg_count: u32) -> u32 {
-    current.min(seg_count.saturating_sub(1))
-}
-
 #[derive(Debug)]
 pub enum CounterBuffer {
     Total(Option<CounterSample>),
