@@ -86,19 +86,31 @@ pub(crate) async fn auto_select_game_window(app: &AppHandle, state: &SharedState
 pub async fn start(
     app: &AppHandle,
     state: &SharedState,
-    live_tx: Option<tokio::sync::oneshot::Sender<Result<(), String>>>,
-) -> Result<Option<PathBuf>, String> {
+    live_tx: Option<LiveSender>,
+) -> Result<Option<PathBuf>, StreamError> {
+    let stale = {
+        let guard = state.lock_state();
+        guard.app_state == AppState::StreamSetup && guard.stream.is_some()
+    };
+    if stale {
+        mlog!(
+            LogCat::Stream,
+            "[stream] stale stream found at start, shutting it down"
+        );
+        shutdown(app, state, true).await;
+    }
+
     let (whip_url, session_source, race_type, game_name, category_name, username) = {
         let guard = state.lock_state();
         if guard.app_state != AppState::StreamSetup {
-            return Err("stream can only start from StreamSetup".into());
+            return Err(StreamError::NotInStreamSetup);
         }
         if guard.stream.is_some() {
-            return Err("stream already running".into());
+            return Err(StreamError::AlreadyRunning);
         }
-        let lobby = guard.lobby.as_ref().ok_or("no active lobby")?;
+        let lobby = guard.lobby.as_ref().ok_or(StreamError::NoLobby)?;
         if lobby.whip_url.is_empty() {
-            return Err("lobby has no whip_url".into());
+            return Err(StreamError::NoWhipUrl);
         }
         (
             lobby.whip_url.clone(),
@@ -111,7 +123,7 @@ pub async fn start(
     };
     let settings = load_settings(app, session_source);
 
-    let ffmpeg_path = ffmpeg::resolve_ffmpeg_path()?;
+    let ffmpeg_path = ffmpeg::resolve_ffmpeg_path().map_err(StreamError::FfmpegMissing)?;
     let replay_base = resolve_replay_base(
         app,
         race_type,
@@ -169,10 +181,14 @@ pub async fn start(
     Ok(replay_out)
 }
 
-pub async fn publish(app: &AppHandle, state: &SharedState, lobby_id: &str) -> Result<(), String> {
+pub async fn publish(
+    app: &AppHandle,
+    state: &SharedState,
+    lobby_id: &str,
+) -> Result<(), StreamError> {
     preview::stop(state).await;
 
-    let (live_tx, live_rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
+    let (live_tx, live_rx) = tokio::sync::oneshot::channel::<Result<(), StreamError>>();
     let replay = match start(app, state, Some(live_tx)).await {
         Ok(r) => r,
         Err(e) => {
@@ -183,12 +199,12 @@ pub async fn publish(app: &AppHandle, state: &SharedState, lobby_id: &str) -> Re
 
     match tokio::time::timeout(PUBLISH_LIVE_TIMEOUT, live_rx).await {
         Ok(Ok(Ok(()))) => {}
-        Ok(Ok(Err(reason))) => return publish_fail(app, state, replay, &reason).await,
-        _ => return publish_fail(app, state, replay, "stream did not go live").await,
+        Ok(Ok(Err(reason))) => return publish_fail(app, state, replay, reason).await,
+        _ => return publish_fail(app, state, replay, StreamError::NotLive).await,
     }
 
     if let Err(e) = crate::api::lobby::post_stream_ready(app, lobby_id).await {
-        return publish_fail(app, state, replay, &format!("stream-ready failed: {e}")).await;
+        return publish_fail(app, state, replay, StreamError::StreamReadyFailed(e)).await;
     }
 
     {
@@ -202,8 +218,8 @@ async fn publish_fail(
     app: &AppHandle,
     state: &SharedState,
     replay: Option<PathBuf>,
-    msg: &str,
-) -> Result<(), String> {
+    err: StreamError,
+) -> Result<(), StreamError> {
     shutdown(app, state, true).await;
     if let Some(p) = replay {
         let _ = std::fs::remove_file(&p);
@@ -217,8 +233,8 @@ async fn publish_fail(
         }
     }
     let _ = preview::start(app, state).await;
-    mlog!(LogCat::Stream, "[publish] failed: {msg}");
-    Err(msg.to_string())
+    mlog!(LogCat::Stream, "[publish] failed: {err:?}");
+    Err(err)
 }
 
 pub async fn shutdown(app: &AppHandle, state: &SharedState, graceful: bool) {
@@ -288,7 +304,9 @@ fn sanitize(s: &str) -> String {
     s.chars()
         .filter(|c| *c != '\'')
         .map(|c| {
-            if r#"<>:"/\|?*"#.contains(c) || c.is_control() {
+            if c == '%' {
+                '％'
+            } else if r#"<>:"/\|?*"#.contains(c) || c.is_control() {
                 '-'
             } else {
                 c
@@ -405,3 +423,6 @@ pub fn sweep_old_replays(app: &AppHandle) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

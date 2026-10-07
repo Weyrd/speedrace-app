@@ -17,6 +17,25 @@ pub enum StreamState {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(tag = "code", content = "detail", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum StreamError {
+    NotInStreamSetup,
+    AlreadyRunning,
+    NoLobby,
+    NoWhipUrl,
+    FfmpegMissing(String),
+    CaptureFailed(String),
+    PipelineArgs(String),
+    FfmpegSpawn(String),
+    FfmpegRejectedArgs(String),
+    EncoderUnusable(String),
+    NotLive,
+    StreamReadyFailed(String),
+}
+
+pub type LiveSender = tokio::sync::oneshot::Sender<Result<(), StreamError>>;
+
+#[derive(Debug, Clone, Serialize)]
 pub struct StreamStatusPayload {
     pub state: StreamState,
     #[serde(skip_serializing_if = "Option::is_none")]

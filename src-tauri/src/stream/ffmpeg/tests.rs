@@ -37,3 +37,14 @@ fn hw_encoder_failed_recognizes_a_real_hardware_failure() {
     let tail = vec!["[h264_nvenc] No capable devices found".to_string()];
     assert!(hw_encoder_failed(&tail));
 }
+
+#[test]
+fn log_noise_drops_repeated_frame_drops_only() {
+    assert!(is_log_noise(
+        "[vf#1:0 @ 0000021d5ec8a080] *** dropping frame 899 at ts 898"
+    ));
+    assert!(is_log_noise("    Last message repeated 17 times"));
+    assert!(!is_log_noise(
+        "[out#1/segment @ 000001ab886031c0] Could not write header (incorrect codec parameters ?): Invalid argument"
+    ));
+}

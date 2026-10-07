@@ -15,7 +15,7 @@ pub async fn publish_stream(
     lobby_id: String,
     state: State<'_, SharedState>,
     app: AppHandle,
-) -> Result<(), String> {
+) -> Result<(), stream::StreamError> {
     stream::publish(&app, &state, &lobby_id).await
 }
 
