@@ -204,6 +204,28 @@ export type CaptureSource =
   | { kind: typeof CaptureSourceKind.Monitor; index: number }
   | { kind: typeof CaptureSourceKind.Window; hwnd: number; title: string };
 
+export const StreamErrorCode = {
+  NotInStreamSetup: "NOT_IN_STREAM_SETUP",
+  AlreadyRunning: "ALREADY_RUNNING",
+  NoLobby: "NO_LOBBY",
+  NoWhipUrl: "NO_WHIP_URL",
+  FfmpegMissing: "FFMPEG_MISSING",
+  CaptureFailed: "CAPTURE_FAILED",
+  PipelineArgs: "PIPELINE_ARGS",
+  FfmpegSpawn: "FFMPEG_SPAWN",
+  FfmpegRejectedArgs: "FFMPEG_REJECTED_ARGS",
+  EncoderUnusable: "ENCODER_UNUSABLE",
+  NotLive: "NOT_LIVE",
+  StreamReadyFailed: "STREAM_READY_FAILED",
+} as const;
+export type StreamErrorCode =
+  (typeof StreamErrorCode)[keyof typeof StreamErrorCode];
+
+export interface StreamError {
+  code: StreamErrorCode;
+  detail?: string;
+}
+
 export const EncoderPref = {
   Auto: "auto",
   Nvenc: "h264_nvenc",

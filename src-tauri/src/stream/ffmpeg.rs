@@ -2,7 +2,8 @@ use super::pipeline;
 #[cfg(windows)]
 use super::PreviewEvent;
 use super::{
-    audio, emit_status, Encoder, EncoderStatusPayload, LaunchSpec, Outcome, ReplayRun, StreamState,
+    audio, emit_status, Encoder, EncoderStatusPayload, LaunchSpec, LiveSender, Outcome, ReplayRun,
+    StreamError, StreamState,
 };
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
@@ -15,7 +16,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
-use tokio::sync::{oneshot, watch};
+use tokio::sync::watch;
 
 mod process;
 mod progress;
@@ -76,12 +77,18 @@ fn start_debug_preview(_app: &AppHandle) -> Option<(String, tauri::async_runtime
     None
 }
 
+fn fail_live(live_tx: &mut Option<LiveSender>, err: StreamError) {
+    if let Some(tx) = live_tx.take() {
+        let _ = tx.send(Err(err));
+    }
+}
+
 pub async fn supervise(
     app: AppHandle,
     state: SharedState,
     spec: LaunchSpec,
     stop_rx: watch::Receiver<bool>,
-    live_tx: Option<oneshot::Sender<Result<(), String>>>,
+    live_tx: Option<LiveSender>,
 ) {
     let debug_stream = crate::settings::load_stream_settings(&app).debug_stream;
     run_supervisor(app, state, spec, stop_rx, live_tx, debug_stream).await;
@@ -92,7 +99,7 @@ async fn run_supervisor(
     state: SharedState,
     spec: LaunchSpec,
     mut stop_rx: watch::Receiver<bool>,
-    mut live_tx: Option<oneshot::Sender<Result<(), String>>>,
+    mut live_tx: Option<LiveSender>,
     debug_stream: bool,
 ) {
     let LaunchSpec {
@@ -122,6 +129,7 @@ async fn run_supervisor(
                 Ok(h) => h,
                 Err(e) => {
                     mlog!(LogCat::Stream, "[ffmpeg] capture failed: {e}");
+                    fail_live(&mut live_tx, StreamError::CaptureFailed(e.clone()));
                     emit_status(&app, StreamState::Error, Some(e));
                     clear_session(&state);
                     return;
@@ -157,6 +165,7 @@ async fn run_supervisor(
                 if let Some(r) = preview_reader {
                     r.abort();
                 }
+                fail_live(&mut live_tx, StreamError::PipelineArgs(e.clone()));
                 emit_status(&app, StreamState::Error, Some(e));
                 clear_session(&state);
                 return;
@@ -179,6 +188,7 @@ async fn run_supervisor(
                 if let Some(r) = preview_reader {
                     r.abort();
                 }
+                fail_live(&mut live_tx, StreamError::FfmpegSpawn(e.clone()));
                 emit_status(&app, StreamState::Error, Some(e));
                 clear_session(&state);
                 return;
@@ -232,9 +242,10 @@ async fn run_supervisor(
                 {
                     let msg = format!("ffmpeg rejected its own arguments ({bad_args}), this is a bug, please report it");
                     mlog!(LogCat::Stream, "[ffmpeg] {msg}");
-                    if let Some(tx) = live_tx.take() {
-                        let _ = tx.send(Err(msg.clone()));
-                    }
+                    fail_live(
+                        &mut live_tx,
+                        StreamError::FfmpegRejectedArgs(bad_args.clone()),
+                    );
                     emit_status(&app, StreamState::Error, Some(msg));
                     clear_session(&state);
                     return;
@@ -272,9 +283,10 @@ async fn run_supervisor(
                         encoder.name(),
                         reason.map(|r| format!(": {r}")).unwrap_or_default()
                     );
-                    if let Some(tx) = live_tx.take() {
-                        let _ = tx.send(Err(msg.clone()));
-                    }
+                    fail_live(
+                        &mut live_tx,
+                        StreamError::EncoderUnusable(encoder.name().to_string()),
+                    );
                     emit_status(&app, StreamState::Error, Some(msg));
                     clear_session(&state);
                     return;
@@ -331,6 +343,12 @@ fn clear_session(state: &SharedState) {
     state.lock_state().stream = None;
 }
 
+const LOG_NOISE_MARKERS: [&str; 2] = ["*** dropping frame", "Last message repeated"];
+
+fn is_log_noise(line: &str) -> bool {
+    LOG_NOISE_MARKERS.iter().any(|m| line.contains(m))
+}
+
 fn hw_encoder_failed(tail: &[String]) -> bool {
     tail.iter().any(|l| {
         l.contains("No capable devices found")
@@ -365,7 +383,7 @@ async fn run_child(
     app: &AppHandle,
     mut child: Child,
     stop_rx: &mut watch::Receiver<bool>,
-    live_tx: &mut Option<oneshot::Sender<Result<(), String>>>,
+    live_tx: &mut Option<LiveSender>,
     prelive_timeout: Duration,
     encoder: Encoder,
 ) -> (Outcome, bool, Vec<String>) {
@@ -381,6 +399,9 @@ async fn run_child(
         reader = Some(tauri::async_runtime::spawn(async move {
             let mut lines = BufReader::new(err).lines();
             while let Ok(Some(l)) = lines.next_line().await {
+                if is_log_noise(&l) {
+                    continue;
+                }
                 mlog!(LogCat::Stream, "[ffmpeg] {l}");
                 if let Ok(mut t) = tail.lock() {
                     t.push_back(l);

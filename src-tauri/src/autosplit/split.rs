@@ -129,6 +129,7 @@ fn fire_split_impl(app: &AppHandle, state: &SharedState, force_skip: bool) {
                             g.race_start_at = None;
                             g.run_start_instant = None;
                         }
+                        crate::stream::shutdown(&app, &state, true).await;
                         let _ = app.emit(WS_PLAYER_RESULT, result);
                     }
                     Err(e) => {

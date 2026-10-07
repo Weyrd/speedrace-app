@@ -5,6 +5,7 @@ import { useAppState, useActions, Phase } from "../store";
 import { useCaptureSource, useStreamSettings } from "../hooks/useStreamSettings";
 import { CaptureSourceKind } from "../types";
 import { tryCatch } from "../lib/tryCatch";
+import { streamErrorMessage, type PublishError } from "../lib/streamError";
 import { LobbyHeader } from "./ui/BadgeHelper";
 import { SplitList } from "./ui/SplitList";
 import { PreviewCanvas } from "./ui/PreviewCanvas";
@@ -16,6 +17,7 @@ export default function StreamSetup() {
   const state = useAppState();
   const actions = useActions();
   const { t } = useTranslation("app");
+  const { t: tError } = useTranslation("streamErrors");
   const { data: captureSource } = useCaptureSource();
   const { data: streamSettings } = useStreamSettings();
   const debugStream = streamSettings?.debug_stream ?? false;
@@ -33,13 +35,13 @@ export default function StreamSetup() {
   const handlePublish = async (lobbyId: string) => {
     setError(null);
     setPublishing(true);
-    const { error } = await tryCatch(actions.publish(lobbyId));
+    const { error } = await tryCatch<void, PublishError>(
+      actions.publish(lobbyId),
+    );
     setPublishing(false);
     if (error) {
       console.error("[stream] publish_stream error", error);
-      setError(
-        error instanceof Error ? error.message : t("stream.error_start"),
-      );
+      setError(streamErrorMessage(error, t, tError));
     }
   };
 
