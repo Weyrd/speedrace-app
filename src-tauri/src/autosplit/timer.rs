@@ -155,13 +155,13 @@ impl Timer for SpeedraceTimer {
                     let gun_passed = g
                         .race_start_at
                         .is_some_and(|start| g.server_now_ms() >= start);
-                    if !gun_passed || igt <= 0 {
+                    if !gun_passed || igt <= 0 || !advancing {
                         return;
                     }
                 }
                 _ => return,
             }
-            g.server_now_ms() - igt
+            now_epoch_ms() - igt
         };
         crate::autosplit::run_started::mark_run_start(&self.app, &self.state, at);
     }

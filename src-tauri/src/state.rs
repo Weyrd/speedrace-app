@@ -193,6 +193,8 @@ impl GlobalState {
 }
 
 pub fn reset_run_start(g: &mut GlobalState) {
+    let buffered = g.pending_early_splits.len() as u32;
+    g.current_split_index = g.current_split_index.saturating_sub(buffered);
     g.run_start_instant = None;
     g.run_active = false;
     g.run_forfeited = false;
