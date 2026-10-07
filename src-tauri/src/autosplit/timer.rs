@@ -50,6 +50,9 @@ impl Timer for SpeedraceTimer {
 
         let post = {
             let mut guard = self.state.lock_state();
+            if guard.run_forfeited {
+                return;
+            }
             let Some(race_start_at) = guard.race_start_at else {
                 return;
             };
@@ -65,9 +68,15 @@ impl Timer for SpeedraceTimer {
                 return;
             };
             let lobby_id = lobby.lobby_id.clone();
+            let split_index = match guard.split_run.as_ref() {
+                Some(run) => {
+                    crate::counter::clamp_split_index(guard.current_split_index, run.len() as u32)
+                }
+                None => guard.current_split_index,
+            };
             let sample = crate::counter::CounterSample {
                 value: parsed,
-                split_index: Some(guard.current_split_index),
+                split_index: Some(split_index),
                 at_ms,
             };
             let cfg = guard
