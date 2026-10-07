@@ -116,11 +116,3 @@ fn action_buffered_reports_mode() {
         CounterAction::Buffer(CounterMode::Timeline)
     );
 }
-
-#[test]
-fn clamp_split_index_caps_at_last_segment() {
-    assert_eq!(clamp_split_index(3, 9), 3);
-    assert_eq!(clamp_split_index(8, 9), 8);
-    assert_eq!(clamp_split_index(9, 9), 8);
-    assert_eq!(clamp_split_index(0, 0), 0);
-}

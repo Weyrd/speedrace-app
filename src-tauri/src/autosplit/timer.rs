@@ -68,15 +68,16 @@ impl Timer for SpeedraceTimer {
                 return;
             };
             let lobby_id = lobby.lobby_id.clone();
-            let split_index = match guard.split_run.as_ref() {
-                Some(run) => {
-                    crate::counter::clamp_split_index(guard.current_split_index, run.len() as u32)
-                }
-                None => guard.current_split_index,
-            };
+            if guard
+                .split_run
+                .as_ref()
+                .is_some_and(|run| guard.current_split_index >= run.len() as u32)
+            {
+                return;
+            }
             let sample = crate::counter::CounterSample {
                 value: parsed,
-                split_index: Some(split_index),
+                split_index: Some(guard.current_split_index),
                 at_ms,
             };
             let cfg = guard
