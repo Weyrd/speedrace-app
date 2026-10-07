@@ -1,0 +1,14 @@
+{
+  "NOT_IN_STREAM_SETUP": "Le stream ne peut être démarré que pendant la préparation.",
+  "ALREADY_RUNNING": "Un stream est déjà en cours. Réessaie.",
+  "NO_LOBBY": "Aucun lobby actif.",
+  "NO_WHIP_URL": "Le lobby n'a pas d'adresse de stream.",
+  "FFMPEG_MISSING": "Le composant d'encodage vidéo est manquant. Redémarre l'app pour le réinstaller.",
+  "CAPTURE_FAILED": "Impossible de capturer la source sélectionnée. Choisis-en une autre.",
+  "PIPELINE_ARGS": "Configuration du stream invalide. Vérifie tes réglages de stream.",
+  "FFMPEG_SPAWN": "Impossible de lancer l'encodeur vidéo.",
+  "FFMPEG_REJECTED_ARGS": "L'encodeur vidéo a rejeté sa configuration. Merci de signaler ce bug.",
+  "ENCODER_UNUSABLE": "{{detail}} n'a pas pu démarrer. Choisis un autre encodeur dans les réglages.",
+  "NOT_LIVE": "Le stream n'est pas passé en direct. Vérifie ta connexion et réessaie.",
+  "STREAM_READY_FAILED": "Le stream a démarré mais le serveur n'a pas reçu de confirmation. Réessaie."
+}

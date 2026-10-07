@@ -49,6 +49,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 payload.lobby_id,
                 payload.game_name
             );
+            let stale_stream = state.lock_state().stream.is_some();
             {
                 let mut guard = state.lock_state();
                 guard.autosplitter_cancel.store(false, Ordering::SeqCst);
@@ -68,7 +69,20 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 crate::state::reset_run_start(&mut guard);
             }
             let _ = app.emit(WS_LOBBY_SETUP, payload.clone());
-            crate::stream::preview::ensure_for_phase(app, state);
+            if stale_stream {
+                mlog!(
+                    LogCat::Ws,
+                    "[ws] LobbySetup with a stream still running, shutting it down first"
+                );
+                let app = app.clone();
+                let state = state.clone();
+                tauri::async_runtime::spawn(async move {
+                    crate::stream::shutdown(&app, &state, true).await;
+                    crate::stream::preview::ensure_for_phase(&app, &state);
+                });
+            } else {
+                crate::stream::preview::ensure_for_phase(app, state);
+            }
             init_lobby_resources(app, state, &payload);
         }
 

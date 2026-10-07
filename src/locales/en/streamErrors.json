@@ -1,0 +1,14 @@
+{
+  "NOT_IN_STREAM_SETUP": "The stream can only be started during stream setup.",
+  "ALREADY_RUNNING": "A stream is already running. Please try again.",
+  "NO_LOBBY": "No active lobby.",
+  "NO_WHIP_URL": "The lobby has no stream address.",
+  "FFMPEG_MISSING": "The video encoder component is missing. Restart the app to reinstall it.",
+  "CAPTURE_FAILED": "Couldn't capture the selected source. Pick another one.",
+  "PIPELINE_ARGS": "Invalid stream configuration. Check your stream settings.",
+  "FFMPEG_SPAWN": "Couldn't launch the video encoder.",
+  "FFMPEG_REJECTED_ARGS": "The video encoder rejected its configuration. Please report this bug.",
+  "ENCODER_UNUSABLE": "{{detail}} couldn't start. Pick a different encoder in settings.",
+  "NOT_LIVE": "The stream didn't go live. Check your connection and try again.",
+  "STREAM_READY_FAILED": "The stream started but the server wasn't notified. Try again."
+}
