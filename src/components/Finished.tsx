@@ -35,7 +35,8 @@ export default function Finished() {
 
   const replaySaved =
     state.raceType === RaceType.Ranked ||
-    ((state.raceType === RaceType.Casual || state.raceType === RaceType.Bingo) &&
+    ((state.raceType === RaceType.Casual ||
+      state.raceType === RaceType.Bingo) &&
       (streamSettings?.replay_casual ?? false));
 
   const upload = state.upload;

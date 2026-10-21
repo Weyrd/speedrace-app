@@ -2,7 +2,10 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAppState, useActions, Phase } from "../store";
-import { useCaptureSource, useStreamSettings } from "../hooks/useStreamSettings";
+import {
+  useCaptureSource,
+  useStreamSettings,
+} from "../hooks/useStreamSettings";
 import { CaptureSourceKind } from "../types";
 import { tryCatch } from "../lib/tryCatch";
 import { streamErrorMessage, type PublishError } from "../lib/streamError";
@@ -63,7 +66,9 @@ export default function StreamSetup() {
         <PreviewCanvas
           onClick={publishing ? undefined : () => setPickerOpen(true)}
         />
-        {debugStream && <CopyLogsButton className="absolute bottom-2 right-2" />}
+        {debugStream && (
+          <CopyLogsButton className="absolute bottom-2 right-2" />
+        )}
       </div>
       <p className="text-2xs text-dim font-mono tracking-wide text-center -mt-1">
         {t("stream.change_source_hint")}

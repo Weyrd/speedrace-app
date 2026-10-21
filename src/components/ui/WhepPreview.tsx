@@ -104,9 +104,7 @@ export function WhepPreview({
           </span>
         </div>
       )}
-      {debugStream && (
-        <CopyLogsButton className="absolute bottom-2 right-2" />
-      )}
+      {debugStream && <CopyLogsButton className="absolute bottom-2 right-2" />}
     </div>
   );
 }

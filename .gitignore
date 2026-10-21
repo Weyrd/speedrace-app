@@ -32,5 +32,3 @@ target-gate/
 *.njsproj
 *.sln
 *.sw?
-
-project_dump.txt

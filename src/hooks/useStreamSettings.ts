@@ -12,7 +12,11 @@ import {
   restartPreview,
 } from "../lib/commands";
 import { EncoderPref } from "../types";
-import type { CaptureSource, StreamSettings, EncoderStatusPayload } from "../types";
+import type {
+  CaptureSource,
+  StreamSettings,
+  EncoderStatusPayload,
+} from "../types";
 
 export const monitorsKey = ["monitors"] as const;
 export const windowsKey = ["windows"] as const;
