@@ -170,11 +170,13 @@ Trying to keep a list of where AI was used in the project. Not exhaustive but I 
 
 Copilot inline suggestions (tab-tab) used pretty much everywhere
 
+All tests, in every app (app, API, web), were generated
+
 AI generation used for:
 
 **App:**
 
-- almost all documentation (in skills)
+- almost all documentation
 - ffmpeg recompile to build it smaller (pull + build script, `src-tauri/scripts/ffmpeg_build.sh`)
   <img src="docs/screenshots/fmpeg.png" alt="" width="320" />
   <details><summary>wth is that</summary></details>
@@ -189,7 +191,6 @@ AI generation used for:
 
 - global architecture / separation of concerns (first time using rust)
   <details><summary>spoiler</summary>I should've just followed the dotnet conventions i already knew, find it cleaner..if a rust dev wants to help or propose refactor yes but be readyn to suffer</details>
-- all tests generated
 - all bruno collections, generated (`~docs/test` postman but better)
 - import route / category editor batch route
 - assisted on event stats triggers get called everywhere they need to be
