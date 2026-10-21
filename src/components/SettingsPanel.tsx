@@ -320,7 +320,9 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           </Description>
           <Checkbox
             checked={debugStream}
-            onChange={(checked) => saveStreamSettings({ debug_stream: checked })}
+            onChange={(checked) =>
+              saveStreamSettings({ debug_stream: checked })
+            }
             label={t("debug_stream_label")}
             className="mt-1"
           />

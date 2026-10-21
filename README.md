@@ -177,7 +177,7 @@ AI generation used for:
 **App:**
 
 - almost all documentation
-- ffmpeg recompile to build it smaller (pull + build script, `src-tauri/scripts/ffmpeg_build.sh`)
+- ffmpeg recompile to build it smaller (pull + build script, `src-tauri/scripts/build-ffmpeg.ps1`)
   <img src="docs/screenshots/fmpeg.png" alt="" width="320" />
   <details><summary>wth is that</summary></details>
 - a few debug sessions, like keybind matching physical keycode + layout stuff (azerty, qwerty, mac keyboard...)

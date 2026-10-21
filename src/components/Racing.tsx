@@ -44,7 +44,8 @@ export default function Racing() {
     state.phase === Phase.RaceInProgress ? state.raceStartAt : null;
 
   const autosplitDrives =
-    state.phase === Phase.RaceInProgress && autosplitDrivesFinish(state.autosplit);
+    state.phase === Phase.RaceInProgress &&
+    autosplitDrivesFinish(state.autosplit);
 
   useEffect(() => {
     if (autosplitDrives) return;

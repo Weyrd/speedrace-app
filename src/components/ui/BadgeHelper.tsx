@@ -54,7 +54,10 @@ export function LobbyHeader({
             </Tooltip>
           )}
           {autosplit?.livesplit && (
-            <Tooltip content={t("autosplit.livesplit_connected_tooltip")} side="top">
+            <Tooltip
+              content={t("autosplit.livesplit_connected_tooltip")}
+              side="top"
+            >
               <img
                 src={livesplitIcon}
                 alt="LiveSplit"

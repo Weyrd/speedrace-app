@@ -19,7 +19,11 @@ export default function Banned() {
       <p className="text-xs text-dim font-mono tracking-wide leading-relaxed whitespace-pre-line">
         {t("banned.description")}
       </p>
-      <Button variant="default" onClick={() => logout()} className="mt-2 text-sm">
+      <Button
+        variant="default"
+        onClick={() => logout()}
+        className="mt-2 text-sm"
+      >
         {t("banned.logout")}
       </Button>
     </div>

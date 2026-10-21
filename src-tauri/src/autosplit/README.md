@@ -5,10 +5,10 @@ parallel** during a lobby; exactly one is locked in at race start and used for t
 
 ## Sources
 
-| Source | "Connected" means | Fires splits via |
-| --- | --- | --- |
-| **WASM** (`wasm.rs`) | the LiveSplit auto-splitter `.wasm` (per game) is **attached to the game process** | `timer.rs` `SpeedraceTimer::split()` |
-| **LiveSplit TCP** (`tcp.rs`) | a TCP connection to LiveSplit Server (`127.0.0.1:16834`) is open | `poll_loop` diffing `getsplitindex` |
+| Source                       | "Connected" means                                                                  | Fires splits via                     |
+| ---------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------ |
+| **WASM** (`wasm.rs`)         | the LiveSplit auto-splitter `.wasm` (per game) is **attached to the game process** | `timer.rs` `SpeedraceTimer::split()` |
+| **LiveSplit TCP** (`tcp.rs`) | a TCP connection to LiveSplit Server (`127.0.0.1:16834`) is open                   | `poll_loop` diffing `getsplitindex`  |
 
 WASM is preferred. LiveSplit is the fallback when there is no `.wasm`, it won't compile, or it
 can't attach to the game.
@@ -44,7 +44,7 @@ the app never parses game-specific split grammar.
 
 - **WASM**: compiled once; on a `update()` trap (permanent for an instance, usually because the
   game isn't running yet) `supervise` re-instantiates cheaply so a late game launch attaches.
-- **LiveSplit**: reconnects every `RECONNECT_DELAY_MS` after a drop; gives up only if it *never*
+- **LiveSplit**: reconnects every `RECONNECT_DELAY_MS` after a drop; gives up only if it _never_
   connected by race start.
 
 ## Reporting & the back
@@ -61,10 +61,9 @@ the app never parses game-specific split grammar.
 The back is source-agnostic. It uses `connected` for the ranked-ready gate and, in a ranked race,
 auto-forfeits the player if `connected` stays false past a grace window (`AUTOSPLIT_FORFEIT_GRACE_SECS`).
 A `splits_valid == false` (LiveSplit source loaded the wrong split set) forfeits a ranked in-progress
-player **immediately**. See **`LIVESPLIT_SPLIT_VERIFICATION.md`** for the split-check, the `starttimer`
-workaround, and how to migrate to pre-start verification once a LiveSplit release adds the commands.
+player **immediately**.
 
-`report_autosplit_state` fires only on a connection *change*, so on **startup restore** (app launches
+`report_autosplit_state` fires only on a connection _change_, so on **startup restore** (app launches
 already in a lobby) the probe event can fire before the UI subscribes. To cover that, `get_lobby_state`
 (the hydration command) returns the current `{ wasm, livesplit }` in `ClientState`, and the frontend
 seeds the badge from it; the reducer then carries `autosplit` across in-lobby phase transitions.

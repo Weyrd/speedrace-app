@@ -33,7 +33,7 @@ Nothing leaves the machine until the racer presses **Publish**. Inside a lobby:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-All capture (window *and* monitor) runs in Rust via WGC and feeds ffmpeg a constant-rate
+All capture (window _and_ monitor) runs in Rust via WGC and feeds ffmpeg a constant-rate
 rawvideo pipe; ffmpeg never touches the display itself. `ddagrab` remains only as an in-ffmpeg
 fallback for monitor sources when WGC can't start (see "Capture").
 
@@ -102,7 +102,7 @@ without re-checking its reason.
   Media time is mapped to wall clock by a **min-estimator over segment-close samples**
   (`min(wall_now − media_end)`): every sample is late by the muxer flush and never early, so the
   minimum converges on media t=0. Accuracy is **±50-150 ms with a residual late bias**, not
-  frame-exact — `-progress` is deliberately *not* used as the anchor, because with two outputs
+  frame-exact — `-progress` is deliberately _not_ used as the anchor, because with two outputs
   its clock is a global aggregate that tracks the low-latency WHIP leg, not the replay leg.
   Frame-exactness would need wall-clock input timestamps, which ddagrab (a lavfi source
   generating its own PTS) cannot provide.
@@ -110,6 +110,7 @@ without re-checking its reason.
   Segment lengths **drift**: the muxer cuts at the first keyframe at or after each boundary and
   x264's scenecut IDRs shift the GOP phase, so a 5 s setting yields e.g. 6.03 / 4.0 / 2.0 s.
   All trim math must read the real `start_time` from the index — never `n × segment_time`.
+
 - **A mid-race reconnect opens a new run, not a new file.** Each restart is a new process with a
   new media t=0, so it gets its own `r{run}` namespace and its own anchor. Assembly orders by
   run then index. This is also the boundary an encoder downgrade creates, which is why the
@@ -128,6 +129,7 @@ without re-checking its reason.
   total must match the segment index (with slack that grows per piece — each joined file rounds
   up ~0.03 s, so a 30 min race drifts ~11 s) and each splice must decode. On failure the VOD is
   rebuilt without fillers: short by the gap still plays, broken does not.
+
 - **Preview is video-only.** Audio capture starts at Publish exactly like before; a pre-publish
   level meter wasn't worth wiring cpal early.
 
@@ -153,20 +155,20 @@ non-Windows stubs that return an error.
 
 ## Rust module — `src-tauri/src/stream/`
 
-| File                             | Role                                                                                                                                                    |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `types.rs`                       | **Every data type of the module** (`StreamState`, `CaptureSource`, `StreamSettings`, `LaunchSpec`, sessions, payloads…). Logic files hold no type defs. |
-| `mod.rs`                         | `start`/`publish`/`shutdown`/`shutdown_spawn`, `current_source`, `emit_status`, replay path helpers.                                                    |
-| `preview.rs`                     | Local preview: preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events. `ensure_for_phase` auto-starts it on StreamSetup.               |
-| `pipeline.rs`                    | `build_args` / `build_preview_args` → the exact ffmpeg CLI; pipe-first video input, ddagrab fallback.                                                   |
-| `ffmpeg.rs`                      | `resolve_ffmpeg_path`, spawn (tokio::process), Job Object, the **supervisor** task, graceful stop.                                                      |
-| `capture.rs`                     | Capture **router** + window/monitor geometry: `start_capture_for` (windowed→WGC; fullscreen→WGC-probe-then-escalate-to-injection; monitor→WGC/ddagrab), computes each backend's dims. Returns a `CaptureHandle`. |
-| `capture_pipe.rs`                | Shared `new_video_pipe()` + `spawn_paced_writer()` both backends use (one BGRA rawvideo pipe, black until first frame). |
-| `wgc.rs`                         | WGC **backend** only: `start_capture(target, w, h, fps)` → self-healing WGC session → shared paced pipe. |
+| File                             | Role                                                                                                                                                                                                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `types.rs`                       | **Every data type of the module** (`StreamState`, `CaptureSource`, `StreamSettings`, `LaunchSpec`, sessions, payloads…). Logic files hold no type defs.                                                                                                                  |
+| `mod.rs`                         | `start`/`publish`/`shutdown`/`shutdown_spawn`, `current_source`, `emit_status`, replay path helpers.                                                                                                                                                                     |
+| `preview.rs`                     | Local preview: preview-mode ffmpeg → mpjpeg on stdout → base64 `stream:preview` events. `ensure_for_phase` auto-starts it on StreamSetup.                                                                                                                                |
+| `pipeline.rs`                    | `build_args` / `build_preview_args` → the exact ffmpeg CLI; pipe-first video input, ddagrab fallback.                                                                                                                                                                    |
+| `ffmpeg.rs`                      | `resolve_ffmpeg_path`, spawn (tokio::process), Job Object, the **supervisor** task, graceful stop.                                                                                                                                                                       |
+| `capture.rs`                     | Capture **router** + window/monitor geometry: `start_capture_for` (windowed→WGC; fullscreen→WGC-probe-then-escalate-to-injection; monitor→WGC/ddagrab), computes each backend's dims. Returns a `CaptureHandle`.                                                         |
+| `capture_pipe.rs`                | Shared `new_video_pipe()` + `spawn_paced_writer()` both backends use (one BGRA rawvideo pipe, black until first frame).                                                                                                                                                  |
+| `wgc.rs`                         | WGC **backend** only: `start_capture(target, w, h, fps)` → self-healing WGC session → shared paced pipe.                                                                                                                                                                 |
 | `gamecapture/`                   | OBS-hook injection for exclusive-fullscreen games (incl. emulators): `protocol`(ABI)/`inject`/`offsets`/`session`(handshake)/`frame`(D3D11 shared texture, **normalizes any format → BGRA**)/`capture`(continuous session → shared pipe). Window-only, never the screen. |
-| `monitors.rs` / `window_list.rs` | `list_monitors` (DXGI, same order as ddagrab `output_idx`) / `list_windows` (filtered, non-cloaked).                                                    |
-| `thumbs.rs`                      | Picker thumbnails: monitor one-shot ffmpeg (or the preview's last frame), window WGC one-shots behind a `Semaphore(2)`.                                 |
-| `audio.rs`                       | cpal WASAPI loopback on a dedicated thread + a paced named-pipe writer.                                                                                 |
+| `monitors.rs` / `window_list.rs` | `list_monitors` (DXGI, same order as ddagrab `output_idx`) / `list_windows` (filtered, non-cloaked).                                                                                                                                                                     |
+| `thumbs.rs`                      | Picker thumbnails: monitor one-shot ffmpeg (or the preview's last frame), window WGC one-shots behind a `Semaphore(2)`.                                                                                                                                                  |
+| `audio.rs`                       | cpal WASAPI loopback on a dedicated thread + a paced named-pipe writer.                                                                                                                                                                                                  |
 
 `GlobalState` holds `stream: Option<StreamSession>`, `preview: Option<PreviewSession>`,
 `capture_source: Option<CaptureSource>` (session-only; the monitor variant also persists as
@@ -452,7 +454,7 @@ re-run:
 
 Three layers, `stream/encoder.rs` + `pipeline.rs` + the `supervise` downgrade edge:
 
-1. **Probe** (`encoder::warm`, kicked off from `preview::ensure_for_phase`): a *real* trial
+1. **Probe** (`encoder::warm`, kicked off from `preview::ensure_for_phase`): a _real_ trial
    encode — 4 black BGRA frames on stdin, **two encoder legs** through `split=2`, output
    discarded. `ffmpeg -encoders` is useless here: it lists what was **compiled**, not what this
    machine can open, and the sidecar ships nvenc+amf unconditionally. Two legs, not one, because

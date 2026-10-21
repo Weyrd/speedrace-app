@@ -65,7 +65,7 @@ comes from `docs/SPEC_FFMPEG.md` and `src/stream/pipeline.rs`.
 (`scripts/media-autobuild_suite.ini` — GPLv3, 64-bit only, x264 8-bit lib, static ffmpeg,
 every optional tool declined). GPLv3 is deliberate: it keeps `gmp` for GnuTLS, and the suite
 disables OpenSSL under GPL, which is why the DTLS backend is GnuTLS. If the suite ever asks
-a *new* question interactively, answer it, then refresh the snapshot from
+a _new_ question interactively, answer it, then refresh the snapshot from
 `C:\media-autobuild_suite\build\media-autobuild_suite.ini`. Build time: ~30-60 min first run
 (MSYS2 bootstrap + toolchain), ~5-10 min on rebuilds (ccache enabled).
 
@@ -111,29 +111,29 @@ handshake is the real gate), ranked MP4 playable, stop → preview restart.
 
 ## Troubleshooting
 
-| Problem                       | Fix                                                                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------- |
-| Script says "exit code 1" but a mintty window is compiling | Normal — the suite detaches the compile into mintty. Wait for it, then re-run with `-InstallOnly`. |
-| `configure: Unknown option "?"` | BOM in `ffmpeg_options.txt` — the script writes it BOM-less; don't rewrite it with PS5 `Set-Content -Encoding UTF8` |
-| `nvenc requested ... ffnvcodec` | `--enable-ffnvcodec` missing — with `--disable-autodetect` the suite won't install nv-codec-headers on its own |
-| `-f lavfi` input fails: no decoder for wrapped_avframe / pcm_u8 | lavfi wraps its outputs in those codecs; both decoders must stay enabled |
-| Binary too large (>30 MB)     | Confirm the suite used our `build\ffmpeg_options.txt` (script rewrites it each run)     |
-| WHIP muxer missing            | GnuTLS not linked or dtls protocol disabled; check `-buildconf` and `-protocols`        |
-| DTLS handshake fails live     | Wrong TLS backend (SChannel) — must be GnuTLS/OpenSSL/mbedTLS, see the warning up top   |
+| Problem                                                         | Fix                                                                                                                 |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Script says "exit code 1" but a mintty window is compiling      | Normal — the suite detaches the compile into mintty. Wait for it, then re-run with `-InstallOnly`.                  |
+| `configure: Unknown option "?"`                                 | BOM in `ffmpeg_options.txt` — the script writes it BOM-less; don't rewrite it with PS5 `Set-Content -Encoding UTF8` |
+| `nvenc requested ... ffnvcodec`                                 | `--enable-ffnvcodec` missing — with `--disable-autodetect` the suite won't install nv-codec-headers on its own      |
+| `-f lavfi` input fails: no decoder for wrapped_avframe / pcm_u8 | lavfi wraps its outputs in those codecs; both decoders must stay enabled                                            |
+| Binary too large (>30 MB)                                       | Confirm the suite used our `build\ffmpeg_options.txt` (script rewrites it each run)                                 |
+| WHIP muxer missing                                              | GnuTLS not linked or dtls protocol disabled; check `-buildconf` and `-protocols`                                    |
+| DTLS handshake fails live                                       | Wrong TLS backend (SChannel) — must be GnuTLS/OpenSSL/mbedTLS, see the warning up top                               |
 
 ## Appendix: what's in the build and why
 
-| Category      | Components                                                       | Purpose                                         |
-| ------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
-| **Encoders**  | libx264, libopus, aac, mjpeg (+ h264_nvenc, h264_amf)            | WHIP + MP4 + preview/thumb JPEG + hw encode     |
-| **Decoders**  | rawvideo, pcm_f32le, wrapped_avframe, pcm_u8, h264, aac          | Raw pipes + lavfi wrapping + replay head trim   |
-| **Muxers**    | whip, mp4, mpjpeg, mjpeg, segment                                | Live + segmented replay + preview + thumb       |
-| **Inputs**    | lavfi indev, rawvideo/pcm_f32le/concat/mov demuxers              | Capture + raw pipes + replay assembly           |
+| Category      | Components                                                                                  | Purpose                                                       |
+| ------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **Encoders**  | libx264, libopus, aac, mjpeg (+ h264_nvenc, h264_amf)                                       | WHIP + MP4 + preview/thumb JPEG + hw encode                   |
+| **Decoders**  | rawvideo, pcm_f32le, wrapped_avframe, pcm_u8, h264, aac                                     | Raw pipes + lavfi wrapping + replay head trim                 |
+| **Muxers**    | whip, mp4, mpjpeg, mjpeg, segment                                                           | Live + segmented replay + preview + thumb                     |
+| **Inputs**    | lavfi indev, rawvideo/pcm_f32le/concat/mov demuxers                                         | Capture + raw pipes + replay assembly                         |
 | **Filters**   | ddagrab, hwdownload, format, scale, aresample, anullsrc, color, (a)split, drawtext, drawbox | Capture → scale → dual output + gap filler + VOD overlay burn |
-| **Protocols** | file, pipe, http(s), tcp, udp, tls, dtls, srtp, rtp, crypto      | Pipes + WHIP POST + WebRTC transport            |
-| **BSFs**      | h264_mp4toannexb, aac_adtstoasc, extract_extradata               | Payload/container conversion                    |
-| **Hw/TLS**    | d3d11va (ddagrab dep), ffnvcodec + amf headers, GnuTLS           | Capture + future hw encode + DTLS               |
-| **Text**      | libfreetype + libharfbuzz (drawtext deps)                        | Timer/splits card burned into the uploaded VOD  |
+| **Protocols** | file, pipe, http(s), tcp, udp, tls, dtls, srtp, rtp, crypto                                 | Pipes + WHIP POST + WebRTC transport                          |
+| **BSFs**      | h264_mp4toannexb, aac_adtstoasc, extract_extradata                                          | Payload/container conversion                                  |
+| **Hw/TLS**    | d3d11va (ddagrab dep), ffnvcodec + amf headers, GnuTLS                                      | Capture + future hw encode + DTLS                             |
+| **Text**      | libfreetype + libharfbuzz (drawtext deps)                                                   | Timer/splits card burned into the uploaded VOD                |
 
 Deliberately absent: gdigrab/dshow (dead since the WGC rework), qsv/libmfx (deprecated
 upstream, would need libvpl), dxva2, the `null` muxer, UPX. The h264/aac decoders and the
@@ -147,7 +147,7 @@ HW encoder headers are build-time only; at runtime NVENC/AMF use the user's GPU 
 > **Known discrepancy.** `build-ffmpeg.ps1` asks for `--enable-version3`, but the suite does not
 > pass it through — shipped binaries report `--enable-gpl` alone (true of `min-1` and `min-2`).
 > `min-1`'s release notes nevertheless claimed GPLv3. Since GnuTLS pulls in gmp (LGPLv3), whether
-> the build *should* be version3 needs a decision; until then release notes must describe what
+> the build _should_ be version3 needs a decision; until then release notes must describe what
 > `-buildconf` actually reports, not what the script requests.
 
 ## Fallback: Gyan prebuilt full build

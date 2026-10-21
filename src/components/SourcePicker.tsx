@@ -74,7 +74,9 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
               {t("stream.tab_windows")}
             </Button>
             <Button
-              variant={tab === CaptureSourceKind.Monitor ? "primary" : "outline"}
+              variant={
+                tab === CaptureSourceKind.Monitor ? "primary" : "outline"
+              }
               onClick={() => setTab(CaptureSourceKind.Monitor)}
               className="flex-1 py-2"
             >
@@ -116,7 +118,10 @@ export default function SourcePicker({ onClose }: { onClose: () => void }) {
                       }) + (m.primary ? t("stream.monitor_primary") : "")
                     }
                     onSelect={() =>
-                      select({ kind: CaptureSourceKind.Monitor, index: m.index })
+                      select({
+                        kind: CaptureSourceKind.Monitor,
+                        index: m.index,
+                      })
                     }
                   >
                     <Thumb
