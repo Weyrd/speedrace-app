@@ -1,8 +1,7 @@
 # SPEC — ffmpeg streaming (local preview → Publish → WHIP + MP4)
 
 Status: **implemented** (2026-07-13) except the Future work section at the end. This is the
-single streaming spec — it replaced `README_STREAM_V2.md`, `PLAN_LOCAL_PREVIEW_PUBLISH.md` and
-`PLAN_MP4_REPLAY.md`. It records both _what_ the system does and _why_ each decision was made,
+single streaming spec. It records both _what_ the system does and _why_ each decision was made,
 so a change that looks like a simplification can be checked against the constraint it would break.
 
 ## What it does
