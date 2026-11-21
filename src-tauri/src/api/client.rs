@@ -13,13 +13,21 @@ pub struct ApiResponse<T> {
     pub data: T,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ApiErrorCode {
     UploadNotEligible,
+    UploadQuotaInsufficient,
+    UploadVideoMismatch,
+    UploadVideoNotFound,
+    UploadTicketInvalid,
     RaceHistoryNotFound,
     LobbyNotFound,
     PlayerNotInLobby,
+    RaceNotStarted,
+    StreamNotReady,
+    TokenExpired,
+    TooManyAttempts,
     #[serde(other)]
     Other,
 }
@@ -31,7 +39,7 @@ pub struct ApiError {
 
 pub enum PostOutcome<R> {
     Ok(R),
-    Rejected,
+    Rejected(ApiErrorCode),
     Transient,
 }
 
@@ -39,10 +47,24 @@ impl<R> PostOutcome<R> {
     fn map<U>(self, f: impl FnOnce(R) -> U) -> PostOutcome<U> {
         match self {
             PostOutcome::Ok(v) => PostOutcome::Ok(f(v)),
-            PostOutcome::Rejected => PostOutcome::Rejected,
+            PostOutcome::Rejected(code) => PostOutcome::Rejected(code),
             PostOutcome::Transient => PostOutcome::Transient,
         }
     }
+}
+
+pub fn is_retryable(status: StatusCode, code: ApiErrorCode) -> bool {
+    status.is_server_error()
+        || status == StatusCode::UNAUTHORIZED
+        || status == StatusCode::TOO_MANY_REQUESTS
+        || code == ApiErrorCode::RaceNotStarted
+}
+
+async fn error_code(resp: Response) -> ApiErrorCode {
+    resp.json::<ApiError>()
+        .await
+        .map(|e| e.error_code)
+        .unwrap_or(ApiErrorCode::Other)
 }
 
 async fn send_check(req: reqwest::RequestBuilder, log_tag: &str) -> Option<Response> {
@@ -68,13 +90,18 @@ async fn send_check(req: reqwest::RequestBuilder, log_tag: &str) -> Option<Respo
 async fn send_outcome<B: Serialize>(
     app: &AppHandle,
     path: &str,
-    body: &B,
+    body: Option<&B>,
     log_tag: &str,
 ) -> PostOutcome<Response> {
     let Some(authed) = ApiClient::new(app).authenticated() else {
         return PostOutcome::Transient;
     };
-    let resp = match authed.post(path).json(body).send().await {
+    let req = authed.post(path);
+    let req = match body {
+        Some(b) => req.json(b),
+        None => req,
+    };
+    let resp = match req.send().await {
         Ok(r) => r,
         Err(e) => {
             mlog!(LogCat::Api, "[{log_tag}] post error: {e}");
@@ -83,13 +110,15 @@ async fn send_outcome<B: Serialize>(
     };
     let status = resp.status();
     if status.is_success() {
-        PostOutcome::Ok(resp)
-    } else if status.is_server_error() {
-        mlog!(LogCat::Api, "[{log_tag}] server error: {status}");
+        return PostOutcome::Ok(resp);
+    }
+    let code = error_code(resp).await;
+    if is_retryable(status, code) {
+        mlog!(LogCat::Api, "[{log_tag}] retryable: {status} {code:?}");
         PostOutcome::Transient
     } else {
-        mlog!(LogCat::Api, "[{log_tag}] rejected: {status}");
-        PostOutcome::Rejected
+        mlog!(LogCat::Api, "[{log_tag}] rejected: {status} {code:?}");
+        PostOutcome::Rejected(code)
     }
 }
 
@@ -108,15 +137,6 @@ pub async fn authed_get_json<T: DeserializeOwned>(
 ) -> Option<T> {
     let resp = send_check(ApiClient::new(app).authenticated()?.get(path), log_tag).await?;
     parse_json(resp, log_tag).await
-}
-
-pub async fn authed_get_bytes(app: &AppHandle, path: &str, log_tag: &str) -> Option<Vec<u8>> {
-    let resp = send_check(ApiClient::new(app).authenticated()?.get(path), log_tag).await?;
-    resp.bytes()
-        .await
-        .map_err(|e| mlog!(LogCat::Api, "[{log_tag}] read body error: {e}"))
-        .ok()
-        .map(|b| b.to_vec())
 }
 
 pub async fn authed_post_void(app: &AppHandle, path: &str, log_tag: &str) -> Option<()> {
@@ -154,7 +174,27 @@ pub async fn authed_post_body_void_outcome<B: Serialize>(
     body: &B,
     log_tag: &str,
 ) -> PostOutcome<()> {
-    send_outcome(app, path, body, log_tag).await.map(|_| ())
+    send_outcome(app, path, Some(body), log_tag)
+        .await
+        .map(|_| ())
+}
+
+pub async fn authed_post_void_outcome(
+    app: &AppHandle,
+    path: &str,
+    log_tag: &str,
+) -> PostOutcome<()> {
+    send_outcome::<()>(app, path, None, log_tag)
+        .await
+        .map(|_| ())
+}
+
+pub async fn authed_post_json_outcome<R: DeserializeOwned>(
+    app: &AppHandle,
+    path: &str,
+    log_tag: &str,
+) -> PostOutcome<R> {
+    parse_outcome(send_outcome::<()>(app, path, None, log_tag).await, log_tag).await
 }
 
 pub async fn authed_post_body_json_outcome<B: Serialize, R: DeserializeOwned>(
@@ -163,12 +203,19 @@ pub async fn authed_post_body_json_outcome<B: Serialize, R: DeserializeOwned>(
     body: &B,
     log_tag: &str,
 ) -> PostOutcome<R> {
-    match send_outcome(app, path, body, log_tag).await {
+    parse_outcome(send_outcome(app, path, Some(body), log_tag).await, log_tag).await
+}
+
+async fn parse_outcome<R: DeserializeOwned>(
+    outcome: PostOutcome<Response>,
+    log_tag: &str,
+) -> PostOutcome<R> {
+    match outcome {
         PostOutcome::Ok(resp) => match parse_json(resp, log_tag).await {
             Some(data) => PostOutcome::Ok(data),
             None => PostOutcome::Transient,
         },
-        PostOutcome::Rejected => PostOutcome::Rejected,
+        PostOutcome::Rejected(code) => PostOutcome::Rejected(code),
         PostOutcome::Transient => PostOutcome::Transient,
     }
 }

@@ -3,24 +3,30 @@ import { Modal } from "./ui/Modal";
 import { Button } from "./ui/button";
 
 interface Props {
-  version: string;
+  version?: string;
   body?: string;
+  required?: boolean;
+  busy?: boolean;
   onConfirm: () => void;
-  onDismiss: () => void;
+  onDismiss?: () => void;
 }
 
 export default function UpdateModal({
   version,
   body,
+  required = false,
+  busy = false,
   onConfirm,
   onDismiss,
 }: Props) {
   const { t } = useTranslation("app");
   return (
-    <Modal open onOpenChange={(open) => !open && onDismiss()}>
+    <Modal open onOpenChange={(open) => !open && !required && onDismiss?.()}>
       <Modal.Title asChild>
         <p className="text-text font-mono tracking-wide font-bold mb-1.5">
-          {t("update_modal.title", { version })}
+          {required
+            ? t("update_modal.required_title")
+            : t("update_modal.title", { version })}
         </p>
       </Modal.Title>
       {body && (
@@ -31,16 +37,19 @@ export default function UpdateModal({
         </Modal.Description>
       )}
       <div className="flex gap-2">
-        <Button
-          variant="outline"
-          onClick={onDismiss}
-          className="flex-1 py-2 text-2xs"
-        >
-          {t("update_modal.later")}
-        </Button>
+        {!required && (
+          <Button
+            variant="outline"
+            onClick={onDismiss}
+            className="flex-1 py-2 text-2xs"
+          >
+            {t("update_modal.later")}
+          </Button>
+        )}
         <Button
           variant="success"
           onClick={onConfirm}
+          disabled={busy}
           className="flex-1 py-2 text-2xs"
         >
           {t("update_modal.install")}

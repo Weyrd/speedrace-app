@@ -46,11 +46,11 @@ export const BingoOutcome = {
 export type BingoOutcome = (typeof BingoOutcome)[keyof typeof BingoOutcome];
 
 export const LobbyClosedReason = {
-  Left: "Left",
-  Deleted: "Deleted",
-  DeletedByReferee: "DeletedByReferee",
-  Kicked: "Kicked",
-  DeletedByAdmin: "DeletedByAdmin",
+  Left: "left",
+  Deleted: "deleted",
+  DeletedByReferee: "deleted_by_referee",
+  Kicked: "kicked",
+  DeletedByAdmin: "deleted_by_admin",
 } as const;
 export type LobbyClosedReason =
   (typeof LobbyClosedReason)[keyof typeof LobbyClosedReason];
@@ -71,9 +71,9 @@ export function autosplitDrivesFinish(autosplit?: AutosplitState): boolean {
 
 export interface RaceConfig {
   category_split_id: string | null;
-  split_resource_updated_at: string | null;
-  autosplitter_updated_at: string | null;
-  counter_config_updated_at: string | null;
+  split_resource_updated_at_ms: number | null;
+  autosplitter_updated_at_ms: number | null;
+  counter_config_updated_at_ms: number | null;
 }
 
 export interface LobbySetup {
@@ -88,8 +88,8 @@ export interface LobbySetup {
   game_name: string;
   category_name: string[];
   max_duration_minutes: number;
-  race_start_at: number | null;
-  expires_at: number;
+  race_start_at_ms: number | null;
+  expires_at_ms: number;
   game_id: string;
   category_id: string | null;
   race_config: RaceConfig | null;
@@ -107,6 +107,7 @@ export interface PlayerResult {
   finishing_time_ms: number | null;
   finish_position: number | null;
   bingo?: BingoResult;
+  cause?: string;
 }
 export interface SplitFiredPayload {
   index: number;
@@ -118,8 +119,8 @@ export interface LobbyClosedPayload {
   reason: LobbyClosedReason;
 }
 export interface LobbyStartPayload {
-  race_start_at: number;
-  expires_at: number;
+  race_start_at_ms: number;
+  expires_at_ms: number;
 }
 
 export const StreamStatus = {

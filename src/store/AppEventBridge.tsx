@@ -73,6 +73,8 @@ export function AppEventBridge(): null {
           dispatch({ type: ActionType.ServerUnavailable });
         } else if (phase === Phase.Banned) {
           dispatch({ type: ActionType.Banned });
+        } else if (phase === Phase.Outdated) {
+          dispatch({ type: ActionType.Outdated });
         }
       }),
 
@@ -101,7 +103,7 @@ export function AppEventBridge(): null {
         void resyncClock(qc);
         dispatch({
           type: ActionType.LobbyStart,
-          raceStartAt: payload.race_start_at,
+          raceStartAt: payload.race_start_at_ms,
         });
       }),
 

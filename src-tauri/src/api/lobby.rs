@@ -9,9 +9,14 @@ use crate::{config, models::LobbyStatus};
 
 use super::client::{
     authed_get_json, authed_post_body_json_outcome, authed_post_body_void,
-    authed_post_body_void_outcome, authed_post_returning, authed_post_void, ApiError, ApiErrorCode,
-    PostOutcome,
+    authed_post_body_void_outcome, authed_post_json_outcome, authed_post_returning,
+    authed_post_void, authed_post_void_outcome, ApiError, ApiErrorCode, PostOutcome,
 };
+
+const STREAM_READY_ATTEMPTS: u32 = 8;
+const STREAM_READY_RETRY: std::time::Duration = std::time::Duration::from_secs(1);
+const VOD_COMPLETE_ATTEMPTS: u32 = 4;
+const UPLOAD_TICKET_ATTEMPTS: u32 = 3;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PlayerResult {
@@ -41,10 +46,10 @@ pub struct LobbyCurrentResponse {
     pub game_name: String,
     pub category_name: Vec<String>,
     pub max_duration_minutes: u32,
-    pub race_start_at: Option<i64>,
+    pub race_start_at_ms: Option<i64>,
     #[serde(default)]
     pub handicap: Option<LobbyCurrentHandicap>,
-    pub expires_at: i64,
+    pub expires_at_ms: i64,
     #[serde(default)]
     pub game_id: String,
     #[serde(default)]
@@ -69,10 +74,10 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
         game_name: l.game_name,
         category_name: l.category_name,
         max_duration_minutes: l.max_duration_minutes,
-        race_start_at: l
-            .race_start_at
+        race_start_at_ms: l
+            .race_start_at_ms
             .map(|s| s + l.handicap.unwrap_or_default().start_delay_ms),
-        expires_at: l.expires_at,
+        expires_at_ms: l.expires_at_ms,
         game_id: l.game_id,
         category_id: l.category_id,
         race_config: l.race_config,
@@ -80,13 +85,30 @@ pub async fn fetch_current_lobby(app: &AppHandle) -> Option<LobbySetup> {
 }
 
 pub async fn post_stream_ready(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
-    authed_post_void(
-        app,
-        &config::lobby_stream_ready_path(lobby_id),
-        "stream_ready",
-    )
-    .await
-    .ok_or_else(|| "[api] post_stream_ready failed".to_string())
+    let path = config::lobby_stream_ready_path(lobby_id);
+    for attempt in 1..=STREAM_READY_ATTEMPTS {
+        match authed_post_void_outcome(app, &path, "stream_ready").await {
+            PostOutcome::Ok(()) => return Ok(()),
+            PostOutcome::Rejected(ApiErrorCode::StreamNotReady) | PostOutcome::Transient
+                if attempt < STREAM_READY_ATTEMPTS =>
+            {
+                mlog!(
+                    LogCat::Api,
+                    "[stream_ready] not confirmed yet (attempt {attempt}), retrying"
+                );
+                tokio::time::sleep(STREAM_READY_RETRY).await;
+            }
+            PostOutcome::Rejected(ApiErrorCode::PlayerNotInLobby) => {
+                crate::lifecycle::spawn_resync_if_still_in(app, lobby_id);
+                return Err("[api] post_stream_ready: no longer in this lobby".to_string());
+            }
+            PostOutcome::Rejected(code) => {
+                return Err(format!("[api] post_stream_ready refused: {code:?}"));
+            }
+            PostOutcome::Transient => break,
+        }
+    }
+    Err("[api] post_stream_ready failed".to_string())
 }
 
 pub async fn post_stream_stopped(app: &AppHandle, lobby_id: &str) -> Result<(), String> {
@@ -113,7 +135,7 @@ pub async fn post_autosplit_status(
     splits_valid: bool,
     run_in_progress: bool,
 ) -> Result<(), String> {
-    authed_post_body_void(
+    match authed_post_body_void_outcome(
         app,
         &config::lobby_autosplit_status_path(lobby_id),
         &AutosplitStatusBody {
@@ -124,7 +146,17 @@ pub async fn post_autosplit_status(
         "autosplit_status",
     )
     .await
-    .ok_or_else(|| "[api] post_autosplit_status failed".to_string())
+    {
+        PostOutcome::Ok(()) => Ok(()),
+        PostOutcome::Rejected(ApiErrorCode::PlayerNotInLobby) => {
+            crate::lifecycle::spawn_resync_if_still_in(app, lobby_id);
+            Err("[api] post_autosplit_status: no longer in this lobby".to_string())
+        }
+        PostOutcome::Rejected(code) => {
+            Err(format!("[api] post_autosplit_status refused: {code:?}"))
+        }
+        PostOutcome::Transient => Err("[api] post_autosplit_status failed".to_string()),
+    }
 }
 
 #[derive(Serialize)]
@@ -192,17 +224,29 @@ pub async fn post_vod_complete(
     upload_ticket: &str,
     video_id: &str,
 ) -> Result<(), String> {
-    authed_post_body_void(
-        app,
-        &config::lobby_vod_complete_path(lobby_id),
-        &VodCompleteBody {
-            upload_ticket,
-            video_id,
-        },
-        "vod_complete",
-    )
-    .await
-    .ok_or_else(|| "[api] post_vod_complete failed".to_string())
+    let path = config::lobby_vod_complete_path(lobby_id);
+    let body = VodCompleteBody {
+        upload_ticket,
+        video_id,
+    };
+    for attempt in 1..=VOD_COMPLETE_ATTEMPTS {
+        match authed_post_body_void_outcome(app, &path, &body, "vod_complete").await {
+            PostOutcome::Ok(()) => return Ok(()),
+            PostOutcome::Rejected(
+                ApiErrorCode::UploadVideoNotFound | ApiErrorCode::RaceHistoryNotFound,
+            )
+            | PostOutcome::Transient
+                if attempt < VOD_COMPLETE_ATTEMPTS =>
+            {
+                tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt))).await;
+            }
+            PostOutcome::Rejected(code) => {
+                return Err(format!("[api] post_vod_complete refused: {code:?}"));
+            }
+            PostOutcome::Transient => {}
+        }
+    }
+    Err("[api] post_vod_complete failed".to_string())
 }
 
 #[derive(Debug, Deserialize)]
@@ -214,14 +258,27 @@ pub struct UploadTicketResponse {
 pub async fn post_request_upload_ticket(
     app: &AppHandle,
     lobby_id: &str,
+    fresh: bool,
 ) -> Result<UploadTicketResponse, String> {
-    authed_post_returning(
-        app,
-        &config::lobby_request_upload_ticket_path(lobby_id),
-        "request_upload_ticket",
-    )
-    .await
-    .ok_or_else(|| "[api] post_request_upload_ticket failed".to_string())
+    let mut path = config::lobby_request_upload_ticket_path(lobby_id);
+    if fresh {
+        path.push_str("?fresh=true");
+    }
+    for attempt in 1..=UPLOAD_TICKET_ATTEMPTS {
+        match authed_post_json_outcome(app, &path, "request_upload_ticket").await {
+            PostOutcome::Ok(ticket) => return Ok(ticket),
+            PostOutcome::Rejected(code) => {
+                return Err(format!(
+                    "[api] post_request_upload_ticket refused: {code:?}"
+                ));
+            }
+            PostOutcome::Transient if attempt < UPLOAD_TICKET_ATTEMPTS => {
+                tokio::time::sleep(std::time::Duration::from_secs(2u64.pow(attempt))).await;
+            }
+            PostOutcome::Transient => {}
+        }
+    }
+    Err("[api] post_request_upload_ticket failed".to_string())
 }
 
 pub enum ResumeTicket {

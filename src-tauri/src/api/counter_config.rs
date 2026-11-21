@@ -8,6 +8,7 @@ use super::cache::{cache_paths, CacheKind};
 use super::client::authed_get_json;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CounterMode {
     Total,
     PerSplit,
@@ -15,6 +16,7 @@ pub enum CounterMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CounterCadence {
     Instant,
     PerSplit,
@@ -38,9 +40,9 @@ pub struct CounterConfig {
 pub async fn fetch_counter_config(
     app: &AppHandle,
     game_id: &str,
-    payload_updated_at: Option<&str>,
+    payload_updated_at: Option<i64>,
 ) -> Option<Vec<CounterConfig>> {
-    let payload_updated_at = payload_updated_at?;
+    let payload_updated_at = payload_updated_at?.to_string();
 
     let paths = cache_paths(app, CacheKind::CounterConfig, game_id)?;
     let cache_path = paths.content;
@@ -48,7 +50,7 @@ pub async fn fetch_counter_config(
 
     if cache_path.exists() {
         if let Ok(cached_stamp) = std::fs::read_to_string(&stamp_path) {
-            if cached_stamp.trim() == payload_updated_at {
+            if cached_stamp.trim() == payload_updated_at.as_str() {
                 if let Ok(bytes) = std::fs::read(&cache_path) {
                     if let Ok(cfg) = serde_json::from_slice::<Vec<CounterConfig>>(&bytes) {
                         return Some(cfg);
@@ -68,7 +70,7 @@ pub async fn fetch_counter_config(
         if let Err(e) = std::fs::write(&cache_path, &bytes) {
             mlog!(LogCat::Counter, "[counters] cache write error: {e}");
         }
-        let _ = std::fs::write(&stamp_path, payload_updated_at);
+        let _ = std::fs::write(&stamp_path, &payload_updated_at);
     }
 
     Some(config)

@@ -342,8 +342,8 @@ async fn durable_split_loop(app: AppHandle, state: SharedState) {
             }
         };
         match api::lobby::submit_split(&app, &split).await {
-            outcome @ (PostOutcome::Ok(()) | PostOutcome::Rejected) => {
-                if matches!(outcome, PostOutcome::Rejected) {
+            outcome @ (PostOutcome::Ok(()) | PostOutcome::Rejected(_)) => {
+                if matches!(outcome, PostOutcome::Rejected(_)) {
                     mlog!(
                         LogCat::Api,
                         "[split] server rejected split {} for lobby {}: dropping, not retried",
