@@ -86,7 +86,7 @@ export default function Racing() {
     completedSegmentTimes,
     currentSegmentStartMs,
   } = state;
-  const whepUrl = lobby.whep_url || lobby.whip_url.replace(/\/whip$/, "/whep");
+  const whepUrl = lobby.whep_url;
 
   const elapsed = now + offsetMs - raceStartAt;
   const negative = elapsed < 0;
@@ -110,7 +110,7 @@ export default function Racing() {
           {display}
         </span>
       </div>
-      {lobby.race_config?.split_resource_updated_at && (
+      {lobby.race_config?.split_resource_updated_at_ms != null && (
         <SplitList
           currentIndex={splitIndex}
           completedTimes={completedSegmentTimes}

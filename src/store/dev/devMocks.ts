@@ -23,8 +23,8 @@ export const MOCK_LOBBY: LobbySetup = {
   game_name: "MOCK-Game",
   category_name: ["MOCK-Game", "Any%"],
   max_duration_minutes: 60,
-  race_start_at: null,
-  expires_at: Date.now() + 30 * 60 * 1000,
+  race_start_at_ms: null,
+  expires_at_ms: Date.now() + 30 * 60 * 1000,
   game_id: "MOCK-game-id",
   category_id: "MOCK-category-id",
   race_config: null,
@@ -77,4 +77,6 @@ export const MOCK_PHASE_ACTIONS: Record<Phase, () => AppAction[]> = {
   [Phase.ServerUnavailable]: () => [{ type: ActionType.ServerUnavailable }],
 
   [Phase.Banned]: () => [{ type: ActionType.Banned }],
+
+  [Phase.Outdated]: () => [{ type: ActionType.Outdated }],
 };

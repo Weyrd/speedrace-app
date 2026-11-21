@@ -41,11 +41,11 @@ pub struct RaceConfig {
     #[serde(default)]
     pub category_split_id: Option<String>,
     #[serde(default)]
-    pub split_resource_updated_at: Option<String>,
+    pub split_resource_updated_at_ms: Option<i64>,
     #[serde(default)]
-    pub autosplitter_updated_at: Option<String>,
+    pub autosplitter_updated_at_ms: Option<i64>,
     #[serde(default)]
-    pub counter_config_updated_at: Option<String>,
+    pub counter_config_updated_at_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,8 +63,8 @@ pub struct LobbySetup {
     pub game_name: String,
     pub category_name: Vec<String>,
     pub max_duration_minutes: u32,
-    pub race_start_at: Option<i64>,
-    pub expires_at: i64,
+    pub race_start_at_ms: Option<i64>,
+    pub expires_at_ms: i64,
     #[serde(default)]
     pub game_id: String,
     #[serde(default)]

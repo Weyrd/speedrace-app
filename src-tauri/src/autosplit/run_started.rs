@@ -69,7 +69,7 @@ async fn durable_run_started_loop(app: tauri::AppHandle, state: SharedState) {
         let elapsed_ms =
             pending.elapsed_at_capture_ms + pending.captured_at.elapsed().as_millis() as i64;
         match crate::api::lobby::submit_run_started(&app, &pending.lobby_id, elapsed_ms).await {
-            PostOutcome::Ok(()) | PostOutcome::Rejected => {
+            PostOutcome::Ok(()) | PostOutcome::Rejected(_) => {
                 let mut g = state.lock_state();
                 let superseded = g
                     .pending_run_started

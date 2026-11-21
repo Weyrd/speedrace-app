@@ -12,6 +12,7 @@ pub enum AppState {
     Finished,
     ServerUnavailable,
     Banned,
+    Outdated,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

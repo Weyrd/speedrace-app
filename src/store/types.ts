@@ -44,6 +44,7 @@ export const Phase = {
   Finished: "Finished",
   ServerUnavailable: "ServerUnavailable",
   Banned: "Banned",
+  Outdated: "Outdated",
 } as const;
 export type Phase = (typeof Phase)[keyof typeof Phase];
 
@@ -88,7 +89,8 @@ export type AppState =
       upload?: UploadStatusPayload;
     }
   | { phase: typeof Phase.ServerUnavailable }
-  | { phase: typeof Phase.Banned };
+  | { phase: typeof Phase.Banned }
+  | { phase: typeof Phase.Outdated };
 
 export const ActionType = {
   LoginStart: "LOGIN_START",
@@ -109,6 +111,7 @@ export const ActionType = {
   SplitFired: "SPLIT_FIRED",
   ServerUnavailable: "SERVER_UNAVAILABLE",
   Banned: "BANNED",
+  Outdated: "OUTDATED",
 } as const;
 export type ActionType = (typeof ActionType)[keyof typeof ActionType];
 
@@ -138,4 +141,5 @@ export type AppAction =
       newStartMs: number;
     }
   | { type: typeof ActionType.ServerUnavailable }
-  | { type: typeof ActionType.Banned };
+  | { type: typeof ActionType.Banned }
+  | { type: typeof ActionType.Outdated };

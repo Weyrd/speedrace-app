@@ -224,6 +224,11 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { phase: Phase.Banned };
     }
 
+    case ActionType.Outdated: {
+      if (state.phase === Phase.Outdated) return state;
+      return { phase: Phase.Outdated };
+    }
+
     default:
       return state;
   }

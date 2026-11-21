@@ -13,7 +13,7 @@ use tokio::time::{sleep, Duration};
 
 const REINSTANTIATE_DELAY_MS: u64 = 1000;
 
-pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_at: Option<&str>) {
+pub async fn fetch(app: &AppHandle, state: &SharedState, game_id: &str, updated_at: Option<i64>) {
     let bytes = crate::api::autosplitter::fetch_game_autosplitter(app, game_id, updated_at).await;
     let mut guard = state.lock_state();
     match &bytes {

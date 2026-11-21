@@ -98,7 +98,10 @@
   "update_modal": {
     "title": "Mise à jour {{version}} disponible",
     "later": "Plus tard",
-    "install": "Installer"
+    "install": "Installer",
+    "required_title": "Mise à jour requise",
+    "required_body": "Cette version de Speedrace n'est plus acceptée par le serveur.\nInstalle la dernière version pour continuer.",
+    "none_found": "Aucune mise à jour trouvée pour l'instant. Réessaie dans quelques minutes."
   },
   "header": {
     "open_lobby": "Ouvrir le lobby dans le navigateur",

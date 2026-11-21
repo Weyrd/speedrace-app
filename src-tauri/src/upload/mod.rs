@@ -8,7 +8,7 @@ use crate::state::{LockGlobalState, SharedState};
 use crate::stream::replay::ReplayArtifacts;
 use crate::ws::messages::UploadUnavailableReason;
 use assemble::assemble;
-use resumable::put_chunks;
+use resumable::{put_chunks, PutError};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -184,10 +184,25 @@ async fn run(
         return Err("replay file is empty".into());
     }
 
-    let video_id = put_chunks(app, &file, total, resumable_url, cancel).await?;
+    let (upload_ticket, video_id) = match put_chunks(app, &file, total, resumable_url, cancel).await
+    {
+        Ok(id) => (upload_ticket.to_string(), id),
+        Err(PutError::SessionGone(e)) => {
+            mlog!(
+                LogCat::Api,
+                "[upload] {e}, asking the back for a fresh session"
+            );
+            let fresh = crate::api::lobby::post_request_upload_ticket(app, lobby_id, true).await?;
+            match put_chunks(app, &file, total, &fresh.resumable_url, cancel).await {
+                Ok(id) => (fresh.upload_ticket, id),
+                Err(PutError::SessionGone(e) | PutError::Failed(e)) => return Err(e),
+            }
+        }
+        Err(PutError::Failed(e)) => return Err(e),
+    };
     emit(app, UploadPhase::Processing, total, total, None);
 
-    crate::api::lobby::post_vod_complete(app, lobby_id, upload_ticket, &video_id).await?;
+    crate::api::lobby::post_vod_complete(app, lobby_id, &upload_ticket, &video_id).await?;
 
     if let Some(a) = ReplayArtifacts::open(&base) {
         a.discard();
