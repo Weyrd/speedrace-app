@@ -1,4 +1,3 @@
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tauri::AppHandle;
@@ -17,7 +16,8 @@ pub struct UserData {
 pub struct Tokens {
     pub access_token: String,
     pub refresh_token: String,
-    pub expires_at: String,
+    #[serde(default)]
+    pub expires_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,7 +78,7 @@ impl TokenStore {
             Some(a) => a,
             None => return Duration::ZERO,
         };
-        seconds_until_expiry(&auth.tokens.expires_at)
+        seconds_until_expiry(auth.tokens.expires_at_ms)
     }
 
     pub fn is_expired(&self) -> bool {
@@ -86,15 +86,11 @@ impl TokenStore {
     }
 }
 
-pub fn seconds_until_expiry(expires_at: &str) -> Duration {
-    let expires = match chrono::DateTime::parse_from_rfc3339(expires_at) {
-        Ok(dt) => dt,
-        Err(_) => return Duration::ZERO,
-    };
-    let diff = expires.signed_duration_since(Utc::now());
-    if diff.num_seconds() <= 0 {
+pub fn seconds_until_expiry(expires_at_ms: i64) -> Duration {
+    let remaining_ms = expires_at_ms - chrono::Utc::now().timestamp_millis();
+    if remaining_ms < 1000 {
         Duration::ZERO
     } else {
-        Duration::from_secs(diff.num_seconds() as u64)
+        Duration::from_secs((remaining_ms / 1000) as u64)
     }
 }

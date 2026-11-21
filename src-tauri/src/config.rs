@@ -22,38 +22,38 @@ pub fn oauth_redirect_uri() -> &'static str {
     CELL.get_or_init(|| format!("{DEEP_LINK_SCHEME}://auth/callback"))
 }
 
-pub const LOBBY_CURRENT_PATH: &str = "/api/v1/lobby/current";
+pub const LOBBY_CURRENT_PATH: &str = "/api/v1/lobbies/current";
 
 pub fn lobby_stream_ready_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/stream-ready")
+    format!("/api/v1/lobbies/{lobby_id}/stream-ready")
 }
 
 pub fn lobby_stream_stopped_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/stream-stopped")
+    format!("/api/v1/lobbies/{lobby_id}/stream-stopped")
 }
 
 pub fn lobby_autosplit_status_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/autosplit-status")
+    format!("/api/v1/lobbies/{lobby_id}/autosplit-status")
 }
 
 pub fn lobby_finish_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/finish")
+    format!("/api/v1/lobbies/{lobby_id}/finish")
 }
 
 pub fn lobby_run_started_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/run-started")
+    format!("/api/v1/lobbies/{lobby_id}/run-started")
 }
 
 pub fn lobby_forfeit_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/forfeit")
+    format!("/api/v1/lobbies/{lobby_id}/forfeit")
 }
 
 pub fn lobby_vod_complete_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/vod-complete")
+    format!("/api/v1/lobbies/{lobby_id}/vod-complete")
 }
 
 pub fn lobby_request_upload_ticket_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/request-upload-ticket")
+    format!("/api/v1/lobbies/{lobby_id}/request-upload-ticket")
 }
 
 pub fn split_resource_path(category_split_id: &str) -> String {
@@ -69,11 +69,11 @@ pub fn game_counters_path(game_id: &str) -> String {
 }
 
 pub fn lobby_split_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/split")
+    format!("/api/v1/lobbies/{lobby_id}/split")
 }
 
 pub fn lobby_counter_path(lobby_id: &str) -> String {
-    format!("/api/v1/lobby/{lobby_id}/counter")
+    format!("/api/v1/lobbies/{lobby_id}/counter")
 }
 
 pub const WS_RECONNECT_BASE_SECS: u64 = 1;

@@ -224,7 +224,7 @@ async fn exchange_code(auth_code: String, code_verifier: String) -> Result<Store
         tokens: Tokens {
             access_token: token.access_token,
             refresh_token: token.refresh_token,
-            expires_at: token.expires_at,
+            expires_at_ms: token.expires_at_ms,
         },
         user: UserData {
             id: token.user.id,
@@ -252,7 +252,7 @@ struct PkceChallenge {
 struct TokenResponse {
     access_token: String,
     refresh_token: String,
-    expires_at: String,
+    expires_at_ms: i64,
     user: TokenResponseUser,
 }
 

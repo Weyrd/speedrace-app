@@ -67,7 +67,7 @@ pub async fn logout(app: AppHandle, state: State<'_, SharedState>) -> Result<(),
         }
 
         let _ = reqwest::Client::new()
-            .delete(config::api_url(config::AUTH_LOGOUT_PATH))
+            .post(config::api_url(config::AUTH_LOGOUT_PATH))
             .json(&LogoutRequest { refresh_token: rt })
             .send()
             .await;
