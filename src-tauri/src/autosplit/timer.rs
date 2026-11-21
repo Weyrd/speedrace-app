@@ -46,6 +46,13 @@ impl Timer for SpeedraceTimer {
             return;
         };
 
+        if !crate::counter::is_valid_counter_name(key) {
+            mlog!(
+                LogCat::Counter,
+                "[counter] name {key:?} is not plain ASCII (A-Z a-z 0-9 space _ -, 64 max), dropped"
+            );
+            return;
+        }
         let counter_name = key.to_string();
 
         let post = {
@@ -60,10 +67,11 @@ impl Timer for SpeedraceTimer {
             if raw_at_ms < 0 {
                 mlog!(
                     LogCat::Autosplit,
-                    "[autosplit] negative elapsed at counter sample (raw={raw_at_ms}ms), clamping to 0"
+                    "[autosplit] counter sample before the start (raw={raw_at_ms}ms), dropped"
                 );
+                return;
             }
-            let at_ms = raw_at_ms.max(0) as u64;
+            let at_ms = raw_at_ms as u64;
             let Some(lobby) = guard.lobby.as_ref() else {
                 return;
             };

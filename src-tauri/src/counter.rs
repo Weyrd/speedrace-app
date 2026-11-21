@@ -84,6 +84,13 @@ pub fn resolve_action(cfg: Option<&CounterConfig>) -> CounterAction {
     }
 }
 
+pub fn is_valid_counter_name(name: &str) -> bool {
+    (1..=64).contains(&name.len())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b' ' | b'_' | b'-'))
+}
+
 pub async fn flush_all_counter_buffers(app: &AppHandle, state: &SharedState, lobby_id: &str) {
     flush_counter_buffers(app, state, lobby_id, None).await;
 }
