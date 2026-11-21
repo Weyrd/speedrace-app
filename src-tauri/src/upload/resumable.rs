@@ -11,6 +11,22 @@ const MAX_RETRIES: u32 = 5;
 enum ProbeState {
     Incomplete(u64),
     Complete(String),
+    Gone,
+}
+
+pub(super) enum PutError {
+    SessionGone(String),
+    Failed(String),
+}
+
+impl From<String> for PutError {
+    fn from(e: String) -> Self {
+        PutError::Failed(e)
+    }
+}
+
+fn is_gone(status: u16) -> bool {
+    matches!(status, 404 | 410)
 }
 
 async fn probe(client: &reqwest::Client, url: &str, total: u64) -> Result<ProbeState, String> {
@@ -34,6 +50,9 @@ async fn probe(client: &reqwest::Client, url: &str, total: u64) -> Result<ProbeS
     if resp.status().is_success() {
         return Ok(ProbeState::Complete(parse_video_id(resp).await?));
     }
+    if is_gone(status) {
+        return Ok(ProbeState::Gone);
+    }
     Err(format!("resume probe returned {status}"))
 }
 
@@ -54,17 +73,34 @@ pub(super) async fn put_chunks(
     total: u64,
     url: &str,
     cancel: &Arc<AtomicBool>,
-) -> Result<String, String> {
+) -> Result<String, PutError> {
     let client = reqwest::Client::new();
     let mut f = tokio::fs::File::open(file)
         .await
         .map_err(|e| format!("replay open failed: {e}"))?;
-    let mut offset: u64 = 0;
+    let mut offset: u64 = match probe(&client, url, total).await {
+        Ok(ProbeState::Incomplete(next)) => next,
+        Ok(ProbeState::Complete(id)) => return Ok(id),
+        Ok(ProbeState::Gone) => {
+            return Err(PutError::SessionGone("upload session expired".into()));
+        }
+        Err(_) => 0,
+    };
+    if offset > 0 {
+        emit(app, UploadPhase::Uploading, offset, total, None);
+    }
     let mut retries: u32 = 0;
 
     loop {
         if cancel.load(Ordering::SeqCst) {
-            return Err("abandoned".into());
+            return Err(PutError::Failed("abandoned".into()));
+        }
+        if offset >= total {
+            return match probe(&client, url, total).await {
+                Ok(ProbeState::Complete(id)) => Ok(id),
+                Ok(ProbeState::Gone) => Err(PutError::SessionGone("upload session expired".into())),
+                _ => Err(PutError::Failed("upload ended without a video id".into())),
+            };
         }
 
         f.seek(std::io::SeekFrom::Start(offset))
@@ -98,15 +134,18 @@ pub(super) async fn put_chunks(
             }
             Ok(r) if r.status().is_success() => {
                 emit(app, UploadPhase::Uploading, total, total, None);
-                return parse_video_id(r).await;
+                return Ok(parse_video_id(r).await?);
             }
-            Ok(r) if matches!(r.status().as_u16(), 404 | 410) => {
-                return Err(format!("upload session expired ({})", r.status()));
+            Ok(r) if is_gone(r.status().as_u16()) => {
+                return Err(PutError::SessionGone(format!(
+                    "upload session expired ({})",
+                    r.status()
+                )));
             }
             Ok(r) => {
                 retries += 1;
                 if retries > MAX_RETRIES {
-                    return Err(format!("upload failed ({})", r.status()));
+                    return Err(PutError::Failed(format!("upload failed ({})", r.status())));
                 }
                 if let Some(id) =
                     backoff_and_resync(&client, url, total, retries, &mut offset).await
@@ -117,7 +156,7 @@ pub(super) async fn put_chunks(
             Err(e) => {
                 retries += 1;
                 if retries > MAX_RETRIES {
-                    return Err(format!("network error: {e}"));
+                    return Err(PutError::Failed(format!("network error: {e}")));
                 }
                 if let Some(id) =
                     backoff_and_resync(&client, url, total, retries, &mut offset).await
@@ -143,6 +182,6 @@ async fn backoff_and_resync(
             None
         }
         Ok(ProbeState::Complete(id)) => Some(id),
-        Err(_) => None,
+        Ok(ProbeState::Gone) | Err(_) => None,
     }
 }

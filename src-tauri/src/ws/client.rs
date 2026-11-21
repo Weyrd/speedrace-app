@@ -6,15 +6,18 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 use crate::auth::oauth::emit_auth_state;
+use crate::auth::refresh::RefreshError;
 use crate::auth::token_store::TokenStore;
 use crate::config;
 use crate::events::{APP_STATE, WS_STATUS};
 use crate::logging::{mlog, LogCat};
 use crate::models::{AppState, AuthStatePayload, AuthUser, WsStatus};
 use crate::state::{LockGlobalState, SharedState};
+use crate::ws::messages::{ClientHello, ServerMessage};
 
 const CLOSE_AUTH_INVALID: u16 = 4001;
 const CLOSE_BANNED: u16 = 4003;
+const CLOSE_CLIENT_OUTDATED: u16 = 4010;
 
 type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -22,7 +25,14 @@ enum AttemptResult {
     Connected(Box<WsStream>),
     Invalid,
     Banned,
+    Outdated,
     Transient,
+}
+
+enum RefreshOutcome {
+    Refreshed,
+    Unavailable,
+    SessionEnded,
 }
 
 pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
@@ -65,16 +75,33 @@ pub async fn ws_connect_loop(app: AppHandle, state: SharedState) {
                     LogCat::Ws,
                     "[ws] auth rejected (4001), attempting token refresh"
                 );
-                if refresh_or_logout(&app, &state).await {
-                    backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
-                    continue;
+                match refresh_or_logout(&app, &state).await {
+                    RefreshOutcome::Refreshed => {
+                        backoff = Duration::from_secs(config::WS_RECONNECT_BASE_SECS);
+                        continue;
+                    }
+                    RefreshOutcome::Unavailable => {
+                        if register_transient(&app, &state, &mut transient_failures, &mut backoff)
+                            .await
+                        {
+                            break;
+                        }
+                    }
+                    RefreshOutcome::SessionEnded => break,
                 }
-                break;
             }
             AttemptResult::Banned => {
                 mlog!(LogCat::Ws, "[ws] connection refused: banned (4003)");
                 crate::stream::shutdown_spawn(&app, &state);
                 emit_app_state(&app, &state, AppState::Banned);
+                break;
+            }
+            AttemptResult::Outdated => {
+                mlog!(
+                    LogCat::Ws,
+                    "[ws] connection refused: client outdated (4010)"
+                );
+                emit_app_state(&app, &state, AppState::Outdated);
                 break;
             }
             AttemptResult::Transient => {
@@ -119,14 +146,24 @@ pub async fn retry_once(app: AppHandle, state: SharedState) {
         }
         AttemptResult::Invalid => {
             mlog!(LogCat::Ws, "[ws] retry auth rejected (4001), refreshing");
-            if refresh_or_logout(&app, &state).await {
-                crate::lifecycle::start_background_loops(&app, &state);
+            match refresh_or_logout(&app, &state).await {
+                RefreshOutcome::Refreshed => {
+                    crate::lifecycle::start_background_loops(&app, &state);
+                }
+                RefreshOutcome::Unavailable => {
+                    emit_app_state(&app, &state, AppState::ServerUnavailable);
+                }
+                RefreshOutcome::SessionEnded => {}
             }
         }
         AttemptResult::Banned => {
             mlog!(LogCat::Ws, "[ws] retry refused: banned (4003)");
             crate::stream::shutdown_spawn(&app, &state);
             emit_app_state(&app, &state, AppState::Banned);
+        }
+        AttemptResult::Outdated => {
+            mlog!(LogCat::Ws, "[ws] retry refused: client outdated (4010)");
+            emit_app_state(&app, &state, AppState::Outdated);
         }
         AttemptResult::Transient => {
             emit_app_state(&app, &state, AppState::ServerUnavailable);
@@ -147,7 +184,7 @@ async fn attempt_connection(app: &AppHandle, state: &SharedState, token: &str) -
         }
     };
 
-    let auth_msg = format!(r#"{{"type":"auth","token":"{}"}}"#, token);
+    let auth_msg = ClientHello::auth(token).to_json();
     if ws_stream
         .send(Message::Text(auth_msg.into()))
         .await
@@ -159,12 +196,22 @@ async fn attempt_connection(app: &AppHandle, state: &SharedState, token: &str) -
 
     loop {
         match ws_stream.next().await {
-            Some(Ok(Message::Text(_))) => return AttemptResult::Connected(Box::new(ws_stream)),
+            Some(Ok(Message::Text(text))) => {
+                if let Ok(ServerMessage::AuthOk(ok)) = ServerMessage::parse(&text) {
+                    mlog!(
+                        LogCat::Ws,
+                        "[ws] auth_ok, server protocol {}",
+                        ok.protocol_version
+                    );
+                }
+                return AttemptResult::Connected(Box::new(ws_stream));
+            }
             Some(Ok(Message::Close(frame))) => {
                 let code = frame.map(|f| u16::from(f.code)).unwrap_or(0);
                 return match code {
                     CLOSE_AUTH_INVALID => AttemptResult::Invalid,
                     CLOSE_BANNED => AttemptResult::Banned,
+                    CLOSE_CLIENT_OUTDATED => AttemptResult::Outdated,
                     _ => AttemptResult::Transient,
                 };
             }
@@ -210,7 +257,19 @@ async fn read_loop(app: &AppHandle, state: &SharedState, mut ws_stream: WsStream
                         mlog!(LogCat::Ws, "[ws] received message: {}", text);
                         crate::ws::handler::handle_message(&text, app, state);
                     }
-                    Some(Ok(Message::Close(_))) | None => {
+                    Some(Ok(Message::Close(frame))) => {
+                        match frame {
+                            Some(f) => mlog!(
+                                LogCat::Ws,
+                                "[ws] connection closed by server: {} {}",
+                                u16::from(f.code),
+                                f.reason
+                            ),
+                            None => mlog!(LogCat::Ws, "[ws] connection closed by server"),
+                        }
+                        return false;
+                    }
+                    None => {
                         mlog!(LogCat::Ws, "[ws] connection closed by server");
                         return false;
                     }
@@ -247,28 +306,37 @@ async fn register_transient(
     false
 }
 
-async fn refresh_or_logout(app: &AppHandle, state: &SharedState) -> bool {
+async fn refresh_or_logout(app: &AppHandle, state: &SharedState) -> RefreshOutcome {
     let store = TokenStore::new(app.clone());
     let refresh_token = match store.load() {
         Some(a) => a.tokens.refresh_token,
         None => {
             logout(app, state, &store);
-            return false;
+            return RefreshOutcome::SessionEnded;
         }
     };
     match crate::auth::refresh::do_refresh(&refresh_token).await {
         Ok(tokens) => match store.update_tokens(tokens) {
-            Ok(()) => true,
+            Ok(()) => RefreshOutcome::Refreshed,
             Err(e) => {
                 mlog!(LogCat::Ws, "[ws] failed to persist refreshed tokens: {e}");
                 logout(app, state, &store);
-                false
+                RefreshOutcome::SessionEnded
             }
         },
-        Err(e) => {
+        Err(RefreshError::Transient(e)) => {
+            mlog!(LogCat::Ws, "[ws] token refresh unavailable: {e}");
+            RefreshOutcome::Unavailable
+        }
+        Err(RefreshError::Banned) => {
+            mlog!(LogCat::Ws, "[ws] token refresh refused: account banned");
+            crate::auth::refresh::end_session_banned(app, &store);
+            RefreshOutcome::SessionEnded
+        }
+        Err(e @ RefreshError::Revoked(_)) => {
             mlog!(LogCat::Ws, "[ws] token refresh failed: {e}");
             logout(app, state, &store);
-            false
+            RefreshOutcome::SessionEnded
         }
     }
 }

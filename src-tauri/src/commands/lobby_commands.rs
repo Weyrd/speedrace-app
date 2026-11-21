@@ -89,10 +89,10 @@ async fn durable_finish_loop(app: AppHandle, state: SharedState) {
                 finalize_finish(&app, &state, &pending.lobby_id, result);
                 break;
             }
-            PostOutcome::Rejected => {
+            PostOutcome::Rejected(code) => {
                 mlog!(
                     LogCat::Api,
-                    "[finish] server rejected finish for lobby {}: local time {}ms not confirmed",
+                    "[finish] server rejected finish for lobby {} ({code:?}): local time {}ms not confirmed",
                     pending.lobby_id,
                     pending.finishing_time_ms
                 );
@@ -226,7 +226,7 @@ pub async fn retry_upload(app: AppHandle, state: State<'_, SharedState>) -> Resu
             .map(|l| l.lobby_id.clone())
             .ok_or("no race to upload for")?
     };
-    let ticket = api::lobby::post_request_upload_ticket(&app, &lobby_id).await?;
+    let ticket = api::lobby::post_request_upload_ticket(&app, &lobby_id, false).await?;
     crate::upload::spawn(
         &app,
         state.inner(),

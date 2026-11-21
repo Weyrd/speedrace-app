@@ -100,7 +100,10 @@
   "update_modal": {
     "title": "Update {{version}} available",
     "later": "Later",
-    "install": "Install"
+    "install": "Install",
+    "required_title": "Update required",
+    "required_body": "This version of Speedrace is no longer accepted by the server.\nInstall the latest version to continue.",
+    "none_found": "No update found yet. Try again in a few minutes."
   },
   "header": {
     "open_lobby": "Open lobby in browser",

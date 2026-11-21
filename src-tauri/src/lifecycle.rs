@@ -1,10 +1,12 @@
 use crate::api::lobby::fetch_current_lobby;
 use crate::auth::oauth::emit_auth_state;
+use crate::auth::refresh::RefreshError;
 use crate::auth::token_store::TokenStore;
 use crate::events::{APP_STATE, WS_LOBBY_SETUP};
 use crate::logging::{mlog, LogCat};
 use crate::models::{AppState, AuthStatePayload, AuthUser, LobbySetup, LobbyStatus, PlayerStatus};
 use crate::state::{LockGlobalState, SharedState};
+use crate::ws::messages::LobbyClosedMsg;
 use tauri::AppHandle;
 use tauri::Emitter;
 
@@ -26,7 +28,7 @@ pub async fn fetch_and_apply_current_lobby(
                 } else {
                     LobbyStatus::to_app_state(&lobby_resp.lobby_status)
                 };
-                guard.race_start_at = lobby_resp.race_start_at;
+                guard.race_start_at = lobby_resp.race_start_at_ms;
                 guard.lobby = Some(lobby_resp.clone());
             }
             Some((lobby_resp, player_done))
@@ -68,6 +70,50 @@ pub async fn sync_current_lobby(app: &AppHandle, state: &SharedState) -> bool {
         }
         None => false,
     }
+}
+
+pub fn spawn_resync_if_still_in(app: &AppHandle, lobby_id: &str) {
+    use tauri::Manager;
+    let state = app.state::<SharedState>().inner().clone();
+    let still_in = state
+        .lock_state()
+        .lobby
+        .as_ref()
+        .is_some_and(|l| l.lobby_id == lobby_id);
+    if !still_in {
+        return;
+    }
+    mlog!(
+        LogCat::Lifecycle,
+        "[lobby] the back no longer counts this player in lobby {lobby_id}, resyncing"
+    );
+    let app = app.clone();
+    let lobby_id = lobby_id.to_string();
+    tauri::async_runtime::spawn(async move {
+        match fetch_current_lobby(&app).await {
+            Some(current) if current.lobby_id == lobby_id => {}
+            Some(_) => {
+                sync_current_lobby(&app, &state).await;
+            }
+            None => {
+                let still_in = state
+                    .lock_state()
+                    .lobby
+                    .as_ref()
+                    .is_some_and(|l| l.lobby_id == lobby_id);
+                if still_in {
+                    crate::ws::handler::close_lobby(
+                        &app,
+                        &state,
+                        LobbyClosedMsg {
+                            lobby_id,
+                            reason: "kicked".to_string(),
+                        },
+                    );
+                }
+            }
+        }
+    });
 }
 
 pub fn start_background_loops(app: &AppHandle, state: &SharedState) -> bool {
@@ -133,7 +179,25 @@ pub async fn restore_session(app: AppHandle, shared_state: SharedState) {
                 }
                 stored.user
             }
-            Err(e) => {
+            Err(RefreshError::Transient(e)) => {
+                mlog!(
+                    LogCat::Lifecycle,
+                    "[startup] refresh unavailable, keeping the session: {e}"
+                );
+                {
+                    let mut guard = shared_state.lock_state();
+                    guard.user = Some(stored.user);
+                    guard.app_state = AppState::ServerUnavailable;
+                }
+                let _ = app.emit(APP_STATE, AppState::ServerUnavailable);
+                return;
+            }
+            Err(RefreshError::Banned) => {
+                mlog!(LogCat::Lifecycle, "[startup] account banned");
+                crate::auth::refresh::end_session_banned(&app, &store);
+                return;
+            }
+            Err(e @ RefreshError::Revoked(_)) => {
                 mlog!(
                     LogCat::Lifecycle,
                     "[startup] refresh failed (session expired): {e}"

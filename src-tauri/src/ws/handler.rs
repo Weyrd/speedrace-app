@@ -14,7 +14,7 @@ pub struct AutosplitProbePayload {
 use crate::logging::{mlog, LogCat};
 use crate::models::AppState;
 use crate::state::{AutosplitSource, LockGlobalState, SharedState};
-use crate::ws::messages::ServerMessage;
+use crate::ws::messages::{LobbyClosedMsg, ServerMessage};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -22,7 +22,7 @@ use std::sync::{
 use tauri::{AppHandle, Emitter};
 
 pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
-    let msg: ServerMessage = match serde_json::from_str(raw) {
+    let msg = match ServerMessage::parse(raw) {
         Ok(m) => m,
         Err(e) => {
             mlog!(LogCat::Ws, "[ws] parse error: {e} - raw: {raw}");
@@ -88,25 +88,25 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
 
         ServerMessage::LobbyStart(mut payload) => {
             // start_delay_ms = handicap
-            let effective_start = payload.race_start_at + payload.start_delay_ms as i64;
-            payload.race_start_at = effective_start;
-            if payload.countdown_start_at.is_none() {
+            let effective_start = payload.race_start_at_ms + payload.start_delay_ms as i64;
+            payload.race_start_at_ms = effective_start;
+            if payload.countdown_start_at_ms.is_none() {
                 mlog!(
                     LogCat::Ws,
-                    "[ws] LobbyStart without countdown_start_at (old back): replay will not be trimmed"
+                    "[ws] LobbyStart without countdown_start_at_ms: replay will not be trimmed"
                 );
             }
             {
                 let mut guard = state.lock_state();
                 guard.app_state = AppState::RaceInProgress;
                 guard.race_start_at = Some(effective_start);
-                guard.countdown_start_at_ms = payload.countdown_start_at;
+                guard.countdown_start_at_ms = payload.countdown_start_at_ms;
                 mlog!(
                     LogCat::Ws,
-                    "[ws] LobbyStart: race_start_at={} start_delay_ms={} countdown_start_at={:?} wasm_cached={}",
+                    "[ws] LobbyStart: race_start_at_ms={} start_delay_ms={} countdown_start_at_ms={:?} wasm_cached={}",
                     effective_start,
                     payload.start_delay_ms,
-                    payload.countdown_start_at,
+                    payload.countdown_start_at_ms,
                     guard.autosplitter_wasm.is_some()
                 );
             }
@@ -127,33 +127,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 payload.lobby_id,
                 payload.reason
             );
-            {
-                let mut guard = state.lock_state();
-                guard.autosplitter_cancel.store(true, Ordering::SeqCst);
-                guard.autosplitter_wasm = None;
-                guard.autosplitter_runtime = None;
-                guard.probe_running = false;
-                guard.livesplit_running = false;
-                guard.last_autosplit_reported = None;
-                guard.autosplit.source = None;
-                guard.autosplit.wasm_attached = false;
-                guard.autosplit.livesplit_connected = false;
-                guard.autosplit.livesplit_splits_match = None;
-                guard.app_state = AppState::Idle;
-                guard.lobby = None;
-                guard.race_start_at = None;
-                guard.pending_finish = None;
-                guard.split_run = None;
-                guard.current_split_index = 0;
-                guard.segment_start_ms = 0;
-                guard.counter_config = None;
-                guard.counter_buffers.clear();
-                guard.pending_splits.clear();
-                guard.overlay_recent_splits.clear();
-                guard.pending_early_splits.clear();
-            }
-            crate::stream::shutdown_spawn(app, state);
-            let _ = app.emit(WS_LOBBY_CLOSED, payload);
+            close_lobby(app, state, payload);
         }
 
         ServerMessage::PlayerResult(payload) => {
@@ -202,8 +176,46 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
             }
         }
 
-        ServerMessage::Ping => {}
+        ServerMessage::AuthOk(payload) => {
+            mlog!(
+                LogCat::Ws,
+                "[ws] auth_ok outside handshake, server protocol {}",
+                payload.protocol_version
+            );
+        }
+
+        ServerMessage::Ping | ServerMessage::Unknown => {}
     }
+}
+
+pub(crate) fn close_lobby(app: &AppHandle, state: &SharedState, payload: LobbyClosedMsg) {
+    {
+        let mut guard = state.lock_state();
+        guard.autosplitter_cancel.store(true, Ordering::SeqCst);
+        guard.autosplitter_wasm = None;
+        guard.autosplitter_runtime = None;
+        guard.probe_running = false;
+        guard.livesplit_running = false;
+        guard.last_autosplit_reported = None;
+        guard.autosplit.source = None;
+        guard.autosplit.wasm_attached = false;
+        guard.autosplit.livesplit_connected = false;
+        guard.autosplit.livesplit_splits_match = None;
+        guard.app_state = AppState::Idle;
+        guard.lobby = None;
+        guard.race_start_at = None;
+        guard.pending_finish = None;
+        guard.split_run = None;
+        guard.current_split_index = 0;
+        guard.segment_start_ms = 0;
+        guard.counter_config = None;
+        guard.counter_buffers.clear();
+        guard.pending_splits.clear();
+        guard.overlay_recent_splits.clear();
+        guard.pending_early_splits.clear();
+    }
+    crate::stream::shutdown_spawn(app, state);
+    let _ = app.emit(WS_LOBBY_CLOSED, payload);
 }
 
 pub fn init_lobby_resources(
@@ -217,16 +229,16 @@ pub fn init_lobby_resources(
     let Some(category_split_id) = race_config.category_split_id.clone() else {
         return;
     };
-    if race_config.split_resource_updated_at.is_none() {
+    if race_config.split_resource_updated_at_ms.is_none() {
         return;
     }
     let is_bingo = lobby.race_type == crate::models::lobby::RaceType::Bingo;
     {
         let app = app.clone();
         let state = state.clone();
-        let updated_at = race_config.split_resource_updated_at.clone();
+        let updated_at = race_config.split_resource_updated_at_ms;
         tauri::async_runtime::spawn(async move {
-            load_split_resource(&app, &state, &category_split_id, updated_at.as_deref()).await;
+            load_split_resource(&app, &state, &category_split_id, updated_at).await;
         });
     }
     let can_probe = {
@@ -242,15 +254,15 @@ pub fn init_lobby_resources(
         let app = app.clone();
         let state = state.clone();
         let game_id = lobby.game_id.clone();
-        let updated_at = race_config.autosplitter_updated_at.clone();
-        let counter_updated_at = race_config.counter_config_updated_at.clone();
+        let updated_at = race_config.autosplitter_updated_at_ms;
+        let counter_updated_at = race_config.counter_config_updated_at_ms;
         tauri::async_runtime::spawn(async move {
             let (_, cfg) = tokio::join!(
-                crate::autosplit::wasm::fetch(&app, &state, &game_id, updated_at.as_deref()),
+                crate::autosplit::wasm::fetch(&app, &state, &game_id, updated_at),
                 crate::api::counter_config::fetch_counter_config(
                     &app,
                     &game_id,
-                    counter_updated_at.as_deref(),
+                    counter_updated_at
                 )
             );
             if let Some(cfg) = cfg {
@@ -509,7 +521,7 @@ async fn load_split_resource(
     app: &AppHandle,
     state: &SharedState,
     category_split_id: &str,
-    updated_at: Option<&str>,
+    updated_at: Option<i64>,
 ) {
     mlog!(
         LogCat::Autosplit,

@@ -14,15 +14,15 @@ struct SplitResourceResponse {
     #[allow(dead_code)]
     name: String,
     lss_content: String,
-    updated_at: String,
+    updated_at_ms: i64,
 }
 
 pub async fn fetch_split_resource_lss(
     app: &AppHandle,
     category_split_id: &str,
-    payload_updated_at: Option<&str>,
+    payload_updated_at: Option<i64>,
 ) -> Option<String> {
-    let payload_updated_at = payload_updated_at?;
+    let payload_updated_at = payload_updated_at?.to_string();
 
     let paths = cache_paths(app, CacheKind::Split, category_split_id)?;
     let cache_path = paths.content;
@@ -30,7 +30,7 @@ pub async fn fetch_split_resource_lss(
 
     if cache_path.exists() {
         if let Ok(cached_stamp) = std::fs::read_to_string(&stamp_path) {
-            if cached_stamp.trim() == payload_updated_at {
+            if cached_stamp.trim() == payload_updated_at.as_str() {
                 return std::fs::read_to_string(&cache_path)
                     .map_err(|e| mlog!(LogCat::Autosplit, "[split] cache read error: {e}"))
                     .ok();
@@ -42,7 +42,7 @@ pub async fn fetch_split_resource_lss(
     let body: SplitResourceResponse = authed_get_json(app, &path, "split").await?;
 
     let content = body.lss_content;
-    let stamp = body.updated_at;
+    let stamp = body.updated_at_ms.to_string();
 
     if let Some(parent) = cache_path.parent() {
         let _ = std::fs::create_dir_all(parent);
