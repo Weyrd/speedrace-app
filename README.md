@@ -198,6 +198,7 @@ AI generation used for:
 - similarity algorithm for bingo goals (see `src/services/bingo/similarity.rs`)
 - bingo PlayerSlot ident system (lookup mongodb) typed builder
 - generate schema of requests automatically via openapi to check them in bruno
+- seeding test data race/bingo etc
 
   **Web:**
 
@@ -213,6 +214,8 @@ AI generation used for:
 - refactor domain separation lobby (codebase)
 - ci check dtos drift cron against back openapi
 - component tier coverage picker for bingo goal
+- find all the aria label missing for accessibility
+- Lint ratchet -> configure elsint to check pattern problem in codebase
 
 ⚠️ Also used for maquettes/mockups on complex layout & UX: timeline results, old lobby creation (redone by hand later, complete rework by hand since then execpt setting row), lobby waiting screen, how to "fold" streams in `/live` view.
 
