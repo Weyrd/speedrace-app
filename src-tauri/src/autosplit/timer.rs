@@ -102,7 +102,10 @@ impl Timer for SpeedraceTimer {
                         .record(sample);
                     None
                 }
-                crate::counter::CounterAction::Post => Some((lobby_id, sample)),
+                crate::counter::CounterAction::Post => guard
+                    .counter_instant_sent
+                    .claim(&counter_name, parsed)
+                    .then_some((lobby_id, sample)),
             }
         };
 
@@ -110,12 +113,22 @@ impl Timer for SpeedraceTimer {
             return;
         };
         let app = self.app.clone();
+        let state = self.state.clone();
         tauri::async_runtime::spawn(async move {
-            if let Err(e) =
-                crate::api::lobby::post_player_counter(&app, &lobby_id, counter_name, vec![sample])
-                    .await
+            let value = sample.value;
+            if let Err(e) = crate::api::lobby::post_player_counter(
+                &app,
+                &lobby_id,
+                counter_name.clone(),
+                vec![sample],
+            )
+            .await
             {
                 mlog!(LogCat::Autosplit, "[autosplit] post_player_counter: {e}");
+                state
+                    .lock_state()
+                    .counter_instant_sent
+                    .release(&counter_name, value);
             }
         });
     }

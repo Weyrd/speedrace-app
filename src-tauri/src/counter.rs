@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -81,6 +81,29 @@ pub fn resolve_action(cfg: Option<&CounterConfig>) -> CounterAction {
         Some(c) if !c.enabled => CounterAction::Drop,
         Some(c) if c.cadence == CounterCadence::Instant => CounterAction::Post,
         Some(c) => CounterAction::Buffer(c.mode),
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct InstantSentValues(HashMap<String, i64>);
+
+impl InstantSentValues {
+    pub fn claim(&mut self, counter_name: &str, value: i64) -> bool {
+        if self.0.get(counter_name) == Some(&value) {
+            return false;
+        }
+        self.0.insert(counter_name.to_string(), value);
+        true
+    }
+
+    pub fn release(&mut self, counter_name: &str, value: i64) {
+        if self.0.get(counter_name) == Some(&value) {
+            self.0.remove(counter_name);
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::auth::token_store::UserData;
-use crate::counter::CounterBuffer;
+use crate::counter::{CounterBuffer, InstantSentValues};
 use crate::models::{AppState, LobbySetup, WsStatus};
 use std::collections::HashMap;
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
@@ -96,6 +96,7 @@ pub struct GlobalState {
     pub autosplit: AutosplitLinks,
     pub counter_config: Option<Vec<crate::api::counter_config::CounterConfig>>,
     pub counter_buffers: HashMap<String, CounterBuffer>,
+    pub counter_instant_sent: InstantSentValues,
     pub pending_finish: Option<PendingFinish>,
     pub pending_splits: Vec<PendingSplit>,
     pub retry: RetryLoops,
@@ -147,6 +148,7 @@ impl GlobalState {
             autosplit: AutosplitLinks::default(),
             counter_config: None,
             counter_buffers: HashMap::new(),
+            counter_instant_sent: InstantSentValues::default(),
             pending_finish: None,
             pending_splits: Vec::new(),
             retry: RetryLoops::default(),

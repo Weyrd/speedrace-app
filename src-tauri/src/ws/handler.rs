@@ -62,6 +62,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 guard.autosplit.livesplit_connected = false;
                 guard.autosplit.livesplit_splits_match = None;
                 guard.counter_buffers.clear();
+                guard.counter_instant_sent.clear();
                 guard.pending_splits.clear();
                 guard.overlay_recent_splits.clear();
                 guard.replay_base = None;
@@ -100,6 +101,7 @@ pub fn handle_message(raw: &str, app: &AppHandle, state: &SharedState) {
                 let mut guard = state.lock_state();
                 guard.app_state = AppState::RaceInProgress;
                 guard.race_start_at = Some(effective_start);
+                guard.counter_instant_sent.clear();
                 guard.countdown_start_at_ms = payload.countdown_start_at_ms;
                 mlog!(
                     LogCat::Ws,
@@ -210,6 +212,7 @@ pub(crate) fn close_lobby(app: &AppHandle, state: &SharedState, payload: LobbyCl
         guard.segment_start_ms = 0;
         guard.counter_config = None;
         guard.counter_buffers.clear();
+        guard.counter_instant_sent.clear();
         guard.pending_splits.clear();
         guard.overlay_recent_splits.clear();
         guard.pending_early_splits.clear();
