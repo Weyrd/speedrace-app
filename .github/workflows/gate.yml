@@ -31,7 +31,6 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      # webkit2gtk and friends are required to compile the Tauri crate on Linux.
       - name: Install Linux system dependencies
         run: |
           sudo apt-get update

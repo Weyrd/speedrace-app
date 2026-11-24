@@ -9,8 +9,8 @@
   bundler picks it up. Run once after cloning (and after bumping the pin below).
   Idempotent: skips if the target already exists, unless -Force.
 
-  The build contains exactly the components the app's pipeline uses (see
-  README.md) — it is not a general-purpose ffmpeg.
+  The build contains exactly the components the app's pipeline uses — it is
+  not a general-purpose ffmpeg.
 
   DTLS backend matters: the WHIP muxer needs a real DTLS-SRTP stack to publish to
   MediaMTX. This build is --enable-gnutls. Do NOT swap in a Windows SChannel build
@@ -24,7 +24,7 @@
   the asset lives on records the exact upstream source commit and configure flags.
 
 .NOTES
-  To bump ffmpeg: rebuild with build-ffmpeg.ps1, verify per README.md,
+  To bump ffmpeg: rebuild with build-ffmpeg.ps1, verify it,
   upload as a NEW prerelease tag (never overwrite an existing asset), then update
   $Url and $ExpectedSha256 here. The release must stay marked prerelease or it
   shadows `releases/latest`, which the app updater resolves.

@@ -22,7 +22,7 @@ jobs:
           config: cliff.toml
           args: --latest --strip header
 
-  # Create draft release (once, no build)
+  #  draft release
   create-release:
     needs: changelog
     runs-on: ubuntu-22.04
