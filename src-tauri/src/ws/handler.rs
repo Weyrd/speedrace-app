@@ -213,6 +213,7 @@ pub(crate) fn close_lobby(app: &AppHandle, state: &SharedState, payload: LobbyCl
         guard.counter_config = None;
         guard.counter_buffers.clear();
         guard.counter_instant_sent.clear();
+        guard.counter_prestart.clear();
         guard.pending_splits.clear();
         guard.overlay_recent_splits.clear();
         guard.pending_early_splits.clear();

@@ -1,7 +1,7 @@
 use crate::auth::token_store::UserData;
 use crate::counter::{CounterBuffer, InstantSentValues};
 use crate::models::{AppState, LobbySetup, WsStatus};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
 use std::time::Instant;
 
@@ -97,6 +97,7 @@ pub struct GlobalState {
     pub counter_config: Option<Vec<crate::api::counter_config::CounterConfig>>,
     pub counter_buffers: HashMap<String, CounterBuffer>,
     pub counter_instant_sent: InstantSentValues,
+    pub counter_prestart: BTreeMap<String, i64>,
     pub pending_finish: Option<PendingFinish>,
     pub pending_splits: Vec<PendingSplit>,
     pub retry: RetryLoops,
@@ -149,6 +150,7 @@ impl GlobalState {
             counter_config: None,
             counter_buffers: HashMap::new(),
             counter_instant_sent: InstantSentValues::default(),
+            counter_prestart: BTreeMap::new(),
             pending_finish: None,
             pending_splits: Vec::new(),
             retry: RetryLoops::default(),
@@ -203,6 +205,7 @@ pub fn reset_run_start(g: &mut GlobalState) {
     g.pending_run_started = None;
     g.wasm_last_igt = None;
     g.pending_early_splits.clear();
+    g.counter_prestart.clear();
 }
 
 pub type SharedState = Arc<Mutex<GlobalState>>;

@@ -53,84 +53,11 @@ impl Timer for SpeedraceTimer {
             );
             return;
         }
-        let counter_name = key.to_string();
 
-        let post = {
-            let mut guard = self.state.lock_state();
-            if guard.run_forfeited || guard.pending_finish.is_some() {
-                return;
-            }
-            let Some(race_start_at) = guard.race_start_at else {
-                return;
-            };
-            let raw_at_ms = guard.server_now_ms() - race_start_at;
-            if raw_at_ms < 0 {
-                mlog!(
-                    LogCat::Autosplit,
-                    "[autosplit] counter sample before the start (raw={raw_at_ms}ms), dropped"
-                );
-                return;
-            }
-            let at_ms = raw_at_ms as u64;
-            let Some(lobby) = guard.lobby.as_ref() else {
-                return;
-            };
-            let lobby_id = lobby.lobby_id.clone();
-            if guard
-                .split_run
-                .as_ref()
-                .is_some_and(|run| guard.current_split_index >= run.len() as u32)
-            {
-                return;
-            }
-            let sample = crate::counter::CounterSample {
-                value: parsed,
-                split_index: Some(guard.current_split_index),
-                at_ms,
-            };
-            let cfg = guard
-                .counter_config
-                .as_ref()
-                .and_then(|c| c.iter().find(|x| x.counter_name == counter_name).cloned());
-            match crate::counter::resolve_action(cfg.as_ref()) {
-                crate::counter::CounterAction::Drop => None,
-                crate::counter::CounterAction::Buffer(mode) => {
-                    guard
-                        .counter_buffers
-                        .entry(counter_name.clone())
-                        .or_insert_with(|| crate::counter::CounterBuffer::for_mode(mode))
-                        .record(sample);
-                    None
-                }
-                crate::counter::CounterAction::Post => guard
-                    .counter_instant_sent
-                    .claim(&counter_name, parsed)
-                    .then_some((lobby_id, sample)),
-            }
-        };
-
-        let Some((lobby_id, sample)) = post else {
-            return;
-        };
-        let app = self.app.clone();
-        let state = self.state.clone();
-        tauri::async_runtime::spawn(async move {
-            let value = sample.value;
-            if let Err(e) = crate::api::lobby::post_player_counter(
-                &app,
-                &lobby_id,
-                counter_name.clone(),
-                vec![sample],
-            )
-            .await
-            {
-                mlog!(LogCat::Autosplit, "[autosplit] post_player_counter: {e}");
-                state
-                    .lock_state()
-                    .counter_instant_sent
-                    .release(&counter_name, value);
-            }
-        });
+        let post = crate::counter::admit_sample(&mut self.state.lock_state(), key, parsed);
+        if let Some(post) = post {
+            crate::counter::spawn_instant_post(&self.app, &self.state, post);
+        }
     }
 
     fn start(&mut self) {

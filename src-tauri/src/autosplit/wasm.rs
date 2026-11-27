@@ -159,6 +159,7 @@ async fn supervise(
 
         crate::ws::handler::maybe_commit_source(&state);
         crate::autosplit::split::flush_early_splits(&app, &state);
+        crate::counter::flush_prestart_counters(&app, &state);
 
         let tick_rate = splitter.tick_rate();
 
